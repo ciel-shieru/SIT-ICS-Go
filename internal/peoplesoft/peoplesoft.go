@@ -13,6 +13,7 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"golang.org/x/net/html"
 	"golang.org/x/net/proxy"
+	"net/url"
 )
 
 type Field struct {
@@ -44,17 +45,23 @@ func NewClient(baseURL, proxyURL string) *Client {
 	var httpClient *http.Client
 
 	if proxyURL != "" {
-		proxyDialer, err := proxy.SOCKS5("tcp", proxyURL, nil, proxy.Direct)
+		parsed, err := url.Parse(proxyURL)
 		if err != nil {
 			httpClient = &http.Client{}
 		} else {
-			httpClient = &http.Client{
-				Timeout: 30 * time.Second,
-				Transport: &http.Transport{
-					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-						return proxyDialer.Dial(network, addr)
+			proxyAddr := parsed.Host
+			proxyDialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
+			if err != nil {
+				httpClient = &http.Client{}
+			} else {
+				httpClient = &http.Client{
+					Timeout: 30 * time.Second,
+					Transport: &http.Transport{
+						DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+							return proxyDialer.Dial(network, addr)
+						},
 					},
-				},
+				}
 			}
 		}
 	} else {
@@ -126,7 +133,7 @@ func (c *Client) SetCookies(ctx context.Context, cookies []browser.Cookie) ([]br
 func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, error) {
 	formData := strings.NewReader(fmt.Sprintf("_PANEL_MODE=VIEW&_PANELS=0&_PROCESS=SSR_SSENRL_SCHD_W&_ACTION=VIEW&_ADVPRTFLG=N&_DISPLAYPAGELINKS=Y&WEEK_DATE=%s", weekDate))
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL", formData)
+	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(c.baseURL, "/")+"/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL", formData)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
