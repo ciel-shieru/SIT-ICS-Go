@@ -52,6 +52,10 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 		launcherInst = launcherInst.Bin(b.cfg.Executable)
 	}
 
+	if b.cfg.ProxyURL != "" {
+		launcherInst = launcherInst.Proxy(b.cfg.ProxyURL)
+	}
+
 	launcherInst = launcherInst.Headless(b.cfg.Headless)
 	launcherInst = launcherInst.NoSandbox(true)
 	launcherInst = launcherInst.Set("disable-gpu", "true")

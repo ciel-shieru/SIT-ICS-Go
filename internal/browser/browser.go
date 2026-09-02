@@ -44,6 +44,7 @@ type BrowserConfig struct {
 	ControlURL        string
 	Headless          bool
 	Incognito         bool
+	ProxyURL          string
 	ConnectTimeout    time.Duration
 	NavigationTimeout time.Duration
 	AuthTimeout       time.Duration

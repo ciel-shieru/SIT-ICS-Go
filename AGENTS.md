@@ -69,6 +69,7 @@ All via env vars with CLI flag override:
 | `BROWSER_EXECUTABLE` | — | Explicit browser binary path |
 | `BROWSER_CONTROL_URL` | — | CDP URL for remote mode |
 | `BROWSER_HEADLESS` | true | Headless mode |
+| `PROXY_URL` | — | SOCKS5 proxy URL (e.g. socks5://localhost:1080) |
 
 ## Gotchas
 - **Rod API**: `page.MustQuery()` does not exist — use `page.Element()` which returns `(*Element, error)`. Element methods like `.Input()`, `.Click()`, `.Visible()` do not chain with `.Context()` — they return `(bool, error)` or `error` directly.
