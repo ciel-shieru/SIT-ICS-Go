@@ -22,6 +22,12 @@ func NewRemoteBrowser(cfg BrowserConfig) (*RemoteBrowser, error) {
 	return &RemoteBrowser{cfg: cfg}, nil
 }
 
+func (b *RemoteBrowser) debug(msg string, args ...any) {
+	if b.cfg.Debug {
+		log.Printf("browser: "+msg, args...)
+	}
+}
+
 func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
 	authCtx, authCancel := context.WithTimeout(ctx, b.cfg.AuthTimeout)
 	defer authCancel()
@@ -43,19 +49,24 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 }
 
 func (b *RemoteBrowser) connectAndAuth(ctx context.Context, req AuthRequest) (*rod.Page, error) {
+	b.debug("connecting to remote browser at %s", b.cfg.ControlURL)
+
 	connectCtx, connectCancel := context.WithTimeout(ctx, b.cfg.ConnectTimeout)
 	defer connectCancel()
 
 	browser := rod.New().ControlURL(b.cfg.ControlURL).Context(connectCtx)
 	if err := browser.Connect(); err != nil {
+		b.debug("connect failed: %v", err)
 		return nil, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
 	}
+	b.debug("connected to remote browser")
 	defer browser.Close()
 
 	var incognito *rod.Browser
 	var err error
 
 	if b.cfg.Incognito {
+		b.debug("creating incognito context")
 		incognito, err = browser.Incognito()
 		if err != nil {
 			return nil, fmt.Errorf("create incognito context: %w", err)
@@ -69,17 +80,20 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, req AuthRequest) (*r
 	defer navigateCancel()
 
 	initialURL := req.URL
+	b.debug("navigating to %s", initialURL)
 	page := incognito.MustPage(initialURL).Context(navigateCtx)
 
 	if err := page.WaitStable(3000); err != nil {
-		log.Printf("browser: wait stable failed: %v", err)
+		b.debug("wait stable failed: %v", err)
 	}
 
 	finalURL := page.MustInfo().URL
+	b.debug("navigated to %s", finalURL)
 	if !isAllowedOrigin(finalURL) {
 		return nil, fmt.Errorf("%w: redirect to disallowed origin %s (started from %s)", ErrAuthentication, finalURL, initialURL)
 	}
 
+	b.debug("finding username field")
 	el, err := page.Element("#userNameInput")
 	if err != nil {
 		return nil, fmt.Errorf("%w: credential form not rendered: %v", ErrAuthentication, err)
@@ -93,53 +107,69 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, req AuthRequest) (*r
 		return nil, fmt.Errorf("%w: credential form not rendered: element not visible", ErrAuthentication)
 	}
 
+	b.debug("filling username")
 	if err := el.Input(req.Username); err != nil {
 		return nil, fmt.Errorf("%w: failed to fill username: %v", ErrCredentialExtraction, err)
 	}
 
+	b.debug("finding password field")
 	passEl, err := page.Element("#passwordInput")
 	if err != nil {
 		return nil, fmt.Errorf("%w: password field not found: %v", ErrAuthentication, err)
 	}
+	b.debug("filling password")
 	if err := passEl.Input(req.Password); err != nil {
 		return nil, fmt.Errorf("%w: failed to fill password: %v", ErrCredentialExtraction, err)
 	}
 
+	b.debug("finding submit button")
 	submitEl, err := page.Element("#submitButton")
 	if err != nil {
 		return nil, fmt.Errorf("%w: submit button not found: %v", ErrAuthentication, err)
 	}
+	b.debug("clicking submit button")
 	if err := submitEl.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return nil, fmt.Errorf("%w: failed to submit credentials: %v", ErrAuthentication, err)
 	}
 
 	if err := page.WaitStable(5000); err != nil {
-		log.Printf("browser: wait stable after submit failed: %v", err)
+		b.debug("wait stable after submit failed: %v", err)
 	}
 
-	mfaEl, err := page.Element("#VerificationCode")
+	b.debug("checking for MFA field")
+	mfaEl, err := page.Element("#verificationCodeInput")
 	mfaVisible := err == nil
 
 	if mfaVisible {
+		b.debug("MFA detected, generating TOTP code")
 		totpCode, err := totp.Generate(req.TOTPSecret, time.Now())
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to generate TOTP: %v", ErrAuthentication, err)
 		}
+		b.debug("filling MFA code")
 		if err := mfaEl.Input(totpCode); err != nil {
 			return nil, fmt.Errorf("%w: failed to fill MFA code: %v", ErrCredentialExtraction, err)
 		}
-		signInEl, err := page.Element("#SignIn")
+		b.debug("finding sign-in button")
+		signInEl, err := page.Element("#signInButton")
 		if err != nil {
 			return nil, fmt.Errorf("%w: sign-in button not found: %v", ErrAuthentication, err)
 		}
+		b.debug("clicking sign-in button")
 		if err := signInEl.Click(proto.InputMouseButtonLeft, 1); err != nil {
 			return nil, fmt.Errorf("%w: failed to submit MFA code: %v", ErrAuthentication, err)
 		}
-		if err := page.WaitStable(5000); err != nil {
-			log.Printf("browser: wait stable after MFA failed: %v", err)
+		if err := page.WaitLoad(); err != nil {
+			b.debug("wait load after MFA failed: %v", err)
 		}
+		if err := page.WaitStable(5000); err != nil {
+			b.debug("wait stable after MFA failed: %v", err)
+		}
+	} else {
+		b.debug("no MFA field detected")
 	}
 
+	b.debug("authentication flow complete")
 	return page, nil
 }
 

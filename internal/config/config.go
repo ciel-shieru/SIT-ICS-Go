@@ -32,6 +32,7 @@ type Config struct {
 	BrowserExecutable string       `env:"BROWSER_EXECUTABLE" envDefault:""`
 	BrowserControlURL string       `env:"BROWSER_CONTROL_URL" envDefault:""`
 	BrowserHeadless   bool         `env:"BROWSER_HEADLESS" envDefault:"true"`
+	BrowserDebug      bool         `env:"BROWSER_DEBUG" envDefault:"false"`
 	ProxyURL          string        `env:"PROXY_URL" envDefault:""`
 }
 
@@ -55,6 +56,7 @@ func Load() (*Config, error) {
 	browserExecutable := fs.String("browser-executable", "", "Browser executable path")
 	browserControlURL := fs.String("browser-control-url", "", "Remote browser CDP URL")
 	browserHeadless := fs.Bool("browser-headless", false, "Run browser in headless mode")
+	browserDebug := fs.Bool("browser-debug", false, "Enable debug logging for browser actions")
 	proxyURL := fs.String("proxy-url", "", "SOCKS5 proxy URL (e.g. socks5://localhost:1080)")
 
 	fs.Parse(os.Args[1:])
@@ -105,6 +107,9 @@ func Load() (*Config, error) {
 	}
 	if fs.Lookup("browser-headless").Changed {
 		cfg.BrowserHeadless = *browserHeadless
+	}
+	if fs.Lookup("browser-debug").Changed {
+		cfg.BrowserDebug = *browserDebug
 	}
 	if fs.Lookup("proxy-url").Changed {
 		cfg.ProxyURL = *proxyURL
