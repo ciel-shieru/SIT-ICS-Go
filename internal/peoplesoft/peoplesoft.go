@@ -5,11 +5,14 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"golang.org/x/net/html"
+	"golang.org/x/net/proxy"
 )
 
 type Field struct {
@@ -37,9 +40,31 @@ type Client struct {
 	baseURL    string
 }
 
-func NewClient(baseURL string) *Client {
+func NewClient(baseURL, proxyURL string) *Client {
+	var httpClient *http.Client
+
+	if proxyURL != "" {
+		proxyDialer, err := proxy.SOCKS5("tcp", proxyURL, nil, proxy.Direct)
+		if err != nil {
+			httpClient = &http.Client{}
+		} else {
+			httpClient = &http.Client{
+				Timeout: 30 * time.Second,
+				Transport: &http.Transport{
+					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+						return proxyDialer.Dial(network, addr)
+					},
+				},
+			}
+		}
+	} else {
+		httpClient = &http.Client{
+			Timeout: 30 * time.Second,
+		}
+	}
+
 	return &Client{
-		httpClient: &http.Client{},
+		httpClient: httpClient,
 		baseURL:    baseURL,
 	}
 }
