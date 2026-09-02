@@ -95,3 +95,54 @@ func TestGenerateDifferentTimes(t *testing.T) {
 		t.Errorf("Generate() returned same code for different times: %s", got1)
 	}
 }
+
+// TestGenerateRFC6238 verifies against RFC 6238 Section B test vectors.
+// Secret is "12345678901234567890" (ASCII), which is "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" in base32.
+// RFC 6238 Appendix B uses 8-digit codes; we verify the last 6 digits match our 6-digit output.
+func TestGenerateRFC6238(t *testing.T) {
+	secret := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+
+	tests := []struct {
+		name   string
+		unixTs int64
+		want   string
+	}{
+		{
+			name:   "time=59",
+			unixTs: 59,
+			want:   "287082",
+		},
+		{
+			name:   "time=1111111109",
+			unixTs: 1111111109,
+			want:   "081804",
+		},
+		{
+			name:   "time=1111111111",
+			unixTs: 1111111111,
+			want:   "050471",
+		},
+		{
+			name:   "time=1234567890",
+			unixTs: 1234567890,
+			want:   "005924",
+		},
+		{
+			name:   "time=2000000000",
+			unixTs: 2000000000,
+			want:   "279037",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Generate(secret, time.Unix(tt.unixTs, 0).UTC())
+			if err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("Generate() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}

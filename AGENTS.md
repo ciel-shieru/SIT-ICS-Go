@@ -69,6 +69,7 @@ All via env vars with CLI flag override:
 | `BROWSER_EXECUTABLE` | — | Explicit browser binary path |
 | `BROWSER_CONTROL_URL` | — | CDP URL for remote mode |
 | `BROWSER_HEADLESS` | true | Headless mode |
+| `BROWSER_DEBUG` | false | Enable debug logging for Rod events and actions |
 | `PROXY_URL` | — | SOCKS5 proxy URL (e.g. socks5://localhost:1080) |
 
 ## Gotchas
