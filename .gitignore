@@ -5,8 +5,8 @@
 # Binaries for programs and plugins
 =======
 # Binaries
-sit-ics
-sit-ics-*
+/sit-ics
+/sit-ics-*
 *.exe
 *.exe~
 *.dll
