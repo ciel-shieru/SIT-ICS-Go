@@ -35,7 +35,31 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserLaunch, err)
 	}
 
-	page, err := b.navigateAndAuth(authCtx, launcherURL, req)
+	connectCtx, connectCancel := context.WithTimeout(authCtx, b.cfg.ConnectTimeout)
+	defer connectCancel()
+
+	browser := rod.New().ControlURL(launcherURL).Context(connectCtx)
+	if err := browser.Connect(); err != nil {
+		b.debug("connect failed: %v", err)
+		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
+	}
+	b.debug("connected to browser")
+	defer browser.Close()
+
+	var incognito *rod.Browser
+
+	if b.cfg.Incognito {
+		b.debug("creating incognito context")
+		incognito, err = browser.Incognito()
+		if err != nil {
+			return AuthResult{}, fmt.Errorf("create incognito context: %w", err)
+		}
+		defer incognito.Close()
+	} else {
+		incognito = browser
+	}
+
+	page, err := b.navigateAndAuth(authCtx, incognito, req)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -83,34 +107,7 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	return url, nil
 }
 
-func (b *LocalBrowser) navigateAndAuth(ctx context.Context, launcherURL string, req AuthRequest) (*rod.Page, error) {
-	b.debug("connecting to browser at %s", launcherURL)
-
-	connectCtx, connectCancel := context.WithTimeout(ctx, b.cfg.ConnectTimeout)
-	defer connectCancel()
-
-	browser := rod.New().ControlURL(launcherURL).Context(connectCtx)
-	if err := browser.Connect(); err != nil {
-		b.debug("connect failed: %v", err)
-		return nil, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
-	}
-	b.debug("connected to browser")
-	defer browser.Close()
-
-	var incognito *rod.Browser
-	var err error
-
-	if b.cfg.Incognito {
-		b.debug("creating incognito context")
-		incognito, err = browser.Incognito()
-		if err != nil {
-			return nil, fmt.Errorf("create incognito context: %w", err)
-		}
-		defer incognito.Close()
-	} else {
-		incognito = browser
-	}
-
+func (b *LocalBrowser) navigateAndAuth(ctx context.Context, incognito *rod.Browser, req AuthRequest) (*rod.Page, error) {
 	navigateCtx, navigateCancel := context.WithTimeout(ctx, b.cfg.NavigationTimeout)
 	defer navigateCancel()
 

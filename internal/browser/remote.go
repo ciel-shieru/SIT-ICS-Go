@@ -32,7 +32,32 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	authCtx, authCancel := context.WithTimeout(ctx, b.cfg.AuthTimeout)
 	defer authCancel()
 
-	page, err := b.connectAndAuth(authCtx, req)
+	connectCtx, connectCancel := context.WithTimeout(authCtx, b.cfg.ConnectTimeout)
+	defer connectCancel()
+
+	browser := rod.New().ControlURL(b.cfg.ControlURL).Context(connectCtx)
+	if err := browser.Connect(); err != nil {
+		b.debug("connect failed: %v", err)
+		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
+	}
+	b.debug("connected to remote browser")
+	defer browser.Close()
+
+	var incognito *rod.Browser
+
+	if b.cfg.Incognito {
+		b.debug("creating incognito context")
+		var err error
+		incognito, err = browser.Incognito()
+		if err != nil {
+			return AuthResult{}, fmt.Errorf("create incognito context: %w", err)
+		}
+		defer incognito.Close()
+	} else {
+		incognito = browser
+	}
+
+	page, err := b.connectAndAuth(authCtx, incognito, req)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -48,34 +73,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	}, nil
 }
 
-func (b *RemoteBrowser) connectAndAuth(ctx context.Context, req AuthRequest) (*rod.Page, error) {
-	b.debug("connecting to remote browser at %s", b.cfg.ControlURL)
-
-	connectCtx, connectCancel := context.WithTimeout(ctx, b.cfg.ConnectTimeout)
-	defer connectCancel()
-
-	browser := rod.New().ControlURL(b.cfg.ControlURL).Context(connectCtx)
-	if err := browser.Connect(); err != nil {
-		b.debug("connect failed: %v", err)
-		return nil, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
-	}
-	b.debug("connected to remote browser")
-	defer browser.Close()
-
-	var incognito *rod.Browser
-	var err error
-
-	if b.cfg.Incognito {
-		b.debug("creating incognito context")
-		incognito, err = browser.Incognito()
-		if err != nil {
-			return nil, fmt.Errorf("create incognito context: %w", err)
-		}
-		defer incognito.Close()
-	} else {
-		incognito = browser
-	}
-
+func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Browser, req AuthRequest) (*rod.Page, error) {
 	navigateCtx, navigateCancel := context.WithTimeout(ctx, b.cfg.NavigationTimeout)
 	defer navigateCancel()
 
@@ -178,7 +176,16 @@ func (b *RemoteBrowser) extractCookies(ctx context.Context, page *rod.Page, targ
 	defer cookieCancel()
 
 	page = page.Context(cookieCtx)
-	rodCookies := page.MustCookies(targetURL)
+
+	var rodCookies []*proto.NetworkCookie
+	func() {
+		defer func() { recover() }()
+		rodCookies = page.MustCookies(targetURL)
+	}()
+
+	if rodCookies == nil {
+		return nil, fmt.Errorf("%w: page became invalid during cookie extraction (session closed or navigated away)", ErrAuthentication)
+	}
 
 	cookies := make([]Cookie, 0, len(rodCookies))
 	for _, c := range rodCookies {
