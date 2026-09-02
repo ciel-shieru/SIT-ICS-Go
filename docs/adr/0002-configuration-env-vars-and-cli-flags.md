@@ -17,6 +17,10 @@ The application needs a configuration mechanism to accept user settings includin
 - Cron schedule: `FETCH_CRON` (default `0 1 * * *`)
 - Server port: `SERVER_PORT` (default `8080`)
 - ICS storage path: `ICS_STORAGE_PATH` (default `./timetable.ics`)
+- Browser mode: `BROWSER_MODE` (default `auto`)
+- Browser executable: `BROWSER_EXECUTABLE` (optional, for explicit browser path)
+- Browser control URL: `BROWSER_CONTROL_URL` (for remote mode)
+- Browser headless: `BROWSER_HEADLESS` (default `true`)
 - Per-user database settings for in-app settings storage
 
 The configuration must support both environment variables (primary) and CLI flags (fallback), with the same underlying config options available through both mechanisms.
@@ -81,6 +85,15 @@ This is a greenfield project. Option A establishes a clean, secure, and maintain
 ### Config Struct
 
 ```go
+type BrowserMode string
+
+const (
+    BrowserAuto   BrowserMode = "auto"
+    BrowserSystem BrowserMode = "system"
+    BrowserRod    BrowserMode = "rod"
+    BrowserRemote BrowserMode = "remote"
+)
+
 type Config struct {
     Username        string        `env:"USERNAME" envDefault:""`
     Password        string        `env:"PASSWORD" envDefault:""`
@@ -91,7 +104,31 @@ type Config struct {
     FetchCron       string        `env:"FETCH_CRON" envDefault:"0 1 * * *"`
     ServerPort      int           `env:"SERVER_PORT" envDefault:"8080"`
     ICSStoragePath  string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
+    
+    // Browser configuration (see ADR-0005)
+    BrowserMode      BrowserMode `env:"BROWSER_MODE" envDefault:"auto"`
+    BrowserExecutable string     `env:"BROWSER_EXECUTABLE" envDefault:""`
+    BrowserControlURL string     `env:"BROWSER_CONTROL_URL" envDefault:""`
+    BrowserHeadless   bool       `env:"BROWSER_HEADLESS" envDefault:"true"`
 }
+```
+
+### Browser Mode Resolution
+
+- `auto` (default): Try system browser → fall back to Rod-managed Chromium
+- `system`: Require installed Chrome/Edge/Chromium
+- `rod`: Use Rod-managed Chromium (auto-download)
+- `remote`: Connect to externally managed browser via `BROWSER_CONTROL_URL`
+
+### Security Note
+
+Security-sensitive Chromium arguments (`--no-sandbox`, `--disable-setuid-sandbox`, etc.) are **implementation-owned** by the browser package (ADR-0005), not exposed as configuration knobs. Application configuration exposes only:
+
+```
+BROWSER_MODE
+BROWSER_EXECUTABLE
+BROWSER_CONTROL_URL
+BROWSER_HEADLESS
 ```
 
 ### Flag-then-Env Fallback Pattern
@@ -179,3 +216,4 @@ Per-user settings (non-sensitive, application-specific) are stored in a local SQ
 - [spf13/pflag](https://github.com/spf13/pflag) — POSIX-style command line flags compatible with Go's `flag` package.
 - [go-sqlite3](https://github.com/mattn/go-sqlite3) — SQLite3 driver for Go (if CGO is acceptable).
 - [modernc.org/sqlite](https://github.com/mattn/go-sqlite3) — Pure Go SQLite implementation (no CGO).
+- [ADR-0005](0005-browser-abstraction-layer-with-rod.md) — Browser abstraction layer (browser configuration)

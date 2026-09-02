@@ -1,8 +1,14 @@
-# ADR-0001: ADFS Authentication and PeopleSoft Timetable Retrieval via HTTP Client
+# ADR-0001: ADFS Authentication and PeopleSoft Timetable Retrieval
 
 ## Status
 
-Proposed
+Superseded by ADR-0005 (Browser Abstraction Layer) and ADR-0006 (Authentication Flow)
+
+**Date superseded**: 2026-09-02
+
+**Replaced by**:
+- ADR-0005: Browser abstraction via `AuthBrowser` interface with Rod implementation
+- ADR-0006: Authentication flow with isolated contexts and Rod waiting primitives
 
 ## Date
 
@@ -12,14 +18,21 @@ Proposed
 
 The application must fetch a Singapore Institute of Technology (SIT) student's weekly class timetable from the Oracle PeopleSoft instance at `https://in4sit.singaporetech.edu.sg/`. This PeopleSoft instance is protected by Microsoft ADFS at `https://fs.singaporetech.edu.sg/` as the identity provider, which in turn requires Azure MFA (TOTP) for authentication.
 
-The authentication flow involves multiple steps:
-1. An initial request to a PeopleSoft page triggers a 302 redirect to ADFS `idpinitiatedsignon.asmx` with a SAMLRequest parameter.
-2. A `POST` with `AuthMethod=FormsAuthentication`, `UserName`, and `Password` to the ADFS login endpoint.
-3. If MFA is enabled (which it is for SIT), ADFS returns an HTML form requiring `AuthMethod=AzureMfaAuthentication`, a `VerificationCode` (TOTP generated from a secret), `__EVENTTARGET` (blank), `SignIn=Sign in`, and `Context`.
-4. ADFS validates the TOTP and posts a `SAMLResponse` back to the PeopleSoft Service Provider, setting session cookies (`PS_TOKEN`, `PSJSESSIONID`, etc.).
-5. The authenticated session can then make AJAX `POST` requests to the PeopleSoft timetable endpoint (`SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL`) with form data specifying the week date, and receive an XML response containing HTML with the schedule data in table cells.
+**Verified ADFS behavior**: Programmatic testing revealed that the ADFS `idpinitiatedsignon.asmx` endpoint returns an options page with JavaScript `SelectOption()` function. The credential form (`userNameInput`, `passwordInput`, `submitButton`) is **only rendered after JavaScript execution**. Raw HTTP POST requests cannot bypass this requirement—every POST returns the same options page regardless of `AuthMethod` in the POST body.
 
-The application must support fetching timetables for every week from `START_DATE` to `END_DATE`, running on a cron schedule (default: daily at 1 AM), and operating entirely offline once deployed (no browser binaries or GUI dependencies).
+This necessitates headless browser automation for authentication. The PeopleSoft timetable fetch (after auth) remains HTTP-based, returning XML with HTML in CDATA sections.
+
+The authentication flow involves multiple steps:
+1. An initial request to a PeopleSoft page triggers a 302 redirect to ADFS `idpinitiatedsignon.asmx` with a SAMLRequest parameter (zlib-deflated, base64-encoded SAML 2.0 AuthnRequest).
+2. Headless browser loads ADFS page; JavaScript renders credential form.
+3. Browser fills `userNameInput`, `passwordInput`, clicks `submitButton`.
+4. If MFA enabled, browser handles AzureMFA form (`VerificationCode` input with TOTP code).
+5. ADFS validates credentials/MFA and posts `SAMLResponse` back to PeopleSoft, setting session cookies (`PS_TOKEN`, `PSJSESSIONID`, etc.).
+6. Authenticated HTTP session makes AJAX `POST` requests to the PeopleSoft timetable endpoint (`SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL`) with form data specifying the week date, receiving an XML response containing HTML with schedule data in table cells.
+
+The application must support fetching timetables for every week from `START_DATE` to `END_DATE`, running on a cron schedule (default: daily at 1 AM), and operating in both desktop (local browser) and container/Kubernetes (remote browser) environments.
+
+**This ADR is superseded by ADR-0005 and ADR-0006**, which provide the detailed browser abstraction and authentication flow architecture. The core requirements (PeopleSoft parsing, ICS generation, credential handling) remain valid and are unchanged.
 
 ## Decision Drivers
 
@@ -46,26 +59,30 @@ Use an existing ADFS/SAML library (e.g., `crewjam/saml`) to handle the SAML flow
 
 ## Decision
 
-We will choose **Option A: HTTP Client with Cookie Jar**.
+**Superseded**: This ADR's original decision (Option A: HTTP Client with Cookie Jar) is no longer valid due to verified ADFS behavior requiring JavaScript execution.
+
+See **ADR-0005** (Browser Abstraction Layer) and **ADR-0006** (Authentication Flow) for the current architecture:
+- Browser automation via `github.com/go-rod/rod` wrapped behind `AuthBrowser` interface
+- Local (desktop) and remote (container/Kubernetes) browser modes
+- Incognito context isolation per authentication operation
+- Rod waiting primitives instead of fixed sleeps
+
+**Unchanged from this ADR**:
+- PeopleSoft timetable fetch (after auth) remains HTTP-based
+- TOTP generation (in-app, ~50 lines, RFC 6238)
+- PeopleSoft XML/HTML parsing (`encoding/xml` + `golang.org/x/net/html`)
+- ICS generation (minimal custom writer)
+- Credential handling principles (env vars only, never logged/persisted)
 
 ## Rationale
 
-### Why Option A over Option B
+**This rationale is superseded**. Programmatic verification revealed that the HTTP client approach cannot authenticate against SIT's ADFS—the credential form requires JavaScript execution. The original reasoning (Option A over Option B) is no longer valid.
 
-- **No browser binary dependency**: Browser automation tools require a locally installed Chromium/Chrome binary, increasing deployment complexity and attack surface. The HTTP client approach uses only Go stdlib plus a few focused libraries.
-- **Lower resource usage**: No full browser process means significantly less memory and CPU overhead, important for a background service running on a cron schedule.
-- **Deterministic behavior**: Browser automation is susceptible to timing issues, DOM rendering differences, and browser version mismatches. HTTP client requests are deterministic and easier to test.
-- **Reference precedent**: The `in4sit.el` Emacs package successfully implements the same ADFS flow using Emacs's `url-retrieve` (an HTTP client), proving the approach is viable.
+See ADR-0005 for the updated rationale supporting rod-based browser automation.
 
-### Why Option A over Option C
-
-- **ADFS uses SAML 2.0 idP-initiated flow with custom form authentication**: The SIT ADFS instance uses a custom ASP.NET login form (`AuthMethod=FormsAuthentication`) rather than standard SAML Web SSO. Libraries like `crewjam/saml` expect a standard SAML redirect/POST flow and would not handle the intermediate FormsAuthentication → AzureMfaAuthentication steps.
-- **TOTP is handled client-side**: The TOTP secret is provided by the user, and codes are generated on-demand. This is outside the scope of SAML libraries and must be implemented independently.
-- **Over-engineering risk**: Introducing a full SAML library adds complexity for a flow that is essentially two HTTP POSTs and a cookie exchange.
-
-### Why Option A over Status Quo (no solution)
-
-This is a greenfield project with no existing implementation. Option A establishes a clear, minimal, and secure foundation.
+**Original notes (preserved for historical context)**:
+- The `in4sit.el` Emacs package's auth approach appears outdated—it expects a `loginForm` element that the current ADFS doesn't render without JavaScript execution.
+- The `timetable-grabber-sit` project (archived Mar 2025) used Puppeteer (headless browser), which validates the JavaScript requirement but is unmaintained.
 
 ## Rationale for Implementation Details
 
@@ -158,8 +175,16 @@ Implement a minimal ICS writer in-app. Since each fetch produces a static snapsh
 
 ## References
 
-- [in4sit.el](https://github.com/achrinza/in4sit.el) — Emacs Lisp package implementing the same ADFS + PeopleSoft flow (active, 2025). Uses Emacs `url-retrieve` for HTTP requests, `auth-source` for credentials, and `libxml` for DOM parsing. Does not handle MFA or generate ICS.
-- [timetable-grabber-sit](https://github.com/JustBrandonLim/timetable-grabber-sit) — Electron + Puppeteer application (archived Mar 2025). Uses headless browser automation, `ics` npm package for ICS generation. Handles basic login but not MFA.
+- [in4sit.el](https://github.com/achrinza/in4sit.el) — Emacs Lisp package (active, 2025). Uses Emacs `url-retrieve` for HTTP requests. **Note**: Auth approach appears outdated—expects `loginForm` element that current ADFS doesn't render without JavaScript execution. Does not handle MFA or generate ICS.
+- [timetable-grabber-sit](https://github.com/JustBrandonLim/timetable-grabber-sit) — Electron + Puppeteer application (**archived Mar 2025**, unmaintained). Uses headless browser automation, validates JavaScript requirement for ADFS. Uses `ics` npm package for ICS generation. Handles basic login but not MFA.
+- [rod](https://github.com/go-rod/rod) — Go-native Chrome DevTools Protocol driver (selected browser automation library, see ADR-0005)
 - [Oracle PeopleSoft URL Format](https://docs.oracle.com/cd/E92519_02/pt856pbr3/eng/pt/tprt/concept_PortalURLFormats-c071f6.html)
 - [RFC 6238](https://tools.ietf.org/html/rfc6238) — Time-Based One-Time Password (TOTP)
 - [RFC 5545](https://tools.ietf.org/html/rfc5545) — Internet Calendaring and Scheduling Core Object Specification (iCalendar)
+
+## Related ADRs
+
+- **ADR-0005**: Browser abstraction layer via `AuthBrowser` interface with Rod implementation (supersedes this ADR's auth decision)
+- **ADR-0006**: Authentication flow with isolated contexts and Rod waiting primitives (supersedes this ADR's auth decision)
+- **ADR-0003**: ICS generation and caching strategy (unchanged)
+- **ADR-0004**: Cron scheduling and timezone handling (unchanged)
