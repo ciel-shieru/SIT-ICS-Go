@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
-	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 )
 
 func TestADFSProviderSuccess(t *testing.T) {
@@ -23,13 +22,7 @@ func TestADFSProviderSuccess(t *testing.T) {
 		},
 	}
 
-	ps := &mockPeoplesoftClient{
-		setCookiesFunc: func(ctx context.Context, cookies []browser.Cookie) ([]browser.Cookie, string, error) {
-			return cookies, "token123", nil
-		},
-	}
-
-	provider := NewADFSProvider(mockBrowser, ps)
+	provider := NewADFSProvider(mockBrowser)
 
 	result, err := provider.Authenticate(context.Background(), AuthRequest{
 		Username:   "testuser",
@@ -54,9 +47,7 @@ func TestADFSProviderBrowserError(t *testing.T) {
 		},
 	}
 
-	ps := &mockPeoplesoftClient{}
-
-	provider := NewADFSProvider(mockBrowser, ps)
+	provider := NewADFSProvider(mockBrowser)
 
 	_, err := provider.Authenticate(context.Background(), AuthRequest{
 		Username: "testuser",
@@ -70,47 +61,76 @@ func TestADFSProviderBrowserError(t *testing.T) {
 	}
 }
 
-func TestADFSProviderPeoplesoftError(t *testing.T) {
+func TestADFSProviderNoTokenInCookies(t *testing.T) {
 	mockBrowser := &browser.MockAuthBrowser{
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{
-				Cookies: []browser.Cookie{{Name: "PS_TOKEN", Value: "token123"}},
+				Cookies: []browser.Cookie{
+					{Name: "PSJSESSIONID", Value: "session456"},
+				},
 			}, nil
 		},
 	}
 
-	ps := &mockPeoplesoftClient{
-		setCookiesFunc: func(ctx context.Context, cookies []browser.Cookie) ([]browser.Cookie, string, error) {
-			return nil, "", fmt.Errorf("peoplesoft error")
-		},
-	}
+	provider := NewADFSProvider(mockBrowser)
 
-	provider := NewADFSProvider(mockBrowser, ps)
-
-	_, err := provider.Authenticate(context.Background(), AuthRequest{
+	result, err := provider.Authenticate(context.Background(), AuthRequest{
 		Username: "testuser",
 		Password: "testpass",
 	})
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Token != "" {
+		t.Errorf("expected empty token, got '%s'", result.Token)
+	}
+	if len(result.Cookies) != 1 {
+		t.Errorf("expected 1 cookie, got %d", len(result.Cookies))
 	}
 }
 
-type mockPeoplesoftClient struct {
-	setCookiesFunc func(ctx context.Context, cookies []browser.Cookie) ([]browser.Cookie, string, error)
-	fetchFunc      func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error)
-}
-
-func (m *mockPeoplesoftClient) SetCookies(ctx context.Context, cookies []browser.Cookie) ([]browser.Cookie, string, error) {
-	if m.setCookiesFunc != nil {
-		return m.setCookiesFunc(ctx, cookies)
+func TestExtractPS_TOKEN(t *testing.T) {
+	tests := []struct {
+		name     string
+		cookies  []browser.Cookie
+		expected string
+	}{
+		{
+			name: "PS_TOKEN found",
+			cookies: []browser.Cookie{
+				{Name: "PS_TOKEN", Value: "abc123"},
+				{Name: "PSJSESSIONID", Value: "session789"},
+			},
+			expected: "abc123",
+		},
+		{
+			name: "PS_TOKEN not found",
+			cookies: []browser.Cookie{
+				{Name: "PSJSESSIONID", Value: "session789"},
+			},
+			expected: "",
+		},
+		{
+			name:     "empty cookies",
+			cookies:  []browser.Cookie{},
+			expected: "",
+		},
+		{
+			name: "PS_TOKEN is first",
+			cookies: []browser.Cookie{
+				{Name: "PS_TOKEN", Value: "first"},
+				{Name: "PS_TOKEN", Value: "second"},
+			},
+			expected: "first",
+		},
 	}
-	return cookies, "", nil
-}
 
-func (m *mockPeoplesoftClient) FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
-	if m.fetchFunc != nil {
-		return m.fetchFunc(ctx, weekDate)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractPS_TOKEN(tt.cookies)
+			if result != tt.expected {
+				t.Errorf("extractPS_TOKEN(%v) = %q, want %q", tt.cookies, result, tt.expected)
+			}
+		})
 	}
-	return []peoplesoft.Entry{}, nil
 }

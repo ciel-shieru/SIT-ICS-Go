@@ -163,8 +163,16 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Brows
 		if err := page.WaitStable(5000); err != nil {
 			b.debug("wait stable after MFA failed: %v", err)
 		}
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		if err := page.WaitStable(5000); err != nil {
+			b.debug("wait stable after MFA redirect failed: %v", err)
+		}
 	} else {
-		b.debug("no MFA field detected")
+		b.debug("no MFA field detected, waiting for redirect")
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		if err := page.WaitStable(5000); err != nil {
+			b.debug("wait stable after submit redirect failed: %v", err)
+		}
 	}
 
 	b.debug("authentication flow complete")
