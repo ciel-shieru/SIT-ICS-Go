@@ -119,3 +119,69 @@ func TestDefaultBrowserConfig(t *testing.T) {
 		t.Errorf("expected auth timeout 5m, got %v", cfg.AuthTimeout)
 	}
 }
+
+func TestCookieDeduplication(t *testing.T) {
+	cookieMap := make(map[string]Cookie)
+
+	cookies := []Cookie{
+		{Name: "PS_TOKEN", Value: "old-token", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 1000},
+		{Name: "AWSALB", Value: "cookie1", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 2000},
+		{Name: "PS_TOKEN", Value: "new-token", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 3000},
+		{Name: "PS_TOKEN", Value: "oldest-token", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 500},
+		{Name: "SessionID", Value: "sess1", Domain: "in4sit.singaporetech.edu.sg", Path: "/", Expiry: 4000},
+	}
+
+	for _, c := range cookies {
+		existing, exists := cookieMap[c.Name]
+		if !exists || c.Expiry > existing.Expiry {
+			cookieMap[c.Name] = c
+		}
+	}
+
+	if len(cookieMap) != 3 {
+		t.Errorf("expected 3 unique cookies, got %d", len(cookieMap))
+	}
+
+	psToken := cookieMap["PS_TOKEN"]
+	if psToken.Value != "new-token" {
+		t.Errorf("expected PS_TOKEN value 'new-token', got '%s'", psToken.Value)
+	}
+	if psToken.Expiry != 3000 {
+		t.Errorf("expected PS_TOKEN expiry 3000, got %d", psToken.Expiry)
+	}
+
+	awsAlb := cookieMap["AWSALB"]
+	if awsAlb.Value != "cookie1" {
+		t.Errorf("expected AWSALB value 'cookie1', got '%s'", awsAlb.Value)
+	}
+
+	sessionID := cookieMap["SessionID"]
+	if sessionID.Value != "sess1" {
+		t.Errorf("expected SessionID value 'sess1', got '%s'", sessionID.Value)
+	}
+}
+
+func TestCookieExpiryZeroIsSessionCookie(t *testing.T) {
+	cookieMap := make(map[string]Cookie)
+
+	cookies := []Cookie{
+		{Name: "SessionCookie", Value: "session-val", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 0},
+		{Name: "PersistentCookie", Value: "persist-val", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 9999999},
+	}
+
+	for _, c := range cookies {
+		existing, exists := cookieMap[c.Name]
+		if !exists || c.Expiry > existing.Expiry {
+			cookieMap[c.Name] = c
+		}
+	}
+
+	if len(cookieMap) != 2 {
+		t.Errorf("expected 2 cookies, got %d", len(cookieMap))
+	}
+
+	session := cookieMap["SessionCookie"]
+	if session.Expiry != 0 {
+		t.Errorf("expected session cookie expiry 0, got %d", session.Expiry)
+	}
+}

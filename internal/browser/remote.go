@@ -189,6 +189,39 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Brows
 	finalURL = getPageURL(page)
 	b.debug("auth complete, final URL: %s", finalURL)
 
+	b.debug("waiting for PeopleSoft landing page")
+	landingPageURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL"
+	landingCtx, landingCancel := context.WithTimeout(ctx, b.cfg.NavigationTimeout)
+	defer landingCancel()
+	page = page.Context(landingCtx)
+
+	landingWait := page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)
+	navigationDone := make(chan struct{})
+	go func() {
+		for {
+			currentURL := getPageURL(page)
+			if currentURL == landingPageURL || (len(currentURL) >= len(landingPageURL) && currentURL[:len(landingPageURL)] == landingPageURL && (currentURL[len(landingPageURL)] == '?' || currentURL[len(landingPageURL)] == '#')) {
+				navigationDone <- struct{}{}
+				return
+			}
+			select {
+			case <-landingCtx.Done():
+				return
+			default:
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+
+	landingWait()
+	<-navigationDone
+	if err := page.WaitStable(3000); err != nil {
+		b.debug("wait stable on landing page failed: %v", err)
+	}
+
+	finalURL = getPageURL(page)
+	b.debug("landed on PeopleSoft URL: %s", finalURL)
+
 	return page, nil
 }
 
@@ -234,17 +267,27 @@ func (b *RemoteBrowser) extractCookies(ctx context.Context, page *rod.Page) ([]C
 		return nil, fmt.Errorf("%w: page became invalid during cookie extraction (session closed or navigated away)", ErrAuthentication)
 	}
 
-	cookies := make([]Cookie, 0, len(rodCookies))
+	cookieMap := make(map[string]Cookie)
 	for _, c := range rodCookies {
 		if !isSingaporeTechDomain(c.Domain) {
 			continue
 		}
-		cookies = append(cookies, Cookie{
-			Name:   c.Name,
-			Value:  c.Value,
-			Domain: c.Domain,
-			Path:   c.Path,
-		})
+		expiry := int64(c.Expires)
+		existing, exists := cookieMap[c.Name]
+		if !exists || expiry > existing.Expiry {
+			cookieMap[c.Name] = Cookie{
+				Name:   c.Name,
+				Value:  c.Value,
+				Domain: c.Domain,
+				Path:   c.Path,
+				Expiry: expiry,
+			}
+		}
+	}
+
+	cookies := make([]Cookie, 0, len(cookieMap))
+	for _, c := range cookieMap {
+		cookies = append(cookies, c)
 	}
 
 	return cookies, nil
