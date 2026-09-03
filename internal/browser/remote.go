@@ -143,7 +143,7 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Brows
 
 	if mfaVisible {
 		b.debug("MFA detected, generating TOTP code")
-		totpCode, err := totp.Generate(req.TOTPSecret, time.Now())
+		totpCode, err := totp.GenerateWithTolerance(req.TOTPSecret, time.Now(), 1)
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to generate TOTP: %v", ErrAuthentication, err)
 		}
@@ -169,6 +169,15 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Brows
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 		if err := page.WaitStable(5000); err != nil {
 			b.debug("wait stable after MFA redirect failed: %v", err)
+		}
+
+		b.debug("checking for MFA error message")
+		errorMsg, err := extractErrorMessage(page)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to check for error message: %v", ErrAuthentication, err)
+		}
+		if errorMsg != "" {
+			return nil, fmt.Errorf("ADFS auth error: %s", errorMsg)
 		}
 	} else {
 		b.debug("no MFA field detected, waiting for redirect")
