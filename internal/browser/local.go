@@ -73,7 +73,7 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 
 	return AuthResult{
 		Cookies:     cookies,
-		RedirectURL: page.MustInfo().URL,
+		RedirectURL: getPageURL(page),
 	}, nil
 }
 
@@ -197,12 +197,6 @@ func (b *LocalBrowser) navigateAndAuth(ctx context.Context, incognito *rod.Brows
 			return nil, fmt.Errorf("%w: failed to submit MFA code: %v", ErrAuthentication, err)
 		}
 		b.debug("waiting for SAML redirect after MFA")
-		if err := page.WaitLoad(); err != nil {
-			b.debug("wait load after MFA failed: %v", err)
-		}
-		if err := page.WaitStable(5000); err != nil {
-			b.debug("wait stable after MFA failed: %v", err)
-		}
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 		if err := page.WaitStable(5000); err != nil {
 			b.debug("wait stable after MFA redirect failed: %v", err)
@@ -225,18 +219,12 @@ func (b *LocalBrowser) navigateAndAuth(ctx context.Context, incognito *rod.Brows
 	}
 
 	b.debug("waiting for ADFS redirect to complete")
-	if err := page.WaitLoad(); err != nil {
-		b.debug("wait load after auth failed: %v", err)
-	}
-	if err := page.WaitStable(5000); err != nil {
-		b.debug("wait stable after auth failed: %v", err)
-	}
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 	if err := page.WaitStable(5000); err != nil {
 		b.debug("wait stable after redirect failed: %v", err)
 	}
 
-	finalURL = page.MustInfo().URL
+	finalURL = getPageURL(page)
 	b.debug("auth complete, final URL: %s", finalURL)
 
 	return page, nil
@@ -279,6 +267,15 @@ func extractErrorMessage(page *rod.Page) (string, error) {
 	return findErrorText(doc), nil
 }
 
+func getPageURL(page *rod.Page) string {
+	var url string
+	func() {
+		defer func() { recover() }()
+		url = page.MustInfo().URL
+	}()
+	return url
+}
+
 func (b *LocalBrowser) extractCookies(ctx context.Context, page *rod.Page) ([]Cookie, error) {
 	cookieCtx, cookieCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cookieCancel()
@@ -294,7 +291,7 @@ func (b *LocalBrowser) extractCookies(ctx context.Context, page *rod.Page) ([]Co
 
 	if rodCookies == nil {
 		b.debug("no cookies from current page URL, trying to get all browser cookies")
-		pageURL := page.MustInfo().URL
+		pageURL := getPageURL(page)
 		var domains []string
 		if strings.Contains(pageURL, "in4sit.singaporetech.edu.sg") {
 			domains = append(domains, "https://in4sit.singaporetech.edu.sg/")
