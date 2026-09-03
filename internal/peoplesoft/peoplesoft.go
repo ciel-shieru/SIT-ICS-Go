@@ -37,12 +37,13 @@ type Entry struct {
 }
 
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	debug      bool
+	httpClient        *http.Client
+	baseURL           string
+	debug             bool
+	logResponse       bool
 }
 
-func NewClient(baseURL, proxyURL string, debug bool) *Client {
+func NewClient(baseURL, proxyURL string, debug bool, logResponse bool) *Client {
 	var httpClient *http.Client
 
 	if proxyURL != "" {
@@ -72,9 +73,10 @@ func NewClient(baseURL, proxyURL string, debug bool) *Client {
 	}
 
 	return &Client{
-		httpClient: httpClient,
-		baseURL:    baseURL,
-		debug:      debug,
+		httpClient:  httpClient,
+		baseURL:     baseURL,
+		debug:       debug,
+		logResponse: logResponse,
 	}
 }
 
@@ -105,6 +107,10 @@ func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if c.logResponse {
+		log.Printf("peoplesoft response: status=%d headers=%v body=%s", resp.StatusCode, resp.Header, string(body))
 	}
 
 	var psResp Response
