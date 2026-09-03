@@ -71,7 +71,7 @@ func main() {
 		log.Fatalf("unsupported browser mode: %s", cfg.BrowserMode)
 	}
 
-	provider := auth.NewADFSProvider(authBrowser, ps)
+	provider := auth.NewADFSProvider(authBrowser)
 	fetchAndUpdate := func() {
 		log.Printf("scheduler: starting timetable fetch")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

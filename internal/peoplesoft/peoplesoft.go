@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"golang.org/x/net/html"
 	"golang.org/x/net/proxy"
 	"net/url"
@@ -83,62 +82,6 @@ func (c *Client) debugLog(msg string, args ...any) {
 	if c.debug {
 		log.Printf("peoplesoft: "+msg, args...)
 	}
-}
-
-func (c *Client) SetCookies(ctx context.Context, cookies []browser.Cookie) ([]browser.Cookie, string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("create request: %w", err)
-	}
-
-	for _, cookie := range cookies {
-		req.AddCookie(&http.Cookie{
-			Name:   cookie.Name,
-			Value:  cookie.Value,
-			Domain: cookie.Domain,
-			Path:   cookie.Path,
-		})
-	}
-
-	c.debugLog("GET %s", req.URL.String())
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("fetch peoplesoft: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("peoplesoft returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, "", fmt.Errorf("read response: %w", err)
-	}
-
-	var psResp Response
-	if err := xml.Unmarshal(body, &psResp); err != nil {
-		return nil, "", fmt.Errorf("parse peoplesoft response: %w", err)
-	}
-
-	token := ""
-	for _, field := range psResp.Fields {
-		if field.Name == "PS_TOKEN" {
-			token = field.Value
-			break
-		}
-	}
-
-	newCookies := make([]browser.Cookie, 0, len(psResp.Fields))
-	for _, field := range psResp.Fields {
-		newCookies = append(newCookies, browser.Cookie{
-			Name:  field.Name,
-			Value: field.Value,
-		})
-	}
-
-	return newCookies, token, nil
 }
 
 func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, error) {
