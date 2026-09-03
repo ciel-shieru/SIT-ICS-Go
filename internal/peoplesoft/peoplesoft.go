@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -39,9 +40,10 @@ type Entry struct {
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
+	debug      bool
 }
 
-func NewClient(baseURL, proxyURL string) *Client {
+func NewClient(baseURL, proxyURL string, debug bool) *Client {
 	var httpClient *http.Client
 
 	if proxyURL != "" {
@@ -73,6 +75,13 @@ func NewClient(baseURL, proxyURL string) *Client {
 	return &Client{
 		httpClient: httpClient,
 		baseURL:    baseURL,
+		debug:      debug,
+	}
+}
+
+func (c *Client) debugLog(msg string, args ...any) {
+	if c.debug {
+		log.Printf("peoplesoft: "+msg, args...)
 	}
 }
 
@@ -90,6 +99,8 @@ func (c *Client) SetCookies(ctx context.Context, cookies []browser.Cookie) ([]br
 			Path:   cookie.Path,
 		})
 	}
+
+	c.debugLog("GET %s", req.URL.String())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -139,6 +150,8 @@ func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, 
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	c.debugLog("POST %s", req.URL.String())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
