@@ -14,10 +14,12 @@ func TestADFSProviderSuccess(t *testing.T) {
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{
 				Cookies: []browser.Cookie{
-					{Name: "PS_TOKEN", Value: "token123"},
-					{Name: "PSJSESSIONID", Value: "session456"},
+					{Name: "PS_TOKEN", Value: "token123", Domain: ".singaporetech.edu.sg", Path: "/"},
+					{Name: "AWSSISWEBPRD02-8002-PORTAL-PSJSESSIONID", Value: "session456", Domain: ".singaporetech.edu.sg", Path: "/"},
+					{Name: "MSISAuth", Value: "adfs_cookie", Domain: "fs.singaporetech.edu.sg", Path: "/adfs"},
 				},
-				RedirectURL: "https://in4sit.singaporetech.edu.sg/psc/",
+				RedirectURL: "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL",
+				SAMLResponse: "test-saml-response-value",
 			}, nil
 		},
 	}
@@ -32,8 +34,8 @@ func TestADFSProviderSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(result.Cookies) != 2 {
-		t.Errorf("expected 2 cookies, got %d", len(result.Cookies))
+	if len(result.Cookies) != 3 {
+		t.Errorf("expected 3 cookies, got %d", len(result.Cookies))
 	}
 	if result.Token != "token123" {
 		t.Errorf("expected token 'token123', got '%s'", result.Token)
@@ -66,8 +68,9 @@ func TestADFSProviderNoTokenInCookies(t *testing.T) {
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{
 				Cookies: []browser.Cookie{
-					{Name: "PSJSESSIONID", Value: "session456"},
+					{Name: "PSJSESSIONID", Value: "session456", Domain: ".singaporetech.edu.sg"},
 				},
+				SAMLResponse: "test-saml-response-value",
 			}, nil
 		},
 	}
@@ -122,6 +125,14 @@ func TestExtractPS_TOKEN(t *testing.T) {
 				{Name: "PS_TOKEN", Value: "second"},
 			},
 			expected: "first",
+		},
+		{
+			name: "PS_TOKEN with domain qualifier",
+			cookies: []browser.Cookie{
+				{Name: "PS_TOKEN", Value: "domain-token", Domain: ".singaporetech.edu.sg"},
+				{Name: "AWSSISWEBPRD02-8002-PORTAL-PSJSESSIONID", Value: "session789", Domain: ".singaporetech.edu.sg"},
+			},
+			expected: "domain-token",
 		},
 	}
 

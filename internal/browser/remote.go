@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/totp"
@@ -62,7 +65,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 		return AuthResult{}, err
 	}
 
-	cookies, err := b.extractCookies(authCtx, page, req.URL)
+	cookies, err := b.extractCookies(authCtx, page, "https://in4sit.singaporetech.edu.sg/")
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -175,8 +178,48 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Brows
 		}
 	}
 
-	b.debug("authentication flow complete")
-	return page, nil
+	b.debug("extracting SAMLResponse from ADFS page")
+	samlResponse, err := extractSAMLResponse(page)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to extract SAMLResponse: %v", ErrAuthentication, err)
+	}
+	if samlResponse == "" {
+		return nil, fmt.Errorf("%w: SAMLResponse is empty", ErrAuthentication)
+	}
+	b.debug("SAMLResponse extracted (%d bytes)", len(samlResponse))
+
+	b.debug("POSTing SAMLResponse to PeopleSoft landing page")
+	samlPostCtx, samlPostCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer samlPostCancel()
+
+	samlPostURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL"
+	samlBody := fmt.Sprintf("SAMLResponse=%s", url.QueryEscape(samlResponse))
+	samlReq, err := http.NewRequestWithContext(samlPostCtx, "POST", samlPostURL, strings.NewReader(samlBody))
+	if err != nil {
+		return nil, fmt.Errorf("create SAML POST request: %w", err)
+	}
+	samlReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	samlPage := incognito.MustPage(samlPostURL).Context(samlPostCtx)
+
+	if err := samlPage.Navigate(samlReq.URL.String()); err != nil {
+		return nil, fmt.Errorf("navigate to PeopleSoft with SAMLResponse: %w", err)
+	}
+
+	if err := samlPage.WaitLoad(); err != nil {
+		b.debug("wait load after SAML POST failed: %v", err)
+	}
+	if err := samlPage.WaitStable(5000); err != nil {
+		b.debug("wait stable after SAML POST failed: %v", err)
+	}
+	samlPage.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+	if err := samlPage.WaitStable(5000); err != nil {
+		b.debug("wait stable after SAML POST redirect failed: %v", err)
+	}
+
+	b.debug("SAMLResponse POST complete, final URL: %s", samlPage.MustInfo().URL)
+
+	return samlPage, nil
 }
 
 func (b *RemoteBrowser) extractCookies(ctx context.Context, page *rod.Page, targetURL string) ([]Cookie, error) {
