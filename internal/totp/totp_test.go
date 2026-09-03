@@ -7,11 +7,11 @@ import (
 
 func TestGenerate(t *testing.T) {
 	tests := []struct {
-		name     string
-		secret   string
-		now      time.Time
-		wantLen  int
-		wantErr  bool
+		name    string
+		secret  string
+		now     time.Time
+		wantLen int
+		wantErr bool
 	}{
 		{
 			name:    "valid secret",
@@ -100,8 +100,7 @@ func TestGenerateWithTolerance(t *testing.T) {
 	secret := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 
 	tests := []struct {
-		name string
-		// time offset in seconds from the expected time step
+		name       string
 		timeOffset int64
 		want       string
 	}{
@@ -138,21 +137,16 @@ func TestGenerateWithTolerance(t *testing.T) {
 
 func TestGenerateWithToleranceOutsideRange(t *testing.T) {
 	secret := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
-	// time=59, step=1. Offset by 2 periods (60s) which is outside tolerance of 1.
 	now := time.Unix(59-60, 0).UTC()
 	got, err := GenerateWithTolerance(secret, now, 1)
 	if err != nil {
 		t.Fatalf("GenerateWithTolerance() error = %v", err)
 	}
-	// Should return the code for step=0 (the closest valid step), not fail
 	if got == "" {
 		t.Error("GenerateWithTolerance() returned empty string")
 	}
 }
 
-// TestGenerateRFC6238 verifies against RFC 6238 Section B test vectors.
-// Secret is "12345678901234567890" (ASCII), which is "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" in base32.
-// RFC 6238 Appendix B uses 8-digit codes; we verify the last 6 digits match our 6-digit output.
 func TestGenerateRFC6238(t *testing.T) {
 	secret := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 
