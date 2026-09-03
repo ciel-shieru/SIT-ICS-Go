@@ -32,8 +32,9 @@ type Config struct {
 	BrowserExecutable string       `env:"BROWSER_EXECUTABLE" envDefault:""`
 	BrowserControlURL string       `env:"BROWSER_CONTROL_URL" envDefault:""`
 	BrowserHeadless   bool         `env:"BROWSER_HEADLESS" envDefault:"true"`
-	BrowserDebug      bool         `env:"BROWSER_DEBUG" envDefault:"false"`
-	ProxyURL          string        `env:"PROXY_URL" envDefault:""`
+	BrowserDebug                       bool    `env:"BROWSER_DEBUG" envDefault:"false"`
+	PeopleSoftLogResponse              bool    `env:"PEOPLESOFT_LOG_RESPONSE_YES_I_KNOW_SENSITIVE_INFO_WILL_BE_SHOWN" envDefault:"false"`
+	ProxyURL                           string  `env:"PROXY_URL" envDefault:""`
 }
 
 func Load() (*Config, error) {
