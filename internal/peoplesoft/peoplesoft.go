@@ -44,10 +44,11 @@ type Client struct {
 	baseURL           string
 	debug             bool
 	logResponse       bool
+	logRequest        bool
 	jar               *netcookiejar.Jar
 }
 
-func NewClient(baseURL, proxyURL string, debug bool, logResponse bool) *Client {
+func NewClient(baseURL, proxyURL string, debug bool, logResponse bool, logRequest bool) *Client {
 	jar, err := netcookiejar.New(nil)
 	if err != nil {
 		log.Printf("peoplesoft: failed to create cookie jar: %v", err)
@@ -94,6 +95,7 @@ func NewClient(baseURL, proxyURL string, debug bool, logResponse bool) *Client {
 		baseURL:     baseURL,
 		debug:       debug,
 		logResponse: logResponse,
+		logRequest:  logRequest,
 		jar:         jar,
 	}
 }
@@ -150,7 +152,8 @@ func (c *Client) SetCookies(cookies []browser.Cookie) {
 }
 
 func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, error) {
-	formData := strings.NewReader(fmt.Sprintf("_PANEL_MODE=VIEW&_PANELS=0&_PROCESS=SSR_SSENRL_SCHD_W&_ACTION=VIEW&_ADVPRTFLG=N&_DISPLAYPAGELINKS=Y&WEEK_DATE=%s", weekDate))
+	formBody := fmt.Sprintf("_PANEL_MODE=VIEW&_PANELS=0&_PROCESS=SSR_SSENRL_SCHD_W&_ACTION=VIEW&_ADVPRTFLG=N&_DISPLAYPAGELINKS=Y&WEEK_DATE=%s", weekDate)
+	formData := strings.NewReader(formBody)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(c.baseURL, "/")+"/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL", formData)
 	if err != nil {
@@ -159,7 +162,11 @@ func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, 
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	c.debugLog("POST %s", req.URL.String())
+	if c.logRequest {
+		log.Printf("peoplesoft request: url=%s method=%s headers=%v body=%s", req.URL.String(), req.Method, req.Header, formBody)
+	} else {
+		c.debugLog("POST %s", req.URL.String())
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

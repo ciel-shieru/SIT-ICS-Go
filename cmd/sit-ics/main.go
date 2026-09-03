@@ -35,7 +35,7 @@ func main() {
 		log.Printf("ics: failed to load from disk: %v", err)
 	}
 
-	ps := peoplesoft.NewClient("https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/", cfg.ProxyURL, cfg.BrowserDebug, cfg.PeopleSoftLogResponse)
+	ps := peoplesoft.NewClient("https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/", cfg.ProxyURL, cfg.BrowserDebug, cfg.PeopleSoftLogResponse, cfg.PeopleSoftLogRequest)
 
 		var authBrowser browser.AuthBrowser
 		switch cfg.BrowserMode {

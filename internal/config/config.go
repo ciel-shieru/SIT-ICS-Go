@@ -34,6 +34,7 @@ type Config struct {
 	BrowserHeadless   bool         `env:"BROWSER_HEADLESS" envDefault:"true"`
 	BrowserDebug                       bool    `env:"BROWSER_DEBUG" envDefault:"false"`
 	PeopleSoftLogResponse              bool    `env:"PEOPLESOFT_LOG_RESPONSE_YES_I_KNOW_SENSITIVE_INFO_WILL_BE_SHOWN" envDefault:"false"`
+	PeopleSoftLogRequest               bool    `env:"PEOPLESOFT_LOG_REQUEST_YES_I_KNOW_SENSITIVE_INFO_WILL_BE_SHOWN" envDefault:"false"`
 	ProxyURL                           string  `env:"PROXY_URL" envDefault:""`
 }
 
