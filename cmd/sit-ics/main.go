@@ -35,21 +35,19 @@ func main() {
 		log.Printf("ics: failed to load from disk: %v", err)
 	}
 
-	ps := peoplesoft.NewClient("https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/", cfg.ProxyURL, cfg.BrowserDebug, cfg.PeopleSoftLogResponse, cfg.PeopleSoftLogRequest)
-
-		var authBrowser browser.AuthBrowser
-		switch cfg.BrowserMode {
-		case config.BrowserSystem, config.BrowserAuto, config.BrowserRod:
-			authBrowser, err = browser.NewLocalBrowser(browser.BrowserConfig{
-				Executable:        cfg.BrowserExecutable,
-				Headless:          cfg.BrowserHeadless,
-				Incognito:         true,
-				ProxyURL:          cfg.ProxyURL,
-				Debug:             cfg.BrowserDebug,
-				ConnectTimeout:    10 * time.Second,
-				NavigationTimeout: 30 * time.Second,
-				AuthTimeout:       5 * time.Minute,
-			})
+	var authBrowser browser.AuthBrowser
+	switch cfg.BrowserMode {
+	case config.BrowserSystem, config.BrowserAuto, config.BrowserRod:
+		authBrowser, err = browser.NewLocalBrowser(browser.BrowserConfig{
+			Executable:        cfg.BrowserExecutable,
+			Headless:          cfg.BrowserHeadless,
+			Incognito:         true,
+			ProxyURL:          cfg.ProxyURL,
+			Debug:             cfg.BrowserDebug,
+			ConnectTimeout:    10 * time.Second,
+			NavigationTimeout: 30 * time.Second,
+			AuthTimeout:       5 * time.Minute,
+		})
 		if err != nil {
 			log.Fatalf("browser: %v", err)
 		}
@@ -78,17 +76,16 @@ func main() {
 		defer cancel()
 
 		authResult, err := provider.Authenticate(ctx, auth.AuthRequest{
-			Username:        cfg.Username,
-			Password:        cfg.Password,
-			TOTPSecret:      cfg.TOTPSecret,
-			PeopleSoftURL:   "https://in4sit.singaporetech.edu.sg/",
+			Username:      cfg.Username,
+			Password:      cfg.Password,
+			TOTPSecret:    cfg.TOTPSecret,
+			PeopleSoftURL: "https://in4sit.singaporetech.edu.sg/",
 		})
 		if err != nil {
 			log.Printf("scheduler: auth failed: %v", err)
 			return
 		}
 
-		ps.SetCookies(authResult.Cookies)
 		log.Printf("scheduler: auth successful, %d cookies set, fetching timetable", len(authResult.Cookies))
 
 		var allEntries []peoplesoft.Entry
@@ -103,7 +100,7 @@ func main() {
 
 		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 7) {
 			weekDate := d.Format("2006-01-02")
-			entries, err := ps.FetchTimetable(ctx, weekDate)
+			entries, err := provider.FetchTimetable(ctx, weekDate)
 			if err != nil {
 				log.Printf("scheduler: fetch failed for %s: %v", weekDate, err)
 				continue
@@ -114,9 +111,9 @@ func main() {
 		icsEvents := make([]ics.Event, 0, len(allEntries))
 		for _, entry := range allEntries {
 			icsEvents = append(icsEvents, ics.Event{
-				CourseCode: entry.CourseCode,
-				Summary:    fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
-				Location:   entry.Location,
+				CourseCode:  entry.CourseCode,
+				Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
+				Location:    entry.Location,
 				Description: fmt.Sprintf("Course: %s\nSection: %s\nType: %s", entry.CourseCode, entry.Section, entry.Type),
 			})
 		}
@@ -163,6 +160,10 @@ func main() {
 	log.Println("shutting down...")
 
 	sched.Stop()
+
+	if authBrowser != nil {
+		authBrowser.Close()
+	}
 
 	if err := cache.SaveToFile(cfg.ICSStoragePath); err != nil {
 		log.Printf("save on shutdown failed: %v", err)

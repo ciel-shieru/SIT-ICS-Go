@@ -18,7 +18,7 @@ internal/browser/                 # AuthBrowser interface + Rod impl (ADR-0005, 
   browser.go # AuthBrowser interface, MockAuthBrowser for tests
 internal/auth/                    # ADFS auth flow using AuthBrowser (ADR-0006, ADR-0010)
 internal/totp/                    # RFC 6238 TOTP via pquerna/otp
-internal/peoplesoft/              # XML/HTML timetable parsing from PeopleSoft (SetCookies for browser session)
+internal/peoplesoft/              # Entry struct (shared type with auth package)
 internal/ics/                     # ICS writer + in-memory cache with disk upsert (ADR-0003)
   ics.go     # RFC 5545 writer, deterministic UID via SHA-256
   cache.go   # RWMutex cache, atomic writes (tmp + rename), preserve historical events
@@ -36,7 +36,7 @@ internal/scheduler/               # robfig/cron/v3 with configured TZ
 - **Browser modes** — `auto`, `system`, `rod`, `remote`. Controlled by `BROWSER_MODE`.
 - **Auth flow** — browser follows ADFS redirect naturally after MFA; no SAMLResponse extraction (ADR-0010).
 - **Cookie extraction** — extracts all cookies from `*.singaporetech.edu.sg` domains (in4sit + fs.singaporetech).
-- **Cookie injection** — `peoplesoft.Client.SetCookies()` injects browser cookies into HTTP client cookie jar.
+- **Browser-based fetch** — timetable fetch uses the same authenticated browser session (ADR-0011).
 
 ## Dependencies
 | Package | Purpose |
@@ -83,7 +83,8 @@ All via env vars with CLI flag override:
 - **ICS UID**: Deterministic SHA-256 hash of `summary+location+date+start+end`. Changing the formula breaks idempotency.
 - **peoplesoft.Entry** lives in `internal/peoplesoft`, not `internal/auth`. The `PeoplesoftClient` interface returns `[]peoplesoft.Entry`.
 - **AuthResult** — no longer includes `SAMLResponse`. Browser handles SAML redirect naturally; cookies are extracted from all singaporetech domains.
-- **Cookie injection** — always call `peoplesoft.Client.SetCookies(authResult.Cookies)` after authentication before fetching timetables.
+- **Browser-based fetch** — `provider.FetchTimetable()` navigates via the authenticated browser, extracts HTML from DOM, then parses it. No HTTP client involved.
+- **Browser lifecycle** — browser stays open after `Authenticate()` for use by `FetchTimetable()`. Always call `browser.Close()` on shutdown.
 - **Shutdown**: Signal handler stops scheduler and flushes dirty ICS cache to disk. Always call `cache.SaveToFile()` on shutdown.
 
 ## ADRs
@@ -98,3 +99,4 @@ All decisions are documented in `docs/adr/`:
 - 0008: Three-layer testing strategy
 - 0009: SAMLResponse submission approach (superseded by 0010)
 - 0010: Natural browser redirect for ADFS→PeopleSoft SAML exchange
+- 0011: Browser-based timetable fetch instead of HTTP client with cookie injection

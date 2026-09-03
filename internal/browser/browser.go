@@ -37,6 +37,8 @@ type AuthResult struct {
 
 type AuthBrowser interface {
 	Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error)
+	FetchTimetable(ctx context.Context, weekDate string) (string, error)
+	Close()
 }
 
 type BrowserConfig struct {
@@ -79,6 +81,7 @@ func isAllowedOrigin(url string) bool {
 
 type MockAuthBrowser struct {
 	AuthenticateFunc func(ctx context.Context, req AuthRequest) (AuthResult, error)
+	FetchTimetableFunc func(ctx context.Context, weekDate string) (string, error)
 }
 
 func (m *MockAuthBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
@@ -87,3 +90,12 @@ func (m *MockAuthBrowser) Authenticate(ctx context.Context, req AuthRequest) (Au
 	}
 	return AuthResult{}, nil
 }
+
+func (m *MockAuthBrowser) FetchTimetable(ctx context.Context, weekDate string) (string, error) {
+	if m.FetchTimetableFunc != nil {
+		return m.FetchTimetableFunc(ctx, weekDate)
+	}
+	return "", nil
+}
+
+func (m *MockAuthBrowser) Close() {}
