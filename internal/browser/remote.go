@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -65,7 +63,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 		return AuthResult{}, err
 	}
 
-	cookies, err := b.extractCookies(authCtx, page, "https://in4sit.singaporetech.edu.sg/")
+	cookies, err := b.extractCookies(authCtx, page)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -160,6 +158,7 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Brows
 		if err := signInEl.Click(proto.InputMouseButtonLeft, 1); err != nil {
 			return nil, fmt.Errorf("%w: failed to submit MFA code: %v", ErrAuthentication, err)
 		}
+		b.debug("waiting for SAML redirect after MFA")
 		if err := page.WaitLoad(); err != nil {
 			b.debug("wait load after MFA failed: %v", err)
 		}
@@ -187,61 +186,61 @@ func (b *RemoteBrowser) connectAndAuth(ctx context.Context, incognito *rod.Brows
 		}
 	}
 
-	b.debug("extracting SAMLResponse from ADFS page")
-	samlResponse, err := extractSAMLResponse(page)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to extract SAMLResponse: %v", ErrAuthentication, err)
+	b.debug("waiting for ADFS redirect to complete")
+	if err := page.WaitLoad(); err != nil {
+		b.debug("wait load after auth failed: %v", err)
 	}
-	if samlResponse == "" {
-		return nil, fmt.Errorf("%w: SAMLResponse is empty", ErrAuthentication)
+	if err := page.WaitStable(5000); err != nil {
+		b.debug("wait stable after auth failed: %v", err)
 	}
-	b.debug("SAMLResponse extracted (%d bytes)", len(samlResponse))
-
-	b.debug("POSTing SAMLResponse to PeopleSoft landing page")
-	samlPostCtx, samlPostCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer samlPostCancel()
-
-	samlPostURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL"
-	samlBody := fmt.Sprintf("SAMLResponse=%s", url.QueryEscape(samlResponse))
-	samlReq, err := http.NewRequestWithContext(samlPostCtx, "POST", samlPostURL, strings.NewReader(samlBody))
-	if err != nil {
-		return nil, fmt.Errorf("create SAML POST request: %w", err)
-	}
-	samlReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	samlPage := incognito.MustPage(samlPostURL).Context(samlPostCtx)
-
-	if err := samlPage.Navigate(samlReq.URL.String()); err != nil {
-		return nil, fmt.Errorf("navigate to PeopleSoft with SAMLResponse: %w", err)
+	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+	if err := page.WaitStable(5000); err != nil {
+		b.debug("wait stable after redirect failed: %v", err)
 	}
 
-	if err := samlPage.WaitLoad(); err != nil {
-		b.debug("wait load after SAML POST failed: %v", err)
-	}
-	if err := samlPage.WaitStable(5000); err != nil {
-		b.debug("wait stable after SAML POST failed: %v", err)
-	}
-	samlPage.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := samlPage.WaitStable(5000); err != nil {
-		b.debug("wait stable after SAML POST redirect failed: %v", err)
-	}
+	finalURL = page.MustInfo().URL
+	b.debug("auth complete, final URL: %s", finalURL)
 
-	b.debug("SAMLResponse POST complete, final URL: %s", samlPage.MustInfo().URL)
-
-	return samlPage, nil
+	return page, nil
 }
 
-func (b *RemoteBrowser) extractCookies(ctx context.Context, page *rod.Page, targetURL string) ([]Cookie, error) {
+func (b *RemoteBrowser) extractCookies(ctx context.Context, page *rod.Page) ([]Cookie, error) {
 	cookieCtx, cookieCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cookieCancel()
+	ctx = cookieCtx
 
 	page = page.Context(cookieCtx)
 
 	var rodCookies []*proto.NetworkCookie
 	func() {
 		defer func() { recover() }()
-		rodCookies = page.MustCookies(targetURL)
+		rodCookies = page.MustCookies(page.MustInfo().URL)
 	}()
+
+	if rodCookies == nil {
+		b.debug("no cookies from current page URL, trying to get all browser cookies")
+		pageURL := page.MustInfo().URL
+		var domains []string
+		if strings.Contains(pageURL, "in4sit.singaporetech.edu.sg") {
+			domains = append(domains, "https://in4sit.singaporetech.edu.sg/")
+		}
+		if strings.Contains(pageURL, "fs.singaporetech.edu.sg") {
+			domains = append(domains, "https://fs.singaporetech.edu.sg/")
+		}
+		if !strings.Contains(pageURL, "in4sit.singaporetech.edu.sg") {
+			domains = append(domains, "https://in4sit.singaporetech.edu.sg/")
+		}
+		if !strings.Contains(pageURL, "fs.singaporetech.edu.sg") {
+			domains = append(domains, "https://fs.singaporetech.edu.sg/")
+		}
+		for _, domainURL := range domains {
+			func() {
+				defer func() { recover() }()
+				extra := page.Context(cookieCtx).MustCookies(domainURL)
+				rodCookies = append(rodCookies, extra...)
+			}()
+		}
+	}
 
 	if rodCookies == nil {
 		return nil, fmt.Errorf("%w: page became invalid during cookie extraction (session closed or navigated away)", ErrAuthentication)
@@ -249,6 +248,9 @@ func (b *RemoteBrowser) extractCookies(ctx context.Context, page *rod.Page, targ
 
 	cookies := make([]Cookie, 0, len(rodCookies))
 	for _, c := range rodCookies {
+		if !isSingaporeTechDomain(c.Domain) {
+			continue
+		}
 		cookies = append(cookies, Cookie{
 			Name:   c.Name,
 			Value:  c.Value,
