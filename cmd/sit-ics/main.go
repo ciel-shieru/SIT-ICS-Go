@@ -77,7 +77,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
-		_, err := provider.Authenticate(ctx, auth.AuthRequest{
+		authResult, err := provider.Authenticate(ctx, auth.AuthRequest{
 			Username:        cfg.Username,
 			Password:        cfg.Password,
 			TOTPSecret:      cfg.TOTPSecret,
@@ -88,7 +88,8 @@ func main() {
 			return
 		}
 
-		log.Printf("scheduler: auth successful, fetching timetable")
+		ps.SetCookies(authResult.Cookies)
+		log.Printf("scheduler: auth successful, %d cookies set, fetching timetable", len(authResult.Cookies))
 
 		var allEntries []peoplesoft.Entry
 		startDate := cfg.StartDate

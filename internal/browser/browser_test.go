@@ -43,9 +43,8 @@ func TestMockAuthBrowser(t *testing.T) {
 		mock := &MockAuthBrowser{
 			AuthenticateFunc: func(ctx context.Context, req AuthRequest) (AuthResult, error) {
 				return AuthResult{
-					Cookies:      []Cookie{{Name: "test", Value: "value"}},
-					Token:        "token123",
-					SAMLResponse: "test-saml-response",
+					Cookies: []Cookie{{Name: "test", Value: "value"}},
+					Token:   "token123",
 				}, nil
 			},
 		}
@@ -62,9 +61,6 @@ func TestMockAuthBrowser(t *testing.T) {
 		}
 		if result.Token != "token123" {
 			t.Errorf("expected token 'token123', got '%s'", result.Token)
-		}
-		if result.SAMLResponse != "test-saml-response" {
-			t.Errorf("expected SAMLResponse 'test-saml-response', got '%s'", result.SAMLResponse)
 		}
 	})
 
@@ -99,21 +95,6 @@ func TestMockAuthBrowser(t *testing.T) {
 			t.Error("expected nil cookies")
 		}
 	})
-}
-
-func TestAuthResultSAMLResponse(t *testing.T) {
-	result := AuthResult{
-		Cookies:      []Cookie{{Name: "PS_TOKEN", Value: "abc"}},
-		RedirectURL:  "https://in4sit.singaporetech.edu.sg/psc/",
-		SAMLResponse: "abcdefghijkLMNOPQRSTUVwX",
-	}
-
-	if result.SAMLResponse != "abcdefghijkLMNOPQRSTUVwX" {
-		t.Errorf("expected SAMLResponse 'abcdefghijkLMNOPQRSTUVwX', got '%s'", result.SAMLResponse)
-	}
-	if len(result.Cookies) != 1 {
-		t.Errorf("expected 1 cookie, got %d", len(result.Cookies))
-	}
 }
 
 func TestDefaultBrowserConfig(t *testing.T) {

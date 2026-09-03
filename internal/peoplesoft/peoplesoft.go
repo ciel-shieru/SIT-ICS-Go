@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ciel-shieru/sit-ics-go/internal/browser"
+
 	"golang.org/x/net/html"
 	"golang.org/x/net/proxy"
 	"net/url"
@@ -42,6 +44,7 @@ type Client struct {
 	baseURL           string
 	debug             bool
 	logResponse       bool
+	jar               *netcookiejar.Jar
 }
 
 func NewClient(baseURL, proxyURL string, debug bool, logResponse bool) *Client {
@@ -91,12 +94,58 @@ func NewClient(baseURL, proxyURL string, debug bool, logResponse bool) *Client {
 		baseURL:     baseURL,
 		debug:       debug,
 		logResponse: logResponse,
+		jar:         jar,
 	}
 }
 
 func (c *Client) debugLog(msg string, args ...any) {
 	if c.debug {
 		log.Printf("peoplesoft: "+msg, args...)
+	}
+}
+
+func (c *Client) SetCookies(cookies []browser.Cookie) {
+	peoplesoftURL, _ := url.Parse(c.baseURL)
+	peoplesoftHost := peoplesoftURL.Host
+
+	httpCookies := make([]*http.Cookie, 0, len(cookies))
+	for _, c := range cookies {
+		httpCookies = append(httpCookies, &http.Cookie{
+			Name:   c.Name,
+			Value:  c.Value,
+			Domain: c.Domain,
+			Path:   c.Path,
+		})
+	}
+
+	if c.jar != nil {
+		c.jar.SetCookies(peoplesoftURL, httpCookies)
+	}
+
+	for _, domain := range []string{
+		"https://in4sit.singaporetech.edu.sg",
+		"https://fs.singaporetech.edu.sg",
+	} {
+		u, err := url.Parse(domain)
+		if err != nil {
+			continue
+		}
+		if u.Host != peoplesoftHost {
+			domainCookies := make([]*http.Cookie, 0)
+			for _, cookie := range cookies {
+				if strings.Contains(cookie.Domain, u.Host) {
+					domainCookies = append(domainCookies, &http.Cookie{
+						Name:   cookie.Name,
+						Value:  cookie.Value,
+						Domain: cookie.Domain,
+						Path:   cookie.Path,
+					})
+				}
+			}
+			if len(domainCookies) > 0 && c.jar != nil {
+				c.jar.SetCookies(u, domainCookies)
+			}
+		}
 	}
 }
 

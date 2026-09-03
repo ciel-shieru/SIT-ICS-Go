@@ -19,7 +19,6 @@ func TestADFSProviderSuccess(t *testing.T) {
 					{Name: "MSISAuth", Value: "adfs_cookie", Domain: "fs.singaporetech.edu.sg", Path: "/adfs"},
 				},
 				RedirectURL: "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL",
-				SAMLResponse: "test-saml-response-value",
 			}, nil
 		},
 	}
@@ -70,7 +69,6 @@ func TestADFSProviderNoTokenInCookies(t *testing.T) {
 				Cookies: []browser.Cookie{
 					{Name: "PSJSESSIONID", Value: "session456", Domain: ".singaporetech.edu.sg"},
 				},
-				SAMLResponse: "test-saml-response-value",
 			}, nil
 		},
 	}
