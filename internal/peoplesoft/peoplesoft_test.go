@@ -17,7 +17,7 @@ func TestClientUsesCookieJar(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", false, false)
+	client := NewClient(server.URL, "", false, false, false)
 
 	if client.httpClient.Jar == nil {
 		t.Fatal("expected cookie jar to be set, got nil")
@@ -50,7 +50,7 @@ func TestClientCookieJarPersistence(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, "", false, false)
+	client := NewClient(server.URL, "", false, false, false)
 
 	_, err := client.FetchTimetable(context.Background(), "2026-09-07")
 	if err != nil {
