@@ -11,14 +11,14 @@ go mod tidy                       # after adding dependencies
 ```
 cmd/sit-ics/main.go              # single binary entrypoint
 internal/config/                  # env vars + CLI flags (ADR-0002)
-internal/browser/                 # AuthBrowser interface + Rod impl (ADR-0005, ADR-0007)
+internal/browser/                 # AuthBrowser interface + Rod impl (ADR-0005, ADR-0007, ADR-0010)
   local.go   — headless Chromium via rod launcher
   remote.go  — CDP connection to external browser
   errors.go  # sentinel errors (ErrBrowserConnect, ErrAuthentication, etc.)
   browser.go # AuthBrowser interface, MockAuthBrowser for tests
-internal/auth/                    # ADFS auth flow using AuthBrowser (ADR-0006)
+internal/auth/                    # ADFS auth flow using AuthBrowser (ADR-0006, ADR-0010)
 internal/totp/                    # RFC 6238 TOTP via pquerna/otp
-internal/peoplesoft/              # XML/HTML timetable parsing from PeopleSoft
+internal/peoplesoft/              # XML/HTML timetable parsing from PeopleSoft (SetCookies for browser session)
 internal/ics/                     # ICS writer + in-memory cache with disk upsert (ADR-0003)
   ics.go     # RFC 5545 writer, deterministic UID via SHA-256
   cache.go   # RWMutex cache, atomic writes (tmp + rename), preserve historical events
@@ -34,6 +34,9 @@ internal/scheduler/               # robfig/cron/v3 with configured TZ
 - **ICS upsert semantics** — never delete old events; merge by deterministic UID.
 - **Timezone** — all time ops use `TZ` env var (default `Asia/Singapore`). Set `time.Local` at startup.
 - **Browser modes** — `auto`, `system`, `rod`, `remote`. Controlled by `BROWSER_MODE`.
+- **Auth flow** — browser follows ADFS redirect naturally after MFA; no SAMLResponse extraction (ADR-0010).
+- **Cookie extraction** — extracts all cookies from `*.singaporetech.edu.sg` domains (in4sit + fs.singaporetech).
+- **Cookie injection** — `peoplesoft.Client.SetCookies()` injects browser cookies into HTTP client cookie jar.
 
 ## Dependencies
 | Package | Purpose |
@@ -75,10 +78,12 @@ All via env vars with CLI flag override:
 
 ## Gotchas
 - **Rod API**: `page.MustQuery()` does not exist — use `page.Element()` which returns `(*Element, error)`. Element methods like `.Input()`, `.Click()`, `.Visible()` do not chain with `.Context()` — they return `(bool, error)` or `error` directly.
-- **Rod cookies**: Use `page.MustCookies(url)` — not raw proto calls.
+- **Rod cookies**: Use `page.MustCookies(url)` — not raw proto calls. For multi-domain extraction, query both `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.
 - **Cron.New** returns `*Cron` only (no error). Logger interface requires `Error(error, string, ...)` method.
 - **ICS UID**: Deterministic SHA-256 hash of `summary+location+date+start+end`. Changing the formula breaks idempotency.
 - **peoplesoft.Entry** lives in `internal/peoplesoft`, not `internal/auth`. The `PeoplesoftClient` interface returns `[]peoplesoft.Entry`.
+- **AuthResult** — no longer includes `SAMLResponse`. Browser handles SAML redirect naturally; cookies are extracted from all singaporetech domains.
+- **Cookie injection** — always call `peoplesoft.Client.SetCookies(authResult.Cookies)` after authentication before fetching timetables.
 - **Shutdown**: Signal handler stops scheduler and flushes dirty ICS cache to disk. Always call `cache.SaveToFile()` on shutdown.
 
 ## ADRs
@@ -91,3 +96,5 @@ All decisions are documented in `docs/adr/`:
 - 0006: Auth flow with Rod waiting primitives
 - 0007: Error model with sentinel errors
 - 0008: Three-layer testing strategy
+- 0009: SAMLResponse submission approach (superseded by 0010)
+- 0010: Natural browser redirect for ADFS→PeopleSoft SAML exchange

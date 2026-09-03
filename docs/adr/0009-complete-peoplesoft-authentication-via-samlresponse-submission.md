@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Superseded by [ADR-0010](./0010-natural-browser-redirect-for-adfs-peoplesoft-saml-exchange.md)
 
 ## Date
 
