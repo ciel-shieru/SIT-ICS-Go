@@ -97,8 +97,8 @@ func (b *RemoteBrowser) FetchTimetable(ctx context.Context, weekDate string) (st
 	b.debug("navigating to timetable endpoint")
 	encodedDate := url.QueryEscape(weekDate)
 	timetableURL := fmt.Sprintf(
-		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAJAX=1&ICAction=DERIVED_CLASS_S_SR_REFRESH_CAL$8$&DERIVED_CLASS_S_START_DT=%s&WEEK_DATE=%s",
-		encodedDate, weekDate,
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAJAX=1&ICAction=DERIVED_CLASS_S_SR_REFRESH_CAL$8$&DERIVED_CLASS_S_START_DT=%s",
+		encodedDate,
 	)
 
 	navigateDone := page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)
