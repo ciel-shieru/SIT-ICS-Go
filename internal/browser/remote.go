@@ -98,42 +98,33 @@ func (b *RemoteBrowser) FetchTimetable(ctx context.Context, weekDate string) (st
 	// Without this initial request, subsequent timetable data will not be returned.
 	startURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAGTarget=start&ICAJAX=1"
 	b.debug("navigating to PeopleSoft start page")
-	page.MustNavigate(startURL)
-	if err := page.WaitStable(3000); err != nil {
-		b.debug("wait stable on start page failed: %v", err)
+	if err := page.Navigate(startURL); err != nil {
+		b.debug("navigating to PeopleSoft start page failed: %v", err)
 	}
 
 	b.debug("navigating to timetable endpoint")
 	encodedDate := url.QueryEscape(weekDate)
 	timetableURL := fmt.Sprintf(
-		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAJAX=1&ICAction=DERIVED_CLASS_S_SR_REFRESH_CAL$8$&DERIVED_CLASS_S_START_DT=%s",
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAJAX=1&ICAction=DERIVED_CLASS_S_SSR_REFRESH_CAL$8$&DERIVED_CLASS_S_START_DT=%s",
 		encodedDate,
 	)
 
-	navigateDone := page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)
-	page.MustNavigate(timetableURL)
-	navigateDone()
-	if err := page.WaitStable(3000); err != nil {
-		b.debug("wait stable failed: %v", err)
+	if err := page.Navigate(timetableURL); err != nil {
+		b.debug("navigating to timetable endpoint failed: %v", err)
 	}
 
-	b.debug("submitting timetable form")
-	submitForm(page, weekDate)
-
-	// PeopleSoft returns XML via AJAX and updates the DOM in-place (no page navigation).
-	// WaitNavigation would hang forever since the URL doesn't change — use WaitStable instead.
-	b.debug("waiting for timetable response")
-	if err := page.WaitStable(10000); err != nil {
-		b.debug("wait stable after form submit failed: %v", err)
-	}
-
-	html, err := page.HTML()
+	body, err := page.Element("body")
 	if err != nil {
 		return "", fmt.Errorf("get page HTML: %w", err)
 	}
 
-	b.debug("timetable HTML extracted, length: %d", len(html))
-	return html, nil
+	xml, err := body.Text()
+	if err != nil {
+		return "", fmt.Errorf("read XML document text: %w", err)
+	}
+
+	b.debug("timetable HTML extracted, length: %d", len(xml))
+	return xml, nil
 }
 
 func (b *RemoteBrowser) findActivePage(browser *rod.Browser) (*rod.Page, error) {
