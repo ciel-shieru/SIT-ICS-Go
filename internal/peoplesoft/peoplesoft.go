@@ -178,7 +178,18 @@ func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	if c.logRequest {
-		log.Printf("peoplesoft request: url=%s method=%s headers=%v body=%s", req.URL.String(), req.Method, req.Header, formBody)
+		var cookies []*http.Cookie
+		if c.jar != nil {
+			cookies = c.jar.Cookies(req.URL)
+		}
+		cookieStr := ""
+		for _, cookie := range cookies {
+			if cookieStr != "" {
+				cookieStr += "; "
+			}
+			cookieStr += cookie.String()
+		}
+		log.Printf("peoplesoft request: url=%s method=%s headers=%v body=%s cookies=%s", req.URL.String(), req.Method, req.Header, formBody, cookieStr)
 	} else {
 		c.debugLog("POST %s", req.URL.String())
 	}
