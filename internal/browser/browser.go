@@ -19,6 +19,7 @@ type Cookie struct {
 	Value  string
 	Domain string
 	Path   string
+	Expiry int64
 }
 
 type AuthRequest struct {

@@ -112,12 +112,16 @@ func (c *Client) SetCookies(cookies []browser.Cookie) {
 
 	httpCookies := make([]*http.Cookie, 0, len(cookies))
 	for _, c := range cookies {
-		httpCookies = append(httpCookies, &http.Cookie{
+		hc := &http.Cookie{
 			Name:   c.Name,
 			Value:  c.Value,
 			Domain: c.Domain,
 			Path:   c.Path,
-		})
+		}
+		if c.Expiry > 0 {
+			hc.Expires = time.Unix(c.Expiry, 0)
+		}
+		httpCookies = append(httpCookies, hc)
 	}
 
 	if c.jar != nil {
@@ -136,12 +140,16 @@ func (c *Client) SetCookies(cookies []browser.Cookie) {
 			domainCookies := make([]*http.Cookie, 0)
 			for _, cookie := range cookies {
 				if strings.Contains(cookie.Domain, u.Host) {
-					domainCookies = append(domainCookies, &http.Cookie{
+					hc := &http.Cookie{
 						Name:   cookie.Name,
 						Value:  cookie.Value,
 						Domain: cookie.Domain,
 						Path:   cookie.Path,
-					})
+					}
+					if cookie.Expiry > 0 {
+						hc.Expires = time.Unix(cookie.Expiry, 0)
+					}
+					domainCookies = append(domainCookies, hc)
 				}
 			}
 			if len(domainCookies) > 0 && c.jar != nil {
