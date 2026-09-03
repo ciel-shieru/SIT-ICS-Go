@@ -13,6 +13,8 @@ This directory contains Architecture Decision Records (ADRs) for the SIT ICS Go 
 | [0007](0007-error-handling-and-timeout-hierarchy.md) | Application-Facing Error Model with Wrapped Rod Errors | Proposed | 2026-09-02 |
 | [0008](0008-testing-strategy-with-three-layers.md) | Three-Layer Testing Strategy with Mock AuthBrowser | Proposed | 2026-09-02 |
 | [0009](0009-complete-peoplesoft-authentication-via-samlresponse-submission.md) | Complete PeopleSoft Authentication via SAMLResponse Submission | Proposed | 2026-09-03 |
+| [0010](0010-natural-browser-redirect-for-adfs-peoplesoft-saml-exchange.md) | Natural Browser Redirect for ADFS→PeopleSoft SAML Exchange | Accepted | 2026-09-03 |
+| [0011](0011-browser-based-timetable-fetch-instead-of-http-client.md) | Browser-Based Timetable Fetch Instead of HTTP Client with Cookie Injection | Proposed | 2026-09-03 |
 
 ## Superseded ADRs
 
