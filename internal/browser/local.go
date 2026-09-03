@@ -99,6 +99,17 @@ func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (str
 	}
 	page = page.Context(fetchCtx)
 
+	// Navigate to the PeopleSoft start page first to initialize session state.
+	// Without this initial request, subsequent timetable data will not be returned.
+	startURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAGTarget=start&ICAJAX=1"
+	b.debug("navigating to PeopleSoft start page")
+	navigateDoneStart := page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)
+	page.MustNavigate(startURL)
+	navigateDoneStart()
+	if err := page.WaitStable(3000); err != nil {
+		b.debug("wait stable on start page failed: %v", err)
+	}
+
 	b.debug("navigating to timetable endpoint")
 	encodedDate := url.QueryEscape(weekDate)
 	timetableURL := fmt.Sprintf(
@@ -116,9 +127,10 @@ func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (str
 	b.debug("submitting timetable form")
 	submitForm(page, weekDate)
 
+	// PeopleSoft returns XML via AJAX and updates the DOM in-place (no page navigation).
+	// WaitNavigation would hang forever since the URL doesn't change — use WaitStable instead.
 	b.debug("waiting for timetable response")
-	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5000); err != nil {
+	if err := page.WaitStable(10000); err != nil {
 		b.debug("wait stable after form submit failed: %v", err)
 	}
 

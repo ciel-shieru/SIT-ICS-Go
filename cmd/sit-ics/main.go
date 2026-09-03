@@ -99,7 +99,7 @@ func main() {
 		}
 
 		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 7) {
-			weekDate := d.Format("30/01/2006")
+			weekDate := d.Format("02/01/2006")
 			entries, err := provider.FetchTimetable(ctx, weekDate)
 			if err != nil {
 				log.Printf("scheduler: fetch failed for %s: %v", weekDate, err)
