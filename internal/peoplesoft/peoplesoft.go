@@ -194,6 +194,10 @@ func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, 
 		c.debugLog("POST %s", req.URL.String())
 	}
 
+	// The cookiejar attached to httpClient automatically processes Set-Cookie
+	// response headers after Do() returns. It updates/replaces cookies whose
+	// name, domain, and path match those in the header while preserving every
+	// other cookie already stored in the jar.
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch timetable: %w", err)
