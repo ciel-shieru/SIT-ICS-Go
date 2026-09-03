@@ -17,7 +17,7 @@ internal/browser/                 # AuthBrowser interface + Rod impl (ADR-0005, 
   errors.go  # sentinel errors (ErrBrowserConnect, ErrAuthentication, etc.)
   browser.go # AuthBrowser interface, MockAuthBrowser for tests
 internal/auth/                    # ADFS auth flow using AuthBrowser (ADR-0006)
-internal/totp/                    # RFC 6238 TOTP (~50 lines, stdlib only)
+internal/totp/                    # RFC 6238 TOTP via pquerna/otp
 internal/peoplesoft/              # XML/HTML timetable parsing from PeopleSoft
 internal/ics/                     # ICS writer + in-memory cache with disk upsert (ADR-0003)
   ics.go     # RFC 5545 writer, deterministic UID via SHA-256
@@ -43,6 +43,7 @@ internal/scheduler/               # robfig/cron/v3 with configured TZ
 | `github.com/go-rod/rod` | Headless browser automation |
 | `github.com/robfig/cron/v3` | Cron scheduling |
 | `golang.org/x/net/html` | HTML table parsing |
+| `github.com/pquerna/otp` | RFC 6238 TOTP generation |
 
 ## Testing
 - Unit tests run with `go test ./...` — no browser required.
