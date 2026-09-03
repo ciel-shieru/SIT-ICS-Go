@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	netcookiejar "net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -44,17 +45,28 @@ type Client struct {
 }
 
 func NewClient(baseURL, proxyURL string, debug bool, logResponse bool) *Client {
+	jar, err := netcookiejar.New(nil)
+	if err != nil {
+		log.Printf("peoplesoft: failed to create cookie jar: %v", err)
+	}
+
 	var httpClient *http.Client
 
 	if proxyURL != "" {
 		parsed, err := url.Parse(proxyURL)
 		if err != nil {
-			httpClient = &http.Client{}
+			httpClient = &http.Client{
+				Timeout: 30 * time.Second,
+				Jar:     jar,
+			}
 		} else {
 			proxyAddr := parsed.Host
 			proxyDialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
 			if err != nil {
-				httpClient = &http.Client{}
+				httpClient = &http.Client{
+					Timeout: 30 * time.Second,
+					Jar:     jar,
+				}
 			} else {
 				httpClient = &http.Client{
 					Timeout: 30 * time.Second,
@@ -63,12 +75,14 @@ func NewClient(baseURL, proxyURL string, debug bool, logResponse bool) *Client {
 							return proxyDialer.Dial(network, addr)
 						},
 					},
+					Jar: jar,
 				}
 			}
 		}
 	} else {
 		httpClient = &http.Client{
 			Timeout: 30 * time.Second,
+			Jar:     jar,
 		}
 	}
 

@@ -29,9 +29,10 @@ type AuthRequest struct {
 }
 
 type AuthResult struct {
-	Cookies     []Cookie
-	RedirectURL string
-	Token       string
+	Cookies      []Cookie
+	RedirectURL  string
+	Token        string
+	SAMLResponse string
 }
 
 type AuthBrowser interface {
