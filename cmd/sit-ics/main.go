@@ -95,11 +95,11 @@ func main() {
 		}
 		endDate := cfg.EndDate
 		if endDate.IsZero() {
-			endDate = startDate.AddDate(0, 0, 90)
+			endDate = startDate.AddDate(0, 0, 180)
 		}
 
 		for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 7) {
-			weekDate := d.Format("2006-01-02")
+			weekDate := d.Format("30/01/2006")
 			entries, err := provider.FetchTimetable(ctx, weekDate)
 			if err != nil {
 				log.Printf("scheduler: fetch failed for %s: %v", weekDate, err)
