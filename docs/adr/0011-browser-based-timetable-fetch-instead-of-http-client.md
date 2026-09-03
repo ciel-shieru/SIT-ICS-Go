@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
@@ -212,9 +212,10 @@ The server serves the ICS file from cache. No changes needed — it already depe
 
 ## Follow-Ups
 
-- Implementation of `FetchTimetable` in `LocalBrowser` and `RemoteBrowser`
-- Removal of HTTP client code from `peoplesoft` package
-- Migration of `parseTimetableHTML` to `internal/auth` or kept as a standalone utility
+- [x] Implementation of `FetchTimetable` in `LocalBrowser` and `RemoteBrowser`
+- [x] Removal of HTTP client code from `peoplesoft` package
+- [x] Migration of `parseTimetableHTML` to `internal/auth`
+- [ ] Add tests for browser-based timetable fetch (requires Chromium / staging ADFS)
 - Related ADRs:
   - **ADR-0010**: Natural browser redirect for ADFS→PeopleSoft SAML exchange (superseded in part — cookie injection bridge removed)
   - **ADR-0005**: Browser abstraction layer (extended with `FetchTimetable`)

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/totp"
+
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
@@ -15,7 +17,11 @@ import (
 )
 
 type LocalBrowser struct {
-	cfg BrowserConfig
+	cfg         BrowserConfig
+	launcherURL string
+	browser     *rod.Browser
+	incognito   *rod.Browser
+	page        *rod.Page
 }
 
 func NewLocalBrowser(cfg BrowserConfig) (*LocalBrowser, error) {
@@ -36,35 +42,37 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserLaunch, err)
 	}
+	b.launcherURL = launcherURL
 
 	connectCtx, connectCancel := context.WithTimeout(authCtx, b.cfg.ConnectTimeout)
 	defer connectCancel()
 
-	browser := rod.New().ControlURL(launcherURL).Context(connectCtx)
-	if err := browser.Connect(); err != nil {
+	b.browser = rod.New().ControlURL(launcherURL).Context(connectCtx)
+	if err := b.browser.Connect(); err != nil {
 		b.debug("connect failed: %v", err)
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
 	}
 	b.debug("connected to browser")
-	defer browser.Close()
 
 	var incognito *rod.Browser
 
 	if b.cfg.Incognito {
 		b.debug("creating incognito context")
-		incognito, err = browser.Incognito()
+		incognito, err = b.browser.Incognito()
 		if err != nil {
 			return AuthResult{}, fmt.Errorf("create incognito context: %w", err)
 		}
-		defer incognito.Close()
+		b.incognito = incognito
 	} else {
-		incognito = browser
+		incognito = b.browser
 	}
 
 	page, err := b.navigateAndAuth(authCtx, incognito, req)
 	if err != nil {
+		b.browser.Close()
 		return AuthResult{}, err
 	}
+	b.page = page
 
 	cookies, err := b.extractCookies(authCtx, page)
 	if err != nil {
@@ -75,6 +83,93 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 		Cookies:     cookies,
 		RedirectURL: getPageURL(page),
 	}, nil
+}
+
+func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (string, error) {
+	if b.browser == nil {
+		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+
+	fetchCtx, fetchCancel := context.WithTimeout(ctx, b.cfg.NavigationTimeout)
+	defer fetchCancel()
+
+	page := b.page
+	if page == nil {
+		return "", fmt.Errorf("no active page: authenticate first")
+	}
+	page = page.Context(fetchCtx)
+
+	b.debug("navigating to timetable endpoint")
+	encodedDate := url.QueryEscape(weekDate)
+	timetableURL := fmt.Sprintf(
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAJAX=1&ICAction=DERIVED_CLASS_S_SR_REFRESH_CAL$8$&DERIVED_CLASS_S_START_DT=%s&WEEK_DATE=%s",
+		encodedDate, weekDate,
+	)
+
+	navigateDone := page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)
+	page.MustNavigate(timetableURL)
+	navigateDone()
+	if err := page.WaitStable(3000); err != nil {
+		b.debug("wait stable failed: %v", err)
+	}
+
+	b.debug("submitting timetable form")
+	submitForm(page, weekDate)
+
+	b.debug("waiting for timetable response")
+	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+	if err := page.WaitStable(5000); err != nil {
+		b.debug("wait stable after form submit failed: %v", err)
+	}
+
+	html, err := page.HTML()
+	if err != nil {
+		return "", fmt.Errorf("get page HTML: %w", err)
+	}
+
+	b.debug("timetable HTML extracted, length: %d", len(html))
+	return html, nil
+}
+
+func (b *LocalBrowser) findActivePage(browser *rod.Browser) (*rod.Page, error) {
+	var pages rod.Pages
+	func() {
+		defer func() { recover() }()
+		var err error
+		pages, err = browser.Pages()
+		if err != nil {
+			return
+		}
+	}()
+
+	if pages == nil || len(pages) == 0 {
+		return nil, fmt.Errorf("no pages found")
+	}
+
+	for _, p := range pages {
+		var pageURL string
+		func() {
+			defer func() { recover() }()
+			pageURL = p.MustInfo().URL
+		}()
+		if strings.Contains(pageURL, "singaporetech.edu.sg") {
+			return p, nil
+		}
+	}
+
+	return pages[0], nil
+}
+
+func (b *LocalBrowser) Close() {
+	if b.incognito != nil {
+		b.incognito.Close()
+		b.incognito = nil
+	}
+	if b.browser != nil {
+		b.browser.Close()
+		b.browser = nil
+		b.page = nil
+	}
 }
 
 func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
@@ -227,39 +322,6 @@ func (b *LocalBrowser) navigateAndAuth(ctx context.Context, incognito *rod.Brows
 	finalURL = getPageURL(page)
 	b.debug("auth complete, final URL: %s", finalURL)
 
-	b.debug("waiting for PeopleSoft landing page")
-	landingPageURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL"
-	landingCtx, landingCancel := context.WithTimeout(ctx, b.cfg.NavigationTimeout)
-	defer landingCancel()
-	page = page.Context(landingCtx)
-
-	landingWait := page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)
-	navigationDone := make(chan struct{})
-	go func() {
-		for {
-			currentURL := getPageURL(page)
-			if currentURL == landingPageURL || (len(currentURL) >= len(landingPageURL) && currentURL[:len(landingPageURL)] == landingPageURL && (currentURL[len(landingPageURL)] == '?' || currentURL[len(landingPageURL)] == '#')) {
-				navigationDone <- struct{}{}
-				return
-			}
-			select {
-			case <-landingCtx.Done():
-				return
-			default:
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
-	}()
-
-	landingWait()
-	<-navigationDone
-	if err := page.WaitStable(3000); err != nil {
-		b.debug("wait stable on landing page failed: %v", err)
-	}
-
-	finalURL = getPageURL(page)
-	b.debug("landed on PeopleSoft URL: %s", finalURL)
-
 	return page, nil
 }
 
@@ -379,4 +441,32 @@ func (b *LocalBrowser) extractCookies(ctx context.Context, page *rod.Page) ([]Co
 
 func isSingaporeTechDomain(domain string) bool {
 	return strings.Contains(domain, "singaporetech.edu.sg")
+}
+
+func submitForm(page *rod.Page, weekDate string) {
+	formFields := map[string]string{
+		"_PANEL_MODE":       "VIEW",
+		"_PANELS":           "0",
+		"_PROCESS":          "SSR_SSENRL_SCHD_W",
+		"_ACTION":           "VIEW",
+		"_ADVPRTFLG":        "N",
+		"_DISPLAYPAGELINKS": "Y",
+		"WEEK_DATE":         weekDate,
+	}
+
+	for name, value := range formFields {
+		el, err := page.Element("input[name=" + name + "]")
+		if err != nil {
+			continue
+		}
+		_ = el.Input(value)
+	}
+
+	submitBtn, err := page.Element("input[name=_PROCESS]")
+	if err != nil {
+		submitBtn, err = page.Element("input[type=submit]")
+	}
+	if err == nil {
+		submitBtn.Click(proto.InputMouseButtonLeft, 1)
+	}
 }
