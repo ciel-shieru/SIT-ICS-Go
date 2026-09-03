@@ -152,10 +152,25 @@ func (c *Client) SetCookies(cookies []browser.Cookie) {
 }
 
 func (c *Client) FetchTimetable(ctx context.Context, weekDate string) ([]Entry, error) {
+	parsedDate, err := time.Parse("2006-01-02", weekDate)
+	if err != nil {
+		return nil, fmt.Errorf("parse week date: %w", err)
+	}
+
+	formattedDate := parsedDate.Format("02/01/2006")
+	encodedDate := url.QueryEscape(formattedDate)
+
+	queryParams := url.Values{}
+	queryParams.Add("ICAJAX", "1")
+	queryParams.Add("ICAction", "DERIVED_CLASS_S_SSR_REFRESH_CAL$8$")
+	queryParams.Add("DERIVED_CLASS_S_START_DT", encodedDate)
+
+	fullURL := strings.TrimSuffix(c.baseURL, "/") + "/EMPLOYEE/SA/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?" + queryParams.Encode()
+
 	formBody := fmt.Sprintf("_PANEL_MODE=VIEW&_PANELS=0&_PROCESS=SSR_SSENRL_SCHD_W&_ACTION=VIEW&_ADVPRTFLG=N&_DISPLAYPAGELINKS=Y&WEEK_DATE=%s", weekDate)
 	formData := strings.NewReader(formBody)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(c.baseURL, "/")+"/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL", formData)
+	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, formData)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
