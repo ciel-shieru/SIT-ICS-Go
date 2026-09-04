@@ -3,15 +3,8 @@ package browser
 import (
 	"context"
 	"time"
-)
 
-type BrowserMode string
-
-const (
-	BrowserAuto   BrowserMode = "auto"
-	BrowserSystem BrowserMode = "system"
-	BrowserRod    BrowserMode = "rod"
-	BrowserRemote BrowserMode = "remote"
+	"github.com/ciel-shieru/sit-ics-go/internal/config"
 )
 
 type Cookie struct {
@@ -42,7 +35,7 @@ type AuthBrowser interface {
 }
 
 type BrowserConfig struct {
-	Mode              BrowserMode
+	Mode              config.BrowserMode
 	Executable        string
 	ControlURL        string
 	Headless          bool
@@ -54,7 +47,7 @@ type BrowserConfig struct {
 	AuthTimeout       time.Duration
 }
 
-func DefaultBrowserConfig(mode BrowserMode) BrowserConfig {
+func DefaultBrowserConfig(mode config.BrowserMode) BrowserConfig {
 	return BrowserConfig{
 		Mode:              mode,
 		Headless:          true,

@@ -9,15 +9,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type BrowserMode string
-
-const (
-	BrowserAuto   BrowserMode = "auto"
-	BrowserSystem BrowserMode = "system"
-	BrowserRod    BrowserMode = "rod"
-	BrowserRemote BrowserMode = "remote"
-)
-
 type Config struct {
 	Username         string        `env:"USERNAME" envDefault:""`
 	Password         string        `env:"PASSWORD" envDefault:""`

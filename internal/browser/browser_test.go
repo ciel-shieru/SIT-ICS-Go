@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/config"
 )
 
 func TestSentinelErrors(t *testing.T) {
@@ -98,10 +100,10 @@ func TestMockAuthBrowser(t *testing.T) {
 }
 
 func TestDefaultBrowserConfig(t *testing.T) {
-	cfg := DefaultBrowserConfig(BrowserAuto)
+	cfg := DefaultBrowserConfig(config.BrowserAuto)
 
-	if cfg.Mode != BrowserAuto {
-		t.Errorf("expected mode %s, got %s", BrowserAuto, cfg.Mode)
+	if cfg.Mode != config.BrowserAuto {
+		t.Errorf("expected mode %s, got %s", config.BrowserAuto, cfg.Mode)
 	}
 	if !cfg.Headless {
 		t.Error("expected headless to be true")
