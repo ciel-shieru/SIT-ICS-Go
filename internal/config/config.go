@@ -19,6 +19,8 @@ type Config struct {
 	FetchCron        string        `env:"FETCH_CRON" envDefault:"0 1 * * *"`
 	ServerPort       int           `env:"SERVER_PORT" envDefault:"8080"`
 	ICSStoragePath   string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
+	ICSOnlinePath    string        `env:"ICS_ONLINE_PATH" envDefault:"./timetable-online.ics"`
+	ICSCampusPath    string        `env:"ICS_CAMPUS_PATH" envDefault:"./timetable-campus.ics"`
 	BrowserMode      BrowserMode   `env:"BROWSER_MODE" envDefault:"auto"`
 	BrowserExecutable  string `env:"BROWSER_EXECUTABLE" envDefault:""`
 	BrowserRemoteHost  string `env:"BROWSER_REMOTE_HOST" envDefault:""`
@@ -43,7 +45,9 @@ func Load() (*Config, error) {
 	tz := fs.String("tz", "", "Timezone (IANA name)")
 	fetchCron := fs.String("fetch-cron", "", "Cron schedule for fetches")
 	serverPort := fs.Int("server-port", 0, "HTTP server port")
-	icsStoragePath := fs.String("ics-storage-path", "", "Path to ICS file")
+	icsStoragePath := fs.String("ics-storage-path", "", "Path to main ICS file")
+	icsOnlinePath := fs.String("ics-online-path", "", "Path to online-only ICS file")
+	icsCampusPath := fs.String("ics-campus-path", "", "Path to campus-only ICS file")
 	browserMode := fs.String("browser-mode", "", "Browser mode (auto/system/rod/remote)")
 	browserExecutable := fs.String("browser-executable", "", "Browser executable path")
 	browserRemoteHost := fs.String("browser-remote-host", "", "Remote browser host (IP or FQDN)")
@@ -88,6 +92,12 @@ func Load() (*Config, error) {
 	}
 	if fs.Lookup("ics-storage-path").Changed {
 		cfg.ICSStoragePath = *icsStoragePath
+	}
+	if fs.Lookup("ics-online-path").Changed {
+		cfg.ICSOnlinePath = *icsOnlinePath
+	}
+	if fs.Lookup("ics-campus-path").Changed {
+		cfg.ICSCampusPath = *icsCampusPath
 	}
 	if fs.Lookup("browser-mode").Changed {
 		cfg.BrowserMode = BrowserMode(*browserMode)
