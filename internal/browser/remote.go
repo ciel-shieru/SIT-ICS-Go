@@ -2,8 +2,12 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
@@ -11,16 +15,60 @@ import (
 
 type RemoteBrowser struct {
 	cfg           BrowserConfig
-	launcherURL   string
 	browser       *rod.Browser
 	incognito     *rod.Browser
 	page          *rod.Page
 	pageTargetID  proto.TargetTargetID
 }
 
+// versionInfo represents the /json/version/ endpoint response.
+type versionInfo struct {
+	WebSocketDebuggerUrl string `json:"webSocketDebuggerUrl"`
+}
+
+// discoverWebSocketURL fetches http://host:port/json/version/ and returns the
+// webSocketDebuggerUrl. This must be called fresh for every fetch cycle because
+// the URL contains a per-session UUID that changes when Chromium restarts.
+func discoverWebSocketURL(ctx context.Context, host string, port int, timeout time.Duration) (string, error) {
+	url := fmt.Sprintf("http://%s:%d/json/version/", host, port)
+
+	reqCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("discover: create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("discover: fetch %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return "", fmt.Errorf("discover: %s returned status %d: %s", url, resp.StatusCode, string(body))
+	}
+
+	var info versionInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return "", fmt.Errorf("discover: decode /json/version/: %w", err)
+	}
+
+	if info.WebSocketDebuggerUrl == "" {
+		return "", fmt.Errorf("discover: %s returned empty webSocketDebuggerUrl", url)
+	}
+
+	return info.WebSocketDebuggerUrl, nil
+}
+
 func NewRemoteBrowser(cfg BrowserConfig) (*RemoteBrowser, error) {
-	if cfg.ControlURL == "" {
-		return nil, fmt.Errorf("remote browser requires ControlURL")
+	if cfg.RemoteHost == "" {
+		return nil, fmt.Errorf("remote browser requires RemoteHost")
+	}
+	if cfg.RemotePort <= 0 {
+		return nil, fmt.Errorf("remote browser requires positive RemotePort")
 	}
 	return &RemoteBrowser{cfg: cfg}, nil
 }
@@ -32,12 +80,20 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	connectCtx, connectCancel := context.WithTimeout(authCtx, b.cfg.ConnectTimeout)
 	defer connectCancel()
 
-	b.browser = rod.New().ControlURL(b.cfg.ControlURL).Context(connectCtx)
+	// Discover the WebSocket URL fresh on every Authenticate() call.
+	// The webSocketDebuggerUrl contains a per-session UUID that may change
+	// when Chromium restarts or new sessions are created.
+	wsURL, err := discoverWebSocketURL(connectCtx, b.cfg.RemoteHost, b.cfg.RemotePort, b.cfg.ConnectTimeout)
+	if err != nil {
+		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
+	}
+
+	b.browser = rod.New().ControlURL(wsURL).Context(connectCtx)
 	if err := b.browser.Connect(); err != nil {
 		debug(b.cfg, "connect failed: %v", err)
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
 	}
-	debug(b.cfg, "connected to remote browser")
+	debug(b.cfg, "connected to remote browser via %s", wsURL)
 
 	var incognito *rod.Browser
 

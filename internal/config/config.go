@@ -20,9 +20,10 @@ type Config struct {
 	ServerPort       int           `env:"SERVER_PORT" envDefault:"8080"`
 	ICSStoragePath   string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
 	BrowserMode      BrowserMode   `env:"BROWSER_MODE" envDefault:"auto"`
-	BrowserExecutable string       `env:"BROWSER_EXECUTABLE" envDefault:""`
-	BrowserControlURL string       `env:"BROWSER_CONTROL_URL" envDefault:""`
-	BrowserHeadless   bool         `env:"BROWSER_HEADLESS" envDefault:"true"`
+	BrowserExecutable  string `env:"BROWSER_EXECUTABLE" envDefault:""`
+	BrowserRemoteHost  string `env:"BROWSER_REMOTE_HOST" envDefault:""`
+	BrowserRemotePort  int    `env:"BROWSER_REMOTE_PORT" envDefault:"9222"`
+	BrowserHeadless    bool   `env:"BROWSER_HEADLESS" envDefault:"true"`
 	BrowserDebug                      bool    `env:"BROWSER_DEBUG" envDefault:"false"`
 	ProxyURL                          string  `env:"PROXY_URL" envDefault:""`
 }
@@ -45,7 +46,8 @@ func Load() (*Config, error) {
 	icsStoragePath := fs.String("ics-storage-path", "", "Path to ICS file")
 	browserMode := fs.String("browser-mode", "", "Browser mode (auto/system/rod/remote)")
 	browserExecutable := fs.String("browser-executable", "", "Browser executable path")
-	browserControlURL := fs.String("browser-control-url", "", "Remote browser CDP URL")
+	browserRemoteHost := fs.String("browser-remote-host", "", "Remote browser host (IP or FQDN)")
+	browserRemotePort := fs.Int("browser-remote-port", 0, "Remote browser port")
 	browserHeadless := fs.Bool("browser-headless", false, "Run browser in headless mode")
 	browserDebug := fs.Bool("browser-debug", false, "Enable debug logging for browser actions")
 	proxyURL := fs.String("proxy-url", "", "SOCKS5 proxy URL (e.g. socks5://localhost:1080)")
@@ -93,8 +95,11 @@ func Load() (*Config, error) {
 	if fs.Lookup("browser-executable").Changed {
 		cfg.BrowserExecutable = *browserExecutable
 	}
-	if fs.Lookup("browser-control-url").Changed {
-		cfg.BrowserControlURL = *browserControlURL
+	if fs.Lookup("browser-remote-host").Changed {
+		cfg.BrowserRemoteHost = *browserRemoteHost
+	}
+	if fs.Lookup("browser-remote-port").Changed {
+		cfg.BrowserRemotePort = *browserRemotePort
 	}
 	if fs.Lookup("browser-headless").Changed {
 		cfg.BrowserHeadless = *browserHeadless
