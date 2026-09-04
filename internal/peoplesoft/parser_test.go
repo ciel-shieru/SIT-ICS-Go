@@ -1,4 +1,4 @@
-package auth
+package peoplesoft
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ func TestParseTimetableHTML(t *testing.T) {
 <html>
 <body>
 <div id="win0divPSPAGECONTAINER">
-<table cellspacing='0' class='PSLEVEL1GRIDWBO' id='SSR_DUMMY_REC$scroll$0' role='presentation' dir='ltr' cols='1' width='776' cellpadding='0'>
+<table cellspacing='0' class='PSLEVEL1GRIDWBO' role='presentation' dir='ltr' cols='1' width='776' cellpadding='0'>
 <tr><td class='PSLEVEL1GRIDLABEL' align='left'><div id='win0divSSR_DUMMY_RECGP$0'>Schedule</div></td></tr>
 <tr><td>
 <table dir='ltr' border='0' cellpadding='2' cellspacing='0' cols='1' width='100%' class='PSLEVEL1GRID' style='border-style:none'>
@@ -73,7 +73,7 @@ func TestParseTimetableHTML(t *testing.T) {
 </body>
 </html>`
 
-	entries, err := parseTimetableHTML(htmlContent, 2026)
+	entries, err := ParseTimetableHTML(htmlContent, 2026)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestParseTimetableHTML(t *testing.T) {
 
 func TestParseTimetableHTML_NoTable(t *testing.T) {
 	htmlContent := `<html><body><p>No timetable here</p></body></html>`
-	entries, err := parseTimetableHTML(htmlContent, 2026)
+	entries, err := ParseTimetableHTML(htmlContent, 2026)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestParseTimeRange_InvalidFormat(t *testing.T) {
 }
 
 func TestGetCells(t *testing.T) {
-	trHTML := `<table><tr><th>Header</th><td>Data</td><th>Header2</th></tr></table>`
+	trHTML := `<table><tr><th>Header</th><td>Data</th><th>Header2</th></tr></table>`
 	doc, err := html.Parse(strings.NewReader(trHTML))
 	if err != nil {
 		t.Fatalf("failed to parse: %v", err)
@@ -309,9 +309,9 @@ func TestExtractYear(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := extractYear(tt.input)
+			got := ExtractYear(tt.input)
 			if got != tt.expected {
-				t.Errorf("extractYear(%q) = %d, want %d", tt.input, got, tt.expected)
+				t.Errorf("ExtractYear(%q) = %d, want %d", tt.input, got, tt.expected)
 			}
 		})
 	}
