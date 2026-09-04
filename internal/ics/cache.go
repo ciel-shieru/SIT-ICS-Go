@@ -9,9 +9,9 @@ import (
 )
 
 type ICSCache struct {
-	mu   sync.RWMutex
-	data []byte
-	dirty bool
+	mu     sync.RWMutex
+	events []Event
+	dirty  bool
 }
 
 func NewICSCache() *ICSCache {
@@ -30,15 +30,30 @@ func (c *ICSCache) LoadFromFile(path string) error {
 		return fmt.Errorf("read ICS file: %w", err)
 	}
 
-	c.data = data
+	c.events = parseICS(data)
 	c.dirty = false
 	return nil
 }
 
-func (c *ICSCache) Get() []byte {
+func (c *ICSCache) Get(tz string) []byte {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.data
+	data, _ := Write(c.events, tz)
+	return data
+}
+
+func (c *ICSCache) GetFiltered(tz string, filterFn func(Event) bool) []byte {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	filtered := filterEvents(c.events, filterFn)
+	data, _ := Write(filtered, tz)
+	return data
+}
+
+func (c *ICSCache) EventCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.events)
 }
 
 func (c *ICSCache) Update(events []Event, tz string) error {
@@ -50,13 +65,60 @@ func (c *ICSCache) Update(events []Event, tz string) error {
 		return fmt.Errorf("merge events: %w", err)
 	}
 
-	newData, err := Write(merged, tz)
-	if err != nil {
-		return fmt.Errorf("write ICS: %w", err)
+	c.events = merged
+	c.dirty = true
+	return nil
+}
+
+func (c *ICSCache) SaveToFile(path string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if !c.dirty {
+		return nil
 	}
 
-	c.data = newData
-	c.dirty = true
+	data, _ := Write(c.events, "UTC")
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return fmt.Errorf("write temp ICS file: %w", err)
+	}
+
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("rename ICS file: %w", err)
+	}
+
+	c.dirty = false
+	return nil
+}
+
+func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if !c.dirty {
+		return nil
+	}
+
+	mainData, _ := Write(c.events, tz)
+	onlineData, _ := Write(filterEvents(c.events, IsOnline), tz)
+	campusData, _ := Write(filterEvents(c.events, IsNotOnline), tz)
+
+	for path, data := range map[string][]byte{
+		mainPath:   mainData,
+		onlinePath: onlineData,
+		campusPath: campusData,
+	} {
+		tmp := path + ".tmp"
+		if err := os.WriteFile(tmp, data, 0600); err != nil {
+			return fmt.Errorf("write temp ICS file %q: %w", tmp, err)
+		}
+		if err := os.Rename(tmp, path); err != nil {
+			return fmt.Errorf("rename ICS file %q: %w", path, err)
+		}
+	}
+
+	c.dirty = false
 	return nil
 }
 
@@ -83,12 +145,15 @@ func (c *ICSCache) merge(newEvents []Event) ([]Event, error) {
 
 func (c *ICSCache) parseExisting() map[string]Event {
 	existing := make(map[string]Event)
-
-	if len(c.data) == 0 {
-		return existing
+	for _, event := range c.events {
+		existing[event.UID] = event
 	}
+	return existing
+}
 
-	content := string(c.data)
+func parseICS(data []byte) []Event {
+	events := make([]Event, 0)
+	content := string(data)
 	eventBlocks := strings.Split(content, "BEGIN:VEVENT")
 
 	for _, block := range eventBlocks {
@@ -131,32 +196,29 @@ func (c *ICSCache) parseExisting() map[string]Event {
 		}
 
 		if event.UID != "" {
-			existing[event.UID] = event
+			events = append(events, event)
 		}
 	}
 
-	return existing
+	return events
 }
 
-func (c *ICSCache) SaveToFile(path string) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if !c.dirty {
-		return nil
+func filterEvents(events []Event, filterFn func(Event) bool) []Event {
+	filtered := make([]Event, 0, len(events))
+	for _, event := range events {
+		if filterFn(event) {
+			filtered = append(filtered, event)
+		}
 	}
+	return filtered
+}
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, c.data, 0600); err != nil {
-		return fmt.Errorf("write temp ICS file: %w", err)
-	}
+func IsOnline(event Event) bool {
+	return strings.EqualFold(event.Location, "Online")
+}
 
-	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("rename ICS file: %w", err)
-	}
-
-	c.dirty = false
-	return nil
+func IsNotOnline(event Event) bool {
+	return !IsOnline(event)
 }
 
 func unescapeText(text string) string {

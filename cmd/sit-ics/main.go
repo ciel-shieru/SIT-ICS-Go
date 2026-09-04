@@ -89,7 +89,7 @@ func main() {
 		log.Printf("scheduler: %v", err)
 	}
 
-	srv := server.NewServer(cfg.ServerPort, cache)
+	srv := server.NewServer(cfg.ServerPort, cache, cfg.TZ)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -109,7 +109,7 @@ func main() {
 		authBrowser.Close()
 	}
 
-	if err := cache.SaveToFile(cfg.ICSStoragePath); err != nil {
+	if err := cache.SaveAllToFiles(cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.TZ); err != nil {
 		log.Printf("save on shutdown failed: %v", err)
 	}
 }
@@ -174,7 +174,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 		return
 	}
 
-	if err := cache.SaveToFile(cfg.ICSStoragePath); err != nil {
+	if err := cache.SaveAllToFiles(cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.TZ); err != nil {
 		log.Printf("scheduler: save failed: %v", err)
 		return
 	}
