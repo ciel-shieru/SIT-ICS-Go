@@ -14,11 +14,12 @@ import (
 )
 
 type RemoteBrowser struct {
-	cfg         BrowserConfig
-	launcherURL string
-	browser     *rod.Browser
-	incognito   *rod.Browser
-	page        *rod.Page
+	cfg           BrowserConfig
+	launcherURL   string
+	browser       *rod.Browser
+	incognito     *rod.Browser
+	page          *rod.Page
+	pageTargetID  proto.TargetTargetID
 }
 
 func NewRemoteBrowser(cfg BrowserConfig) (*RemoteBrowser, error) {
@@ -68,6 +69,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 		return AuthResult{}, err
 	}
 	b.page = page
+	b.pageTargetID = page.TargetID
 
 	cookies, err := b.extractCookies(authCtx, page)
 	if err != nil {
@@ -157,14 +159,37 @@ func (b *RemoteBrowser) findActivePage(browser *rod.Browser) (*rod.Page, error) 
 }
 
 func (b *RemoteBrowser) Close() {
-	if b.incognito != nil {
-		b.incognito.Close()
-		b.incognito = nil
+	if b.incognito != nil && b.incognito != b.browser {
+		var pageIDs rod.Pages
+		func() {
+			defer func() { recover() }()
+			var err error
+			pageIDs, err = b.incognito.Pages()
+			if err != nil {
+				pageIDs = nil
+			}
+		}()
+
+		if pageIDs == nil || len(pageIDs) <= 1 {
+			func() {
+				defer func() { recover() }()
+				b.incognito.Close()
+			}()
+			b.incognito = nil
+		} else {
+			func() {
+				defer func() { recover() }()
+				proto.TargetCloseTarget{TargetID: b.pageTargetID}.Call(b.browser)
+			}()
+			b.page = nil
+		}
 	}
 	if b.browser != nil {
-		b.browser.Close()
+		func() {
+			defer func() { recover() }()
+			b.browser.Close()
+		}()
 		b.browser = nil
-		b.page = nil
 	}
 }
 
