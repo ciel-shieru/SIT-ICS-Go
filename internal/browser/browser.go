@@ -37,7 +37,8 @@ type AuthBrowser interface {
 type BrowserConfig struct {
 	Mode              config.BrowserMode
 	Executable        string
-	ControlURL        string
+	RemoteHost        string
+	RemotePort        int
 	Headless          bool
 	Incognito         bool
 	ProxyURL          string

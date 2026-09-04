@@ -56,7 +56,8 @@ func main() {
 		}
 	case config.BrowserRemote:
 		authBrowser, err = browser.NewRemoteBrowser(browser.BrowserConfig{
-			ControlURL:        cfg.BrowserControlURL,
+			RemoteHost:        cfg.BrowserRemoteHost,
+			RemotePort:        cfg.BrowserRemotePort,
 			Headless:          cfg.BrowserHeadless,
 			Incognito:         true,
 			ProxyURL:          cfg.ProxyURL,

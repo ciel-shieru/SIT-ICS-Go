@@ -71,7 +71,8 @@ All via env vars with CLI flag override:
 | `ICS_STORAGE_PATH` | ./timetable.ics | ICS file path |
 | `BROWSER_MODE` | auto | auto/system/rod/remote |
 | `BROWSER_EXECUTABLE` | — | Explicit browser binary path |
-| `BROWSER_CONTROL_URL` | — | CDP URL for remote mode |
+| `BROWSER_REMOTE_HOST` | — | Remote browser host (IP or FQDN) |
+| `BROWSER_REMOTE_PORT` | 9222 | Remote browser HTTP port |
 | `BROWSER_HEADLESS` | true | Headless mode |
 | `BROWSER_DEBUG` | false | Enable debug logging for Rod events and actions |
 | `PROXY_URL` | — | SOCKS5 proxy URL (e.g. socks5://localhost:1080) |
@@ -86,6 +87,7 @@ All via env vars with CLI flag override:
 - **Browser-based fetch** — `provider.FetchTimetable()` navigates via the authenticated browser, extracts HTML from DOM, then parses it. No HTTP client involved.
 - **Browser lifecycle** — browser stays open after `Authenticate()` for use by `FetchTimetable()`. Always call `browser.Close()` on shutdown.
 - **Shutdown**: Signal handler stops scheduler and flushes dirty ICS cache to disk. Always call `cache.SaveToFile()` on shutdown.
+- **Remote browser discovery**: For `remote` mode, the connection URL is discovered at runtime by fetching `http://host:port/json/version/` and reading the `webSocketDebuggerUrl` field. This happens fresh on every `Authenticate()` call because the WebSocket URL contains a per-session UUID that changes when Chromium restarts. Use `BROWSER_REMOTE_HOST` and `BROWSER_REMOTE_PORT` instead of a static control URL.
 
 ## ADRs
 All decisions are documented in `docs/adr/`:
