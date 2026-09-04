@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -110,11 +111,18 @@ func main() {
 
 		icsEvents := make([]ics.Event, 0, len(allEntries))
 		for _, entry := range allEntries {
+			dtStart, dtEnd, err := parseEntryDateTime(entry, loc)
+			if err != nil {
+				log.Printf("scheduler: skipping entry %s: %v", entry.CourseCode, err)
+				continue
+			}
 			icsEvents = append(icsEvents, ics.Event{
 				CourseCode:  entry.CourseCode,
 				Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
 				Location:    entry.Location,
 				Description: fmt.Sprintf("Course: %s\nSection: %s\nType: %s", entry.CourseCode, entry.Section, entry.Type),
+				DTStart:     dtStart,
+				DTEnd:       dtEnd,
 			})
 		}
 
@@ -168,4 +176,28 @@ func main() {
 	if err := cache.SaveToFile(cfg.ICSStoragePath); err != nil {
 		log.Printf("save on shutdown failed: %v", err)
 	}
+}
+
+func parseEntryDateTime(entry peoplesoft.Entry, loc *time.Location) (time.Time, time.Time, error) {
+	parts := strings.Split(entry.Day, "/")
+	if len(parts) != 3 {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid day format: %s", entry.Day)
+	}
+	var day, month, year int
+	fmt.Sscanf(parts[0], "%d", &day)
+	fmt.Sscanf(parts[1], "%d", &month)
+	fmt.Sscanf(parts[2], "%d", &year)
+
+	startHour, startMin := parseTime(entry.StartTime)
+	endHour, endMin := parseTime(entry.EndTime)
+
+	dtStart := time.Date(year, time.Month(month), day, startHour, startMin, 0, 0, loc)
+	dtEnd := time.Date(year, time.Month(month), day, endHour, endMin, 0, 0, loc)
+	return dtStart, dtEnd, nil
+}
+
+func parseTime(s string) (int, int) {
+	var h, m int
+	fmt.Sscanf(s, "%d:%d", &h, &m)
+	return h, m
 }
