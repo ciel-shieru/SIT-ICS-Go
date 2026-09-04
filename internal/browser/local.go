@@ -163,11 +163,17 @@ func (b *LocalBrowser) findActivePage(browser *rod.Browser) (*rod.Page, error) {
 
 func (b *LocalBrowser) Close() {
 	if b.incognito != nil {
-		b.incognito.Close()
+		func() {
+			defer func() { recover() }()
+			b.incognito.Close()
+		}()
 		b.incognito = nil
 	}
 	if b.browser != nil {
-		b.browser.Close()
+		func() {
+			defer func() { recover() }()
+			b.browser.Close()
+		}()
 		b.browser = nil
 		b.page = nil
 	}
