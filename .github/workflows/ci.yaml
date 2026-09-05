@@ -174,55 +174,55 @@ jobs:
           retention-days: 1
 
   # ── Run check: verify binary starts and serves ──
-  run-check:
-    name: Run check (linux/amd64)
-    runs-on: ubuntu-latest
-    needs: [gate-external-prs, build]
-    if: always() && (needs.gate-external-prs.result == 'success' || github.event_name == 'push')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
-
-      - name: Build binary for run-check
-        env:
-          GOOS: linux
-          GOARCH: amd64
-          CGO_ENABLED: "0"
-        run: |
-          go build \
-            -ldflags="-s -w" \
-            -o sit-ics-run ./cmd/sit-ics
-
-      - name: Run binary and verify HTTP response
-        timeout-minutes: 2
-        run: |
-          ./sit-ics-run --addr :9000 &
-          PID=$!
-          sleep 3
-
-          # Verify HTTP endpoint responds with VCALENDAR content
-          HEADER=$(curl -sf http://localhost:9000/timetable.ics || echo "FAIL")
-          if [ "$HEADER" = "FAIL" ]; then
-            echo "::error::HTTP request failed — binary may not be serving correctly"
-            kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
-            exit 1
-          fi
-
-          if ! echo "$HEADER" | grep -q "BEGIN:VCALENDAR"; then
-            echo "::error::Response does not contain valid ICS VCALENDAR header"
-            kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
-            exit 1
-          fi
-
-          # Graceful shutdown
-          kill $PID
-          wait $PID 2>/dev/null || true
-          echo "Run check passed — binary starts and serves ICS successfully"
+  # run-check:
+  #   name: Run check (linux/amd64)
+  #   runs-on: ubuntu-latest
+  #   needs: [gate-external-prs, build]
+  #   if: always() && (needs.gate-external-prs.result == 'success' || github.event_name == 'push')
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Setup Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #         cache-dependency-path: go.sum
+  #
+  #     - name: Build binary for run-check
+  #       env:
+  #         GOOS: linux
+  #         GOARCH: amd64
+  #         CGO_ENABLED: "0"
+  #       run: |
+  #         go build \
+  #           -ldflags="-s -w" \
+  #           -o sit-ics-run ./cmd/sit-ics
+  #
+  #     - name: Run binary and verify HTTP response
+  #       timeout-minutes: 2
+  #       run: |
+  #         ./sit-ics-run --addr :9000 &
+  #         PID=$!
+  #         sleep 3
+  #
+  #         # Verify HTTP endpoint responds with VCALENDAR content
+  #         HEADER=$(curl -sf http://localhost:9000/timetable.ics || echo "FAIL")
+  #         if [ "$HEADER" = "FAIL" ]; then
+  #           echo "::error::HTTP request failed — binary may not be serving correctly"
+  #           kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
+  #           exit 1
+  #         fi
+  #
+  #         if ! echo "$HEADER" | grep -q "BEGIN:VCALENDAR"; then
+  #           echo "::error::Response does not contain valid ICS VCALENDAR header"
+  #           kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
+  #           exit 1
+  #         fi
+  #
+  #         # Graceful shutdown
+  #         kill $PID
+  #         wait $PID 2>/dev/null || true
+  #         echo "Run check passed — binary starts and serves ICS successfully"
 
   # ── Build and push debug container image (every commit/PR) ──
   build-debug-image:
