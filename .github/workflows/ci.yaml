@@ -74,32 +74,24 @@ jobs:
           AUTHOR="${{ github.event.pull_request.user.login }}"
           gh pr comment "$PR_NUMBER" \
             --repo "${REPO_OWNER}/${{ github.event.repository.name }}" \
-            --body "**CI is paused pending maintainer approval.**
+            --body "**CI is paused pending maintainer approval.** \n\nExternal contributors require a \`ci-approved\` label before CI workflows run.\n\nA project maintainer should add the \`ci-approved\` label to this pull request."
 
-External contributors require a \`ci-approved\` label before CI workflows run.
-
-A project maintainer should add the \`ci-approved\` label to this pull request."
-
-      - name: Comment CI status
-        if: always() && needs.gate-external-prs.outputs.approved == 'false'
-        needs: [gate-external-prs]
-        runs-on: ubuntu-latest
-        permissions:
-          pull-requests: write
-        steps:
-          - name: Comment CI status
-            env:
-              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              REPO_OWNER: ${{ github.repository_owner }}
-              PR_NUMBER: ${{ github.event.pull_request.number }}
-            run: |
-              gh pr comment "$PR_NUMBER" \
-                --repo "${REPO_OWNER}/${{ github.event.repository.name }}" \
-                --body "⏳ **CI checks are waiting for maintainer approval.**
-
-A maintainer needs to add the \`ci-approved\` label to this PR.
-
-*This is an automated status update.*"
+      # - name: Comment CI status
+      #   if: always() && needs.gate-external-prs.outputs.approved == 'false'
+      #   needs: [gate-external-prs]
+      #   runs-on: ubuntu-latest
+      #   permissions:
+      #     pull-requests: write
+      #   steps:
+      #     - name: Comment CI status
+      #       env:
+      #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #         REPO_OWNER: ${{ github.repository_owner }}
+      #         PR_NUMBER: ${{ github.event.pull_request.number }}
+      #       run: |
+      #         gh pr comment "$PR_NUMBER" \
+      #           --repo "${REPO_OWNER}/${{ github.event.repository.name }}" \
+      #           --body "⏳ **CI checks are waiting for maintainer approval.**\n\nA maintainer needs to add the \`ci-approved\` label to this PR.\n\n*This is an automated status update.*"
 
   # ── Lint ──
   lint:
