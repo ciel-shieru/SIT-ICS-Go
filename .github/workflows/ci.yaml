@@ -164,7 +164,7 @@ jobs:
         run: |
           go build \
             -ldflags="-s -w" \
-            -o sit-ics-${{ matrix.goos }}-${{ matrix.goarch }} .
+            -o sit-ics-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/sit-ics
 
       - name: Upload artifact (${{ matrix.name }})
         uses: actions/upload-artifact@v4
@@ -196,7 +196,7 @@ jobs:
         run: |
           go build \
             -ldflags="-s -w" \
-            -o sit-ics-run .
+            -o sit-ics-run ./cmd/sit-ics
 
       - name: Run binary and verify HTTP response
         timeout-minutes: 2
