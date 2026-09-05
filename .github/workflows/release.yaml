@@ -69,12 +69,12 @@ jobs:
             goarch: amd64
             ext: ""
           - name: linux/arm64
-            os: ubuntu-latest
+            os: ubuntu-26.04-arm
             goos: linux
             goarch: arm64
             ext: ""
           - name: darwin/amd64
-            os: macos-13
+            os: macos-26-intel
             goos: darwin
             goarch: amd64
             ext: ""
@@ -97,8 +97,9 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
         run: |
-          CGO_ENABLED=0 go build \
+          go build \
             -ldflags="-s -w" \
             -o sit-ics-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/sit-ics
 
@@ -129,7 +130,7 @@ jobs:
             goarch: amd64
             ext: ""
           - name: linux-arm64
-            os: ubuntu-latest
+            os: ubuntu-26.04-arm
             goos: linux
             goarch: arm64
             ext: ""
@@ -197,7 +198,7 @@ jobs:
         include:
           - os: ubuntu-latest
             arch: amd64
-          - os: ubuntu-latest-arm
+          - os: ubuntu-26.04-arm
             arch: arm64
     steps:
       - name: Checkout
