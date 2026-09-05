@@ -133,7 +133,7 @@ jobs:
             goarch: arm64
             ext: ""
           - name: darwin-amd64
-            os: macos-13
+            os: macos-26-intel
             goos: darwin
             goarch: amd64
             ext: ""
