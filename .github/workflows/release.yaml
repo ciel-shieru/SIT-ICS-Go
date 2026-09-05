@@ -168,8 +168,27 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download all artifacts
+      - name: Download binaries
         uses: actions/download-artifact@v4
+        with:
+          name: |
+            sit-ics-windows-amd64.exe
+            sit-ics-linux-amd64
+            sit-ics-linux-arm64
+            sit-ics-darwin-amd64
+            sit-ics-darwin-arm64
+          path: artifacts
+
+      - name: Download SBOMs
+        uses: actions/download-artifact@v4
+        with:
+          name: |
+            sit-ics-sbom-windows-amd64
+            sit-ics-sbom-linux-amd64
+            sit-ics-sbom-linux-arm64
+            sit-ics-sbom-darwin-amd64
+            sit-ics-sbom-darwin-arm64
+          path: artifacts
 
       - name: Create GitHub Release
         env:
@@ -183,7 +202,7 @@ jobs:
             --generate-notes \
             --latest \
             --prerelease=false \
-            $(find artifacts -type f -name 'sit-ics-*' | tr '\n' ' ')
+            $(find artifacts -type f | tr '\n' ' ')
 
   # ── Build and push production container image ──
   build-prod-image:
