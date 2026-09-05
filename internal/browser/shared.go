@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
 	"strings"
 	"time"
 
@@ -296,34 +295,24 @@ func fetchTimetable(ctx context.Context, page *rod.Page, weekDate string, cfg Br
 
 	page = page.Context(fetchCtx)
 
-	startURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAGTarget=start&ICAJAX=1"
-	debug(cfg, "navigating to PeopleSoft start page")
-	if err := page.Navigate(startURL); err != nil {
-		debug(cfg, "navigating to PeopleSoft start page failed: %v", err)
-	}
-
-	debug(cfg, "navigating to timetable endpoint")
-	encodedDate := url.QueryEscape(weekDate)
-	timetableURL := fmt.Sprintf(
-		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_SCHD_W.GBL?ICAJAX=1&ICAction=DERIVED_CLASS_S_SSR_REFRESH_CAL$8$&DERIVED_CLASS_S_START_DT=%s",
-		encodedDate,
-	)
+	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
+	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
 	if err := page.Navigate(timetableURL); err != nil {
-		debug(cfg, "navigating to timetable endpoint failed: %v", err)
+		return "", fmt.Errorf("navigate to timetable: %w", err)
 	}
 
-	body, err := page.Element("body")
+	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+	if err := page.WaitStable(5000); err != nil {
+		debug(cfg, "wait stable failed: %v", err)
+	}
+
+	htmlStr, err := page.HTML()
 	if err != nil {
 		return "", fmt.Errorf("get page HTML: %w", err)
 	}
 
-	xml, err := body.Text()
-	if err != nil {
-		return "", fmt.Errorf("read XML document text: %w", err)
-	}
-
-	debug(cfg, "timetable HTML extracted, length: %d", len(xml))
-	return xml, nil
+	debug(cfg, "timetable HTML extracted, length: %d", len(htmlStr))
+	return htmlStr, nil
 }
 
 func debug(cfg BrowserConfig, msg string, args ...any) {

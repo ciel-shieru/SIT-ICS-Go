@@ -1,8 +1,10 @@
 package peoplesoft
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -11,63 +13,124 @@ func TestParseTimetableHTML(t *testing.T) {
 	htmlContent := `<!DOCTYPE html>
 <html>
 <body>
-<div id="win0divPSPAGECONTAINER">
-<table cellspacing='0' class='PSLEVEL1GRIDWBO' role='presentation' dir='ltr' cols='1' width='776' cellpadding='0'>
-<tr><td class='PSLEVEL1GRIDLABEL' align='left'><div id='win0divSSR_DUMMY_RECGP$0'>Schedule</div></td></tr>
+<div id='win0divSTDNT_ENRL_SSV2$0'>
+<table>
 <tr><td>
-<table dir='ltr' border='0' cellpadding='2' cellspacing='0' cols='1' width='100%' class='PSLEVEL1GRID' style='border-style:none'>
-<tr id='trSSR_DUMMY_REC$0_row1' valign='center'>
-<td align='left' width='702' height='18' class='PABACKGROUNDINVISIBLE PSGRIDFIRSTCOLUMN'>
-<div id='win0divDERIVED_CLASS_S_HTMLAREA$0'>
-<div>
-<table cellspacing='0' cellpadding='2' width='100%' class='PSLEVEL3GRIDODDROW' id='WEEKLY_SCHED_HTMLAREA' summary='Weekly Schedule'>
-<colgroup span='1' width='9%' align='center' valign='middle'>
-<colgroup span='7' width='13%' align='center' valign='middle'>
-<tr><th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Time</th>
-<th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Monday<br>21 Sep</th>
-<th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Tuesday<br>22 Sep</th>
-<th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Wednesday<br>23 Sep</th>
-<th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Thursday<br>24 Sep</th>
-<th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Friday<br>25 Sep</th>
-<th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Saturday<br>26 Sep</th>
-<th scope='col' align='center' class='PSLEVEL3GRIDODDROW'>Sunday<br>27 Sep</th></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>8:00AM</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>9:00AM</span></td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">ABC 0002 - ALL<br>Lecture<br>9:00AM - 11:00AM<br>Online</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">DEF 0001 - ALL<br>Lecture<br>9:00AM - 11:00AM<br>Online</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>10:00AM</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>11:00AM</span></td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='1' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">DEF 0001 - T2<br>Tutorial<br>11:00AM - 12:00PM<br>Online</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">ABC 0004 - T7<br>Tutorial<br>11:00AM - 1:00PM<br>W1-03-04-SR222</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>12:00PM</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>2:00PM</span></td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">ABC 0003 - ALL<br>Lecture<br>2:00PM - 4:00PM<br>Online</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">DEF 1002A - IS26<br>Workshop<br>2:00PM - 4:00PM<br>Online</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">ABC 0003 - P6<br>Laboratory<br>2:00PM - 4:00PM<br>W1-05-07</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>3:00PM</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>4:00PM</span></td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">ABC 0004 - ALL<br>Lecture<br>4:00PM - 6:00PM<br>Online</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td>
-<td class='PSLEVEL3GRIDODDROW' rowspan='2' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);text-align: center;"><span class='' STYLE="color:rgb(0,0,0);background-color:rgb(182,209,146);">ABC 0002 - P6<br>Laboratory<br>4:00PM - 6:00PM<br>W1-05-05</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
-<tr><td class='PSLEVEL3GRIDODDROW' rowspan='1' scope="row"><span class=''>5:00PM</span></td>
-<td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td><td class='PSLEVEL3GRIDODDROW'>&nbsp;</td></tr>
+<div id='win0divDERIVED_REGFRM1_DESCR20$0'>
+<table>
+<tr><td class='PAGROUPDIVIDER' align='left'>DEF 0001 - Computer Organization and Architecture</td></tr>
+<tr><td>
+<div id='win0divCLASS_MTG_VW$0'>
+<table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$0'>
+<tr><td>
+<table border='0' cellpadding='2' cellspacing='0' cols='7' width='100%' class='PSLEVEL3GRID'>
+<tr>
+<th scope='col' abbr='Class Nbr' width='29' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR PSGRIDFIRSTCOLUMN'>Class Nbr</th>
+<th scope='col' abbr='Section' width='26' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR'>Section</th>
+<th scope='col' abbr='Component' width='51' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Component</th>
+<th scope='col' abbr='Days &amp; Times' width='90' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Days &amp; Times</th>
+<th scope='col' abbr='Room' width='75' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Room</th>
+<th scope='col' abbr='Instructor' width='87' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Instructor</th>
+<th scope='col' abbr='Start/End Date' width='80' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Start/End Date</th>
+</tr>
+<tr id='trCLASS_MTG_VW$0_row1' valign='center'>
+<td><DIV id='win0divDERIVED_CLS_DTL_CLASS_NBR$0'><span class='PSEDITBOX_DISPONLY' id='DERIVED_CLS_DTL_CLASS_NBR$0'>1160</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SECTION$0'><span id='MTG_SECTION$span$0' class='PSHYPERLINK'><a name='MTG_SECTION$0' id='MTG_SECTION$0'>P1</a></span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_COMP$0'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$0'>Laboratory</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SCHED$0'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$0'>Th 9:00AM - 11:00AM</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_LOC$0'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$0'>W1-06-18</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$0'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$0'>JOEL ALIGAEN GONZALES</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_DATES$0'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$0'>17/09/2026 - 17/09/2026</span></DIV></td>
+</tr>
+<tr id='trCLASS_MTG_VW$0_row2' valign='center'>
+<td><DIV id='win0divDERIVED_CLS_DTL_CLASS_NBR$1'><span class='PSEDITBOX_DISPONLY' id='DERIVED_CLS_DTL_CLASS_NBR$1'>&nbsp;</span></DIV></td>
+<td class='PSLEVEL2GRIDEVENROW'><DIV id='win0divMTG_SECTION$1'>&nbsp;</DIV></td>
+<td class='PSLEVEL2GRIDEVENROW'><DIV id='win0divMTG_COMP$1'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$1'>&nbsp;</span></DIV></td>
+<td class='PSLEVEL2GRIDEVENROW'><DIV id='win0divMTG_SCHED$1'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$1'>Th 9:00AM - 11:00AM</span></DIV></td>
+<td class='PSLEVEL2GRIDEVENROW'><DIV id='win0divMTG_LOC$1'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$1'>W1-06-18</span></DIV></td>
+<td class='PSLEVEL2GRIDEVENROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$1'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$1'>JOEL ALIGAEN GONZALES</span></DIV></td>
+<td class='PSLEVEL2GRIDEVENROW'><DIV id='win0divMTG_DATES$1'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$1'>24/09/2026 - 24/09/2026</span></DIV></td>
+</tr>
+<tr id='trCLASS_MTG_VW$0_row3' valign='center'>
+<td><DIV id='win0divDERIVED_CLS_DTL_CLASS_NBR$2'><span class='PSEDITBOX_DISPONLY' id='DERIVED_CLS_DTL_CLASS_NBR$2'>1163</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SECTION$2'><span id='MTG_SECTION$span$2' class='PSHYPERLINK'><a name='MTG_SECTION$2' id='MTG_SECTION$2'>ALL</a></span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_COMP$2'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$2'>Lecture</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SCHED$2'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$2'>Fr 9:00AM - 11:00AM</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_LOC$2'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$2'>Online</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$2'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$2'>WONG KAI JUAN STEVEN</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_DATES$2'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$2'>18/09/2026 - 18/09/2026</span></DIV></td>
+</tr>
 </table>
 </div>
 </div>
 </td></tr>
-</table></td></tr>
+</table>
+</div>
+<div id='win0divDERIVED_REGFRM1_DESCR20$1'>
+<table>
+<tr><td class='PAGROUPDIVIDER' align='left'>ABC 0002 - Introduction to Computer Systems</td></tr>
+<tr><td>
+<div id='win0divCLASS_MTG_VW$1'>
+<table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$1'>
+<tr><td>
+<table border='0' cellpadding='2' cellspacing='0' cols='7' width='100%' class='PSLEVEL3GRID'>
+<tr>
+<th scope='col' abbr='Class Nbr' width='29' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR PSGRIDFIRSTCOLUMN'>Class Nbr</th>
+<th scope='col' abbr='Section' width='26' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR'>Section</th>
+<th scope='col' abbr='Component' width='51' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Component</th>
+<th scope='col' abbr='Days &amp; Times' width='90' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Days &amp; Times</th>
+<th scope='col' abbr='Room' width='75' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Room</th>
+<th scope='col' abbr='Instructor' width='87' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Instructor</th>
+<th scope='col' abbr='Start/End Date' width='80' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Start/End Date</th>
+</tr>
+<tr id='trCLASS_MTG_VW$1_row1' valign='center'>
+<td><DIV id='win0divDERIVED_CLS_DTL_CLASS_NBR$3'><span class='PSEDITBOX_DISPONLY' id='DERIVED_CLS_DTL_CLASS_NBR$3'>2812</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SECTION$3'><span id='MTG_SECTION$span$3' class='PSHYPERLINK'><a name='MTG_SECTION$3' id='MTG_SECTION$3'>ALL</a></span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_COMP$3'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$3'>Lecture</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SCHED$3'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$3'>Mo 9:00AM - 11:00AM</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_LOC$3'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$3'>Online</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$3'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$3'>IAN VINCE MCLOUGHLIN</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_DATES$3'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$3'>31/08/2026 - 31/08/2026</span></DIV></td>
+</tr>
+</table>
+</div>
+</div>
+</td></tr>
+</table>
+</div>
+<div id='win0divDERIVED_REGFRM1_DESCR20$2'>
+<table>
+<tr><td class='PAGROUPDIVIDER' align='left'>GHI 1111 - Digital Competency Essentials</td></tr>
+<tr><td>
+<div id='win0divCLASS_MTG_VW$2'>
+<table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$2'>
+<tr><td>
+<table border='0' cellpadding='2' cellspacing='0' cols='7' width='100%' class='PSLEVEL3GRID'>
+<tr>
+<th scope='col' abbr='Class Nbr' width='29' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR PSGRIDFIRSTCOLUMN'>Class Nbr</th>
+<th scope='col' abbr='Section' width='26' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR'>Section</th>
+<th scope='col' abbr='Component' width='51' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Component</th>
+<th scope='col' abbr='Days &amp; Times' width='90' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Days &amp; Times</th>
+<th scope='col' abbr='Room' width='75' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Room</th>
+<th scope='col' abbr='Instructor' width='87' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Instructor</th>
+<th scope='col' abbr='Start/End Date' width='80' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Start/End Date</th>
+</tr>
+<tr id='trCLASS_MTG_VW$2_row1' valign='center'>
+<td><DIV id='win0divDERIVED_CLS_DTL_CLASS_NBR$4'><span class='PSEDITBOX_DISPONLY' id='DERIVED_CLS_DTL_CLASS_NBR$4'>2816</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SECTION$4'><span id='MTG_SECTION$span$4' class='PSHYPERLINK'><a name='MTG_SECTION$4' id='MTG_SECTION$4'>ALL</a></span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_COMP$4'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$4'>Lecture</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SCHED$4'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$4'>Mo 2:00PM - 4:00PM</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_LOC$4'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$4'>Online</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$4'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$4'>NISHA JAIN</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_DATES$4'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$4'>31/08/2026 - 31/08/2026</span></DIV></td>
+</tr>
+</table>
+</div>
+</div>
+</td></tr>
+</table>
+</div>
+</td></tr>
 </table>
 </div>
 </body>
@@ -78,34 +141,35 @@ func TestParseTimetableHTML(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(entries) != 9 {
-		t.Fatalf("expected 9 entries, got %d", len(entries))
+	if len(entries) != 4 {
+		t.Fatalf("expected 4 entries, got %d", len(entries))
 	}
 
-	expected := []struct {
+	type expectedEntry struct {
 		courseCode  string
+		className   string
 		section     string
 		classType   string
 		day         string
 		startTime   string
 		endTime     string
 		location    string
-	}{
-		{"ABC 0002", "ALL", "Lecture", "21/09/2026", "09:00", "11:00", "Online"},
-		{"DEF 0001", "ALL", "Lecture", "25/09/2026", "09:00", "11:00", "Online"},
-		{"DEF 0001", "T2", "Tutorial", "21/09/2026", "11:00", "12:00", "Online"},
-		{"ABC 0004", "T7", "Tutorial", "24/09/2026", "11:00", "13:00", "W1-03-04-SR222"},
-		{"ABC 0003", "ALL", "Lecture", "21/09/2026", "14:00", "16:00", "Online"},
-		{"DEF 1002A", "IS26", "Workshop", "23/09/2026", "14:00", "16:00", "Online"},
-		{"ABC 0003", "P6", "Laboratory", "25/09/2026", "14:00", "16:00", "W1-05-07"},
-		{"ABC 0004", "ALL", "Lecture", "21/09/2026", "16:00", "18:00", "Online"},
-		{"ABC 0002", "P6", "Laboratory", "25/09/2026", "16:00", "18:00", "W1-05-05"},
+	}
+
+	expected := []expectedEntry{
+		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "P1", classType: "Laboratory", day: "17/09/2026", startTime: "09:00", endTime: "11:00", location: "W1-06-18"},
+		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "ALL", classType: "Lecture", day: "18/09/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
+		{courseCode: "ABC 0002", className: "Introduction to Computer Systems", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
+		{courseCode: "GHI 1111", className: "Digital Competency Essentials", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "14:00", endTime: "16:00", location: "Online"},
 	}
 
 	for i, exp := range expected {
 		e := entries[i]
 		if e.CourseCode != exp.courseCode {
 			t.Errorf("entry[%d] CourseCode: got %q, want %q", i, e.CourseCode, exp.courseCode)
+		}
+		if e.ClassName != exp.className {
+			t.Errorf("entry[%d] ClassName: got %q, want %q", i, e.ClassName, exp.className)
 		}
 		if e.Section != exp.section {
 			t.Errorf("entry[%d] Section: got %q, want %q", i, e.Section, exp.section)
@@ -215,47 +279,6 @@ func TestParseTime(t *testing.T) {
 	}
 }
 
-func TestParseDayDate(t *testing.T) {
-	tests := []struct {
-		input   string
-		wantDay int
-		wantMon string
-		wantErr bool
-	}{
-		{"21 Sep", 21, "September", false},
-		{"22 Sep", 22, "September", false},
-		{"23 Sep", 23, "September", false},
-		{"24 Sep", 24, "September", false},
-		{"25 Sep", 25, "September", false},
-		{"invalid", 0, "", true},
-		{"31 Foo", 0, "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got, err := parseDayDate(tt.input, 2026)
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("expected error for %q, got nil", tt.input)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error for %q: %v", tt.input, err)
-			}
-			if got.Year() != 2026 {
-				t.Errorf("year: got %d, want 2026", got.Year())
-			}
-			if got.Day() != tt.wantDay {
-				t.Errorf("day: got %d, want %d", got.Day(), tt.wantDay)
-			}
-			if got.Month().String() != tt.wantMon {
-				t.Errorf("month: got %s, want %s", got.Month().String(), tt.wantMon)
-			}
-		})
-	}
-}
-
 func TestParseTimeRange_Empty(t *testing.T) {
 	_, _, err := parseTimeRange("")
 	if err == nil {
@@ -326,5 +349,115 @@ func TestGetTextContent(t *testing.T) {
 	got := getTextContent(doc.FirstChild)
 	if got != "Hello\nWorld" {
 		t.Errorf("got %q, want %q", got, "Hello\nWorld")
+	}
+}
+
+func TestParseSchedule(t *testing.T) {
+	tests := []struct {
+		input       string
+		wantDay     string
+		wantTime    string
+		wantErr     bool
+	}{
+		{"Mo 9:00AM - 11:00AM", "Mo", "9:00AM - 11:00AM", false},
+		{"Th 9:00AM - 11:00AM", "Th", "9:00AM - 11:00AM", false},
+		{"Fr 2:00PM - 4:00PM", "Fr", "2:00PM - 4:00PM", false},
+		{"We 6:00PM - 8:00PM", "We", "6:00PM - 8:00PM", false},
+		{"invalid", "", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			day, timeRange, err := parseSchedule(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for %q, got nil", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", tt.input, err)
+			}
+			if day != tt.wantDay {
+				t.Errorf("day: got %q, want %q", day, tt.wantDay)
+			}
+			if timeRange != tt.wantTime {
+				t.Errorf("timeRange: got %q, want %q", timeRange, tt.wantTime)
+			}
+		})
+	}
+}
+
+func TestComputeEntryDay(t *testing.T) {
+	tests := []struct {
+		date      string
+		dayAbbr   string
+		wantDay   string
+		wantErr   bool
+	}{
+		{"17/09/2026", "Thu", "17/09/2026", false},
+		{"24/09/2026", "Th", "24/09/2026", false},
+		{"18/09/2026", "Fr", "18/09/2026", false},
+		{"31/08/2026", "Mo", "31/08/2026", false},
+		{"31/08/2026", "Th", "03/09/2026", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.date+"-"+tt.dayAbbr, func(t *testing.T) {
+			date, err := parseDate(tt.date)
+			if err != nil {
+				t.Fatalf("failed to parse date: %v", err)
+			}
+			got, err := computeEntryDay(date, tt.dayAbbr)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.wantDay {
+				t.Errorf("got %q, want %q", got, tt.wantDay)
+			}
+		})
+	}
+}
+
+func TestParseMeetingDate(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"17/09/2026 - 17/09/2026", "17/09/2026", false},
+		{"01/10/2026 - 01/10/2026", "01/10/2026", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := parseMeetingDate(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for %q, got nil", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", tt.input, err)
+			}
+			want := tt.want
+			parts := strings.Split(want, "/")
+			if len(parts) == 3 {
+				var day, month int
+				fmt.Sscanf(parts[0], "%d", &day)
+				fmt.Sscanf(parts[1], "%d", &month)
+				expected := time.Date(2026, time.Month(month), day, 0, 0, 0, 0, time.Local)
+				if got.Year() != expected.Year() || got.Month() != expected.Month() || got.Day() != expected.Day() {
+					t.Errorf("got %v, want %v", got, expected)
+				}
+			}
+		})
 	}
 }
