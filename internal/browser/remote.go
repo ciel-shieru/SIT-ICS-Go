@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -15,10 +16,31 @@ import (
 
 type RemoteBrowser struct {
 	cfg           BrowserConfig
+	resolvedHost  string
 	browser       *rod.Browser
 	incognito     *rod.Browser
 	page          *rod.Page
 	pageTargetID  proto.TargetTargetID
+}
+
+// resolveHost resolves an FQDN to its IP address for use in HTTP requests
+// and Rod connections. If the host is already an IP or localhost, it is
+// returned unchanged. This avoids Chromium's /json/version/ 500 error when
+// the Host header contains a non-IP hostname.
+func resolveHost(host string) (string, error) {
+	if net.ParseIP(host) != nil || host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return host, nil
+	}
+
+	addrs, err := net.DefaultResolver.LookupIPAddr(context.Background(), host)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", host, err)
+	}
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("resolve %s: no addresses found", host)
+	}
+
+	return addrs[0].IP.String(), nil
 }
 
 // versionInfo represents the /json/version/ endpoint response.
@@ -70,7 +92,16 @@ func NewRemoteBrowser(cfg BrowserConfig) (*RemoteBrowser, error) {
 	if cfg.RemotePort <= 0 {
 		return nil, fmt.Errorf("remote browser requires positive RemotePort")
 	}
-	return &RemoteBrowser{cfg: cfg}, nil
+
+	resolvedHost, err := resolveHost(cfg.RemoteHost)
+	if err != nil {
+		return nil, fmt.Errorf("resolve remote host: %w", err)
+	}
+
+	return &RemoteBrowser{
+		cfg:          cfg,
+		resolvedHost: resolvedHost,
+	}, nil
 }
 
 func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
@@ -83,7 +114,8 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	// Discover the WebSocket URL fresh on every Authenticate() call.
 	// The webSocketDebuggerUrl contains a per-session UUID that may change
 	// when Chromium restarts or new sessions are created.
-	wsURL, err := discoverWebSocketURL(connectCtx, b.cfg.RemoteHost, b.cfg.RemotePort, b.cfg.ConnectTimeout)
+	// Use the resolved IP address to avoid Chromium's 500 error on FQDN hosts.
+	wsURL, err := discoverWebSocketURL(connectCtx, b.resolvedHost, b.cfg.RemotePort, b.cfg.ConnectTimeout)
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
 	}
