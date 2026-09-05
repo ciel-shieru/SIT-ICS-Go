@@ -144,7 +144,7 @@ jobs:
             goos: linux
             goarch: amd64
           - name: linux/arm64
-            os: ubuntu-latest
+            os: ubuntu-26.04-arm
             goos: linux
             goarch: arm64
     steps:
@@ -160,8 +160,9 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
         run: |
-          CGO_ENABLED=0 go build \
+          go build \
             -ldflags="-s -w" \
             -o sit-ics-${{ matrix.goos }}-${{ matrix.goarch }} .
 
@@ -191,8 +192,9 @@ jobs:
         env:
           GOOS: linux
           GOARCH: amd64
+          CGO_ENABLED: "0"
         run: |
-          CGO_ENABLED=0 go build \
+          go build \
             -ldflags="-s -w" \
             -o sit-ics-run .
 
@@ -234,7 +236,7 @@ jobs:
         include:
           - os: ubuntu-latest
             arch: amd64
-          - os: ubuntu-latest-arm
+          - os: ubuntu-26.04-arm
             arch: arm64
     steps:
       - name: Checkout
