@@ -132,25 +132,12 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 
 	log.Printf("scheduler: auth successful, %d cookies set, fetching timetable", len(authResult.Cookies))
 
-	var allEntries []peoplesoft.Entry
-	startDate := cfg.StartDate
-	if startDate.IsZero() {
-		startDate = time.Now().In(loc)
+	entries, err := provider.FetchTimetable(ctx, "")
+	if err != nil {
+		log.Printf("scheduler: fetch failed: %v", err)
+		return
 	}
-	endDate := cfg.EndDate
-	if endDate.IsZero() {
-		endDate = startDate.AddDate(0, 0, 180)
-	}
-
-	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 7) {
-		weekDate := d.Format("02/01/2006")
-		entries, err := provider.FetchTimetable(ctx, weekDate)
-		if err != nil {
-			log.Printf("scheduler: fetch failed for %s: %v", weekDate, err)
-			continue
-		}
-		allEntries = append(allEntries, entries...)
-	}
+	allEntries := entries
 
 	icsEvents := make([]ics.Event, 0, len(allEntries))
 	for _, entry := range allEntries {
@@ -163,7 +150,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 			CourseCode:  entry.CourseCode,
 			Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
 			Location:    entry.Location,
-			Description: fmt.Sprintf("Course: %s\nSection: %s\nType: %s", entry.CourseCode, entry.Section, entry.Type),
+			Description: fmt.Sprintf("Course: %s\nClass: %s\nSection: %s\nType: %s", entry.CourseCode, entry.ClassName, entry.Section, entry.Type),
 			DTStart:     dtStart,
 			DTEnd:       dtEnd,
 		})

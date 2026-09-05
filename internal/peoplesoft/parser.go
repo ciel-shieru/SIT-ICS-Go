@@ -3,14 +3,13 @@ package peoplesoft
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/net/html"
 )
 
-var dayDateRe = regexp.MustCompile(`^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*(\d+)`)
+var dayAbbrevRe = regexp.MustCompile(`^(Mo|Tu|We|Th|Fr|Sa|Su)\b`)
 
 func ParseTimetableHTML(htmlContent string, year int) ([]Entry, error) {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
@@ -18,32 +17,51 @@ func ParseTimetableHTML(htmlContent string, year int) ([]Entry, error) {
 		return nil, fmt.Errorf("parse HTML: %w", err)
 	}
 
-	var scheduleTable *html.Node
-	var visit func(*html.Node)
-	visit = func(n *html.Node) {
-		if scheduleTable != nil {
-			return
-		}
+	var entries []Entry
+	var find func(*html.Node)
+	find = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "table" {
-			for _, attr := range n.Attr {
-				if attr.Key == "id" && attr.Val == "WEEKLY_SCHED_HTMLAREA" {
-					scheduleTable = n
-					return
+			rows := getRows(n)
+			if len(rows) > 0 {
+				headerCells := getCells(rows[0])
+				if len(headerCells) >= 7 {
+					firstCellText := getTextContent(headerCells[0])
+					if strings.Contains(firstCellText, "Class Nbr") {
+						entries = append(entries, parseMeetingTable(n)...)
+						return
+					}
 				}
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			visit(c)
+			find(c)
 		}
 	}
-	visit(doc)
+	find(doc)
 
-	if scheduleTable == nil {
-		return nil, nil
+	return entries, nil
+}
+
+func getRows(table *html.Node) []*html.Node {
+	var rows []*html.Node
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "tr" {
+			rows = append(rows, n)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
 	}
+	walk(table)
+	return rows
+}
+
+func parseMeetingTable(table *html.Node) []Entry {
+	var entries []Entry
 
 	var rows []*html.Node
-	for c := scheduleTable.FirstChild; c != nil; c = c.NextSibling {
+	for c := table.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && c.Data == "tbody" {
 			for rc := c.FirstChild; rc != nil; rc = rc.NextSibling {
 				if rc.Type == html.ElementNode && rc.Data == "tr" {
@@ -51,127 +69,190 @@ func ParseTimetableHTML(htmlContent string, year int) ([]Entry, error) {
 				}
 			}
 		}
-	}
-
-	if len(rows) < 2 {
-		return nil, nil
-	}
-
-	headerCells := getCells(rows[0])
-	type dayInfo struct {
-		day   string
-		dateS string
-	}
-	var days []dayInfo
-	for i := 1; i < len(headerCells); i++ {
-		text := getTextContent(headerCells[i])
-		matches := dayDateRe.FindStringSubmatch(text)
-		if len(matches) >= 3 {
-			days = append(days, dayInfo{day: matches[1], dateS: matches[2] + " " + extractMonth(text)})
+		if c.Type == html.ElementNode && c.Data == "tr" {
+			rows = append(rows, c)
 		}
 	}
 
-	if len(days) == 0 {
-		return nil, nil
+	if len(rows) == 0 {
+		return nil
 	}
 
-	numRows := len(rows)
-	numCols := len(headerCells)
-	grid := make([][]bool, numRows)
-	visited := make([][]bool, numRows)
-	for i := 0; i < numRows; i++ {
-		grid[i] = make([]bool, numCols)
-		visited[i] = make([]bool, numCols)
-	}
-
-	var entries []Entry
-	for r := 1; r < numRows; r++ {
-		cells := getCells(rows[r])
-		if len(cells) < 2 {
+	var currentCourseCode, currentClassName string
+	for _, row := range rows {
+		cells := getCells(row)
+		if len(cells) < 7 {
 			continue
 		}
 
-		for c := 1; c < len(cells); c++ {
-			if visited[r][c] {
-				continue
-			}
-
-			cellText := getTextContent(cells[c])
-			if cellText == "" {
-				visited[r][c] = true
-				continue
-			}
-
-			rowspan := 1
-			for _, attr := range cells[c].Attr {
-				if attr.Key == "rowspan" {
-					if v, err := strconv.Atoi(attr.Val); err == nil && v > 0 {
-						rowspan = v
-					}
-				}
-			}
-
-			for i := 0; i < rowspan; i++ {
-				if r+i < numRows {
-					visited[r+i][c] = true
-					grid[r+i][c] = true
-				}
-			}
-
-			parts := strings.Split(cellText, "\n")
-			if len(parts) < 4 {
-				continue
-			}
-
-			courseCode := strings.TrimSpace(parts[0])
-			section := ""
-			if strings.Contains(courseCode, " - ") {
-				idx := strings.Index(courseCode, " - ")
-				section = strings.TrimSpace(courseCode[idx+3:])
-				courseCode = strings.TrimSpace(courseCode[:idx])
-			}
-			classType := strings.TrimSpace(parts[1])
-			timeRange := strings.TrimSpace(parts[2])
-			location := strings.TrimSpace(parts[3])
-
-			startTime, endTime, err := parseTimeRange(timeRange)
-			if err != nil {
-				continue
-			}
-
-			dayIdx := c - 1
-			if dayIdx < 0 || dayIdx >= len(days) {
-				continue
-			}
-
-			weekStartDay, _ := parseDayDate(days[0].dateS, year)
-			entryDate := weekStartDay.AddDate(0, 0, dayIdx)
-			dateStr := entryDate.Format("02/01/2006")
-
-			entries = append(entries, Entry{
-				CourseCode: courseCode,
-				Section:    section,
-				Type:       classType,
-				Day:        dateStr,
-				StartTime:  startTime,
-				EndTime:    endTime,
-				Location:   location,
-			})
+		firstCellText := getTextContent(cells[0])
+		if strings.Contains(firstCellText, "Class Nbr") {
+			findCourseHeader(row, &currentCourseCode, &currentClassName)
+			continue
 		}
+
+		if currentCourseCode == "" {
+			continue
+		}
+
+		section := getTextContent(cells[1])
+		comp := getTextContent(cells[2])
+		if comp == "" {
+			continue
+		}
+		sched := getTextContent(cells[3])
+		loc := getTextContent(cells[4])
+		_ = getTextContent(cells[5])
+		dateText := getTextContent(cells[6])
+
+		meetingDate, err := parseMeetingDate(dateText)
+		if err != nil {
+			continue
+		}
+
+		dayName, timeRange, err := parseSchedule(sched)
+		if err != nil {
+			continue
+		}
+
+		startTime, endTime, err := parseTimeRange(timeRange)
+		if err != nil {
+			continue
+		}
+
+		entryDay, err := computeEntryDay(meetingDate, dayName)
+		if err != nil {
+			continue
+		}
+
+		entries = append(entries, Entry{
+			CourseCode: currentCourseCode,
+			ClassName:  currentClassName,
+			Section:    section,
+			Type:       comp,
+			Day:        entryDay,
+			StartTime:  startTime,
+			EndTime:    endTime,
+			Location:   loc,
+		})
 	}
 
-	return entries, nil
+	return entries
 }
 
-func extractMonth(s string) string {
-	months := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-	for _, m := range months {
-		if strings.Contains(s, m) {
-			return m
+func findCourseHeader(row *html.Node, courseCode, className *string) {
+	var courseGroup *html.Node
+	for p := row.Parent; p != nil; p = p.Parent {
+		if p.Type == html.ElementNode && p.Data == "div" {
+			for _, a := range p.Attr {
+				if a.Key == "id" && strings.HasPrefix(a.Val, "win0divDERIVED_REGFRM1_DESCR20$") {
+					courseGroup = p
+					break
+				}
+			}
+			if courseGroup != nil {
+				break
+			}
 		}
 	}
-	return ""
+	if courseGroup == nil {
+		return
+	}
+
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if *courseCode != "" {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "td" {
+			hasClass := false
+			for _, a := range n.Attr {
+				if a.Key == "class" && a.Val == "PAGROUPDIVIDER" {
+					hasClass = true
+					break
+				}
+			}
+			if !hasClass {
+				return
+			}
+			text := getTextContent(n)
+			idx := strings.Index(text, " - ")
+			if idx > 0 {
+				*courseCode = strings.TrimSpace(text[:idx])
+				*className = strings.TrimSpace(text[idx+3:])
+			} else {
+				*courseCode = strings.TrimSpace(text)
+			}
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(courseGroup)
+}
+
+func parseMeetingDate(s string) (time.Time, error) {
+	parts := strings.SplitN(s, " - ", 2)
+	if len(parts) < 1 {
+		return time.Time{}, fmt.Errorf("empty date: %s", s)
+	}
+	datePart := strings.TrimSpace(parts[0])
+	return parseDate(datePart)
+}
+
+func parseDate(s string) (time.Time, error) {
+	parts := strings.Split(s, "/")
+	if len(parts) != 3 {
+		return time.Time{}, fmt.Errorf("invalid date format: %s", s)
+	}
+	var day, month, year int
+	fmt.Sscanf(parts[0], "%d", &day)
+	fmt.Sscanf(parts[1], "%d", &month)
+	fmt.Sscanf(parts[2], "%d", &year)
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
+}
+
+func parseSchedule(s string) (dayName string, timeRange string, err error) {
+	matches := dayAbbrevRe.FindStringSubmatch(s)
+	if len(matches) < 2 {
+		return "", "", fmt.Errorf("invalid day in schedule: %s", s)
+	}
+	dayName = matches[1]
+	rest := strings.TrimSpace(s[len(matches[0]):])
+	timeRange = rest
+	return dayName, timeRange, nil
+}
+
+func computeEntryDay(meetingDate time.Time, dayAbbr string) (string, error) {
+	targetWeekday := dayToWeekday(dayAbbr)
+	currentWeekday := meetingDate.Weekday()
+	daysDiff := int(targetWeekday) - int(currentWeekday)
+	if daysDiff < 0 {
+		daysDiff += 7
+	}
+	entryDate := meetingDate.AddDate(0, 0, daysDiff)
+	return entryDate.Format("02/01/2006"), nil
+}
+
+func dayToWeekday(abbr string) time.Weekday {
+	switch abbr {
+	case "Mo", "Mon":
+		return time.Monday
+	case "Tu", "Tue":
+		return time.Tuesday
+	case "We", "Wed":
+		return time.Wednesday
+	case "Th", "Thu":
+		return time.Thursday
+	case "Fr", "Fri":
+		return time.Friday
+	case "Sa", "Sat":
+		return time.Saturday
+	case "Su", "Sun":
+		return time.Sunday
+	}
+	return time.Monday
 }
 
 func parseTimeRange(s string) (string, string, error) {
@@ -209,24 +290,6 @@ func parseTime(s string) (string, error) {
 		}
 	}
 	return fmt.Sprintf("%02d:%02d", hour, minute), nil
-}
-
-func parseDayDate(s string, year int) (time.Time, error) {
-	parts := strings.Split(s, " ")
-	if len(parts) < 2 {
-		return time.Time{}, fmt.Errorf("invalid date: %s", s)
-	}
-	monthMap := map[string]int{
-		"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-		"Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
-	}
-	month, ok := monthMap[parts[1]]
-	if !ok {
-		return time.Time{}, fmt.Errorf("unknown month: %s", parts[1])
-	}
-	var day int
-	fmt.Sscanf(parts[0], "%d", &day)
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
 }
 
 func getCells(tr *html.Node) []*html.Node {
