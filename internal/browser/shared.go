@@ -28,14 +28,37 @@ func getPageURL(page *rod.Page) string {
 	return url
 }
 
-// getPageCDPURL returns the page URL from Chromium's CDP (not JS eval),
-// which works even on cross-origin pages where JS eval is blocked.
-func getPageCDPURL(page *rod.Page) string {
+// getPageURLFromPageInfo returns the URL from Chromium's CDP target info.
+// This works on cross-origin pages where JS eval is blocked.
+func getPageURLFromPageInfo(page *rod.Page) string {
 	info, err := page.Info()
 	if err != nil {
 		return ""
 	}
 	return info.URL
+}
+
+// waitForPageURL polls the page URL using multiple methods until a non-empty
+// URL is obtained or the timeout expires. This handles cross-origin navigation
+// where Chromium's target URL may not be immediately available after redirect.
+func waitForPageURL(page *rod.Page, timeout time.Duration) string {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		// Try CDP target info first (works on cross-origin pages).
+		if url := getPageURLFromPageInfo(page); url != "" {
+			return url
+		}
+		// Fall back to JS eval (works on same-origin pages).
+		if url := getPageURL(page); url != "" {
+			return url
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	// Return whatever we can get on the final attempt.
+	if url := getPageURLFromPageInfo(page); url != "" {
+		return url
+	}
+	return getPageURL(page)
 }
 
 func findActivePage(browser *rod.Browser) (*rod.Page, error) {
@@ -384,7 +407,7 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 		debug(cfg, "brightspace: wait stable after SAML auth failed: %v", err)
 	}
 
-	finalURL := getPageCDPURL(page)
+	finalURL := waitForPageURL(page, 5*time.Second)
 	debug(cfg, "brightspace: SAML auth complete, landed on %s", finalURL)
 
 	if !isAllowedOrigin(finalURL) {
