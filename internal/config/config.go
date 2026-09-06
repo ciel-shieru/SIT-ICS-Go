@@ -21,6 +21,8 @@ type Config struct {
 	ICSStoragePath   string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
 	ICSOnlinePath    string        `env:"ICS_ONLINE_PATH" envDefault:"./timetable-online.ics"`
 	ICSCampusPath    string        `env:"ICS_CAMPUS_PATH" envDefault:"./timetable-campus.ics"`
+	XsiteEventsPath  string        `env:"XSITE_EVENTS_PATH" envDefault:"./xsite-events.ics"`
+	XsiteDropboxPath string        `env:"XSITE_DROPBOX_PATH" envDefault:"./xsite-dropbox.ics"`
 	BrowserMode      BrowserMode   `env:"BROWSER_MODE" envDefault:"auto"`
 	BrowserExecutable  string `env:"BROWSER_EXECUTABLE" envDefault:""`
 	BrowserRemoteHost  string `env:"BROWSER_REMOTE_HOST" envDefault:""`
@@ -29,6 +31,13 @@ type Config struct {
 	BrowserDebug                      bool    `env:"BROWSER_DEBUG" envDefault:"false"`
 	ProxyURL                string        `env:"PROXY_URL" envDefault:""`
 	ICSRefreshInterval      time.Duration `env:"ICS_REFRESH_INTERVAL" envDefault:"1h"`
+	BrightSpaceEnabled     bool    `env:"BRIGHTSPACE_ENABLED" envDefault:"false"`
+	BrightSpaceBaseURL     string  `env:"BRIGHTSPACE_BASE_URL" envDefault:"https://xsite.singaporetech.edu.sg"`
+	BrightSpaceAPIKey      string  `env:"BRIGHTSPACE_API_KEY" envDefault:""`
+	BrightSpaceAPISecret   string  `env:"BRIGHTSPACE_API_SECRET" envDefault:""`
+	BrightSpaceCourseNameBlocklist string `env:"BRIGHTSPACE_COURSE_NAME_BLOCKLIST" envDefault:""`
+	BrightSpaceCourseIDBlocklist     string `env:"BRIGHTSPACE_COURSE_ID_BLOCKLIST" envDefault:""`
+	BrightSpaceEventTitleBlocklist string `env:"BRIGHTSPACE_EVENT_TITLE_BLOCKLIST" envDefault:""`
 }
 
 func Load() (*Config, error) {
@@ -57,6 +66,15 @@ func Load() (*Config, error) {
 	browserDebug := fs.Bool("browser-debug", false, "Enable debug logging for browser actions")
 	proxyURL := fs.String("proxy-url", "", "SOCKS5 proxy URL (e.g. socks5://localhost:1080)")
 	icsRefreshInterval := fs.Duration("ics-refresh-interval", 0, "ICS refresh interval (e.g. 1h, 30m)")
+	xsiteEventsPath := fs.String("xsite-events-path", "", "Path to xsite events ICS file")
+	xsiteDropboxPath := fs.String("xsite-dropbox-path", "", "Path to xsite dropbox ICS file")
+	brightspaceEnabled := fs.Bool("brightspace-enabled", false, "Enable BrightSpace D2L extraction")
+	brightspaceBaseURL := fs.String("brightspace-base-url", "", "BrightSpace D2L base URL")
+	brightspaceAPIKey := fs.String("brightspace-api-key", "", "BrightSpace D2L API key")
+	brightspaceAPISecret := fs.String("brightspace-api-secret", "", "BrightSpace D2L API secret")
+	brightspaceCourseNameBlocklist := fs.String("brightspace-course-name-blocklist", "", "Comma-separated course name patterns to block")
+	brightspaceCourseIDBlocklist := fs.String("brightspace-course-id-blocklist", "", "Comma-separated course OrgUnitIds to block")
+	brightspaceEventTitleBlocklist := fs.String("brightspace-event-title-blocklist", "", "Comma-separated event title patterns to block")
 
 	fs.Parse(os.Args[1:])
 
@@ -124,6 +142,33 @@ func Load() (*Config, error) {
 	}
 	if fs.Lookup("ics-refresh-interval").Changed {
 		cfg.ICSRefreshInterval = *icsRefreshInterval
+	}
+	if fs.Lookup("xsite-events-path").Changed {
+		cfg.XsiteEventsPath = *xsiteEventsPath
+	}
+	if fs.Lookup("xsite-dropbox-path").Changed {
+		cfg.XsiteDropboxPath = *xsiteDropboxPath
+	}
+	if fs.Lookup("brightspace-enabled").Changed {
+		cfg.BrightSpaceEnabled = *brightspaceEnabled
+	}
+	if fs.Lookup("brightspace-base-url").Changed {
+		cfg.BrightSpaceBaseURL = *brightspaceBaseURL
+	}
+	if fs.Lookup("brightspace-api-key").Changed {
+		cfg.BrightSpaceAPIKey = *brightspaceAPIKey
+	}
+	if fs.Lookup("brightspace-api-secret").Changed {
+		cfg.BrightSpaceAPISecret = *brightspaceAPISecret
+	}
+	if fs.Lookup("brightspace-course-name-blocklist").Changed {
+		cfg.BrightSpaceCourseNameBlocklist = *brightspaceCourseNameBlocklist
+	}
+	if fs.Lookup("brightspace-course-id-blocklist").Changed {
+		cfg.BrightSpaceCourseIDBlocklist = *brightspaceCourseIDBlocklist
+	}
+	if fs.Lookup("brightspace-event-title-blocklist").Changed {
+		cfg.BrightSpaceEventTitleBlocklist = *brightspaceEventTitleBlocklist
 	}
 
 	return &cfg, nil

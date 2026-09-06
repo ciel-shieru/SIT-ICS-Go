@@ -79,6 +79,13 @@ func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (str
 	return fetchTimetable(ctx, b.page, weekDate, b.cfg)
 }
 
+func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
+	if b.browser == nil {
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	return fetchBrightSpace(ctx, b.page, baseURL, b.cfg)
+}
+
 func (b *LocalBrowser) Close() {
 	if b.incognito != nil {
 		safeRod(func() {

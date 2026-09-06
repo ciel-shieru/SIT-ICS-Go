@@ -122,6 +122,40 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 	return nil
 }
 
+func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath string, tz string, refreshInterval time.Duration) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if !c.dirty {
+		return nil
+	}
+
+	mainData, _ := Write(c.events, tz, refreshInterval)
+	onlineData, _ := Write(filterEvents(c.events, IsOnline), tz, refreshInterval)
+	campusData, _ := Write(filterEvents(c.events, IsNotOnline), tz, refreshInterval)
+	xsiteEventsData, _ := Write(filterEventsBySource(c.events, "brightspace-calendar"), tz, refreshInterval)
+	xsiteDropboxData, _ := Write(filterEventsBySource(c.events, "brightspace-dropbox"), tz, refreshInterval)
+
+	for path, data := range map[string][]byte{
+		mainPath:            mainData,
+		onlinePath:          onlineData,
+		campusPath:          campusData,
+		xsiteEventsPath:     xsiteEventsData,
+		xsiteDropboxPath:    xsiteDropboxData,
+	} {
+		tmp := path + ".tmp"
+		if err := os.WriteFile(tmp, data, 0600); err != nil {
+			return fmt.Errorf("write temp ICS file %q: %w", tmp, err)
+		}
+		if err := os.Rename(tmp, path); err != nil {
+			return fmt.Errorf("rename ICS file %q: %w", path, err)
+		}
+	}
+
+	c.dirty = false
+	return nil
+}
+
 func (c *ICSCache) merge(newEvents []Event) ([]Event, error) {
 	existing := c.parseExisting()
 
@@ -176,6 +210,8 @@ func parseICS(data []byte) []Event {
 				event.Location = unescapeText(strings.TrimPrefix(line, "LOCATION:"))
 			} else if strings.HasPrefix(line, "DESCRIPTION:") {
 				event.Description = unescapeText(strings.TrimPrefix(line, "DESCRIPTION:"))
+			} else if strings.HasPrefix(line, "X-SOURCE:") {
+				event.Source = unescapeText(strings.TrimPrefix(line, "X-SOURCE:"))
 			} else if strings.HasPrefix(line, "DTSTART;TZID=") {
 				timeStr := strings.SplitN(line, ":", 2)
 				if len(timeStr) == 2 {
@@ -207,6 +243,16 @@ func filterEvents(events []Event, filterFn func(Event) bool) []Event {
 	filtered := make([]Event, 0, len(events))
 	for _, event := range events {
 		if filterFn(event) {
+			filtered = append(filtered, event)
+		}
+	}
+	return filtered
+}
+
+func filterEventsBySource(events []Event, source string) []Event {
+	filtered := make([]Event, 0, len(events))
+	for _, event := range events {
+		if event.Source == source {
 			filtered = append(filtered, event)
 		}
 	}
