@@ -28,6 +28,16 @@ func getPageURL(page *rod.Page) string {
 	return url
 }
 
+// getPageCDPURL returns the page URL from Chromium's CDP (not JS eval),
+// which works even on cross-origin pages where JS eval is blocked.
+func getPageCDPURL(page *rod.Page) string {
+	info, err := page.Info()
+	if err != nil {
+		return ""
+	}
+	return info.URL
+}
+
 func findActivePage(browser *rod.Browser) (*rod.Page, error) {
 	var pages rod.Pages
 	safeRod(func() {
@@ -374,7 +384,13 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 		debug(cfg, "brightspace: wait stable after SAML auth failed: %v", err)
 	}
 
-	debug(cfg, "brightspace: SAML auth complete")
+	finalURL := getPageCDPURL(page)
+	debug(cfg, "brightspace: SAML auth complete, landed on %s", finalURL)
+
+	if !isAllowedOrigin(finalURL) {
+		return fmt.Errorf("%w: BrightSpace SAML redirect to disallowed origin %q (expected %s)", ErrAuthentication, finalURL, baseURL)
+	}
+
 	return nil
 }
 
