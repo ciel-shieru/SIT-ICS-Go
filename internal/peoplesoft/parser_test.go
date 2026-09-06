@@ -141,8 +141,8 @@ func TestParseTimetableHTML(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(entries) != 4 {
-		t.Fatalf("expected 4 entries, got %d", len(entries))
+	if len(entries) != 5 {
+		t.Fatalf("expected 5 entries, got %d", len(entries))
 	}
 
 	type expectedEntry struct {
@@ -158,6 +158,7 @@ func TestParseTimetableHTML(t *testing.T) {
 
 	expected := []expectedEntry{
 		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "P1", classType: "Laboratory", day: "17/09/2026", startTime: "09:00", endTime: "11:00", location: "W1-06-18"},
+		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "P1", classType: "Laboratory", day: "24/09/2026", startTime: "09:00", endTime: "11:00", location: "W1-06-18"},
 		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "ALL", classType: "Lecture", day: "18/09/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
 		{courseCode: "ABC 0002", className: "Introduction to Computer Systems", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
 		{courseCode: "GHI 1111", className: "Digital Competency Essentials", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "14:00", endTime: "16:00", location: "Online"},

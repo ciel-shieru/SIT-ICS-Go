@@ -28,7 +28,6 @@ func ParseTimetableHTML(htmlContent string, year int) ([]Entry, error) {
 					firstCellText := getTextContent(headerCells[0])
 					if strings.Contains(firstCellText, "Class Nbr") {
 						entries = append(entries, parseMeetingTable(n)...)
-						return
 					}
 				}
 			}
@@ -79,6 +78,7 @@ func parseMeetingTable(table *html.Node) []Entry {
 	}
 
 	var currentCourseCode, currentClassName string
+	var currentSection, currentComp string
 	for _, row := range rows {
 		cells := getCells(row)
 		if len(cells) < 7 {
@@ -97,9 +97,17 @@ func parseMeetingTable(table *html.Node) []Entry {
 
 		section := getTextContent(cells[1])
 		comp := getTextContent(cells[2])
+		if section == "" {
+			section = currentSection
+		}
+		if comp == "" {
+			comp = currentComp
+		}
 		if comp == "" {
 			continue
 		}
+		currentSection = section
+		currentComp = comp
 		sched := getTextContent(cells[3])
 		loc := getTextContent(cells[4])
 		_ = getTextContent(cells[5])
