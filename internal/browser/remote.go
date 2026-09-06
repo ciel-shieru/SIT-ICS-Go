@@ -167,6 +167,13 @@ func (b *RemoteBrowser) FetchTimetable(ctx context.Context, weekDate string) (st
 	return fetchTimetable(ctx, b.page, weekDate, b.cfg)
 }
 
+func (b *RemoteBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
+	if b.browser == nil {
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	return fetchBrightSpace(ctx, b.page, baseURL, b.cfg)
+}
+
 func (b *RemoteBrowser) Close() {
 	if b.incognito != nil && b.incognito != b.browser {
 		var pageIDs rod.Pages

@@ -64,6 +64,14 @@ func (a *ADFSProvider) FetchTimetable(ctx context.Context, weekDate string) ([]p
 	return peoplesoft.ParseTimetableHTML(html, year)
 }
 
+func (a *ADFSProvider) FetchBrightSpace(ctx context.Context, baseURL string) ([]browser.BrightSpaceEntry, error) {
+	entries, err := a.browser.FetchBrightSpace(ctx, baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("browser fetch brightspace: %w", err)
+	}
+	return entries, nil
+}
+
 func extractPS_TOKEN(cookies []browser.Cookie) string {
 	for _, c := range cookies {
 		if c.Name == "PS_TOKEN" {
