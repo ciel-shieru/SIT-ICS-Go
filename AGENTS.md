@@ -71,6 +71,7 @@ All via env vars with CLI flag override (flags take priority):
 | `BROWSER_HEADLESS` | true | Headless mode |
 | `BROWSER_DEBUG` | false | Enable debug logging for Rod events |
 | `PROXY_URL` | — | SOCKS5 proxy URL |
+| `ICS_REFRESH_INTERVAL` | 1h | ICS refresh interval (RFC 7986 DURATION, e.g. 1h, 30m) |
 
 `START_DATE` and `END_DATE` are parsed by config but no longer drive the fetch loop — the single endpoint returns all classes.
 

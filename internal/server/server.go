@@ -3,27 +3,30 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/ics"
 )
 
 type Server struct {
-	port int
-	cache *ics.ICSCache
-	tz    string
+	port              int
+	cache             *ics.ICSCache
+	tz                string
+	refreshInterval   time.Duration
 }
 
-func NewServer(port int, cache *ics.ICSCache, tz string) *Server {
+func NewServer(port int, cache *ics.ICSCache, tz string, refreshInterval time.Duration) *Server {
 	return &Server{
-		port:  port,
-		cache: cache,
-		tz:    tz,
+		port:            port,
+		cache:           cache,
+		tz:              tz,
+		refreshInterval: refreshInterval,
 	}
 }
 
 func (s *Server) Start() error {
 	http.HandleFunc("/timetable.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.Get(s.tz)
+		data := s.cache.Get(s.tz, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -35,7 +38,7 @@ func (s *Server) Start() error {
 	})
 
 	http.HandleFunc("/timetable-online.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.GetFiltered(s.tz, ics.IsOnline)
+		data := s.cache.GetFiltered(s.tz, ics.IsOnline, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -47,7 +50,7 @@ func (s *Server) Start() error {
 	})
 
 	http.HandleFunc("/timetable-campus.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.GetFiltered(s.tz, ics.IsNotOnline)
+		data := s.cache.GetFiltered(s.tz, ics.IsNotOnline, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return

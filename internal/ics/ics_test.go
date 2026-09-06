@@ -19,7 +19,7 @@ func TestWrite(t *testing.T) {
 		},
 	}
 
-	data, err := Write(events, "Asia/Singapore")
+	data, err := Write(events, "Asia/Singapore", time.Hour)
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -47,10 +47,13 @@ func TestWrite(t *testing.T) {
 	if !strings.Contains(content, "LOCATION:W1-05-07") {
 		t.Error("Write() missing LOCATION")
 	}
+	if !strings.Contains(content, "REFRESH-INTERVAL;VALUE=DURATION:PT1H") {
+		t.Error("Write() missing REFRESH-INTERVAL")
+	}
 }
 
 func TestWriteEmpty(t *testing.T) {
-	data, err := Write([]Event{}, "Asia/Singapore")
+	data, err := Write([]Event{}, "Asia/Singapore", time.Hour)
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
