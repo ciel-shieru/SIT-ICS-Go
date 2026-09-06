@@ -16,16 +16,29 @@ type Event struct {
 	Summary     string
 	Location    string
 	Description string
+	Source      string
 }
 
 func GenerateUID(event Event) string {
-	uidStr := fmt.Sprintf("%s-%s-%s-%s-%s",
-		event.Summary,
-		event.Location,
-		event.DTStart.Format("2006-01-02"),
-		event.DTStart.Format("15:04"),
-		event.DTEnd.Format("15:04"),
-	)
+	var uidStr string
+	if event.Source != "" {
+		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s-%s",
+			event.Source,
+			event.Summary,
+			event.Location,
+			event.DTStart.Format("2006-01-02"),
+			event.DTStart.Format("15:04"),
+			event.DTEnd.Format("15:04"),
+		)
+	} else {
+		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s",
+			event.Summary,
+			event.Location,
+			event.DTStart.Format("2006-01-02"),
+			event.DTStart.Format("15:04"),
+			event.DTEnd.Format("15:04"),
+		)
+	}
 	hash := sha256.Sum256([]byte(uidStr))
 	return hex.EncodeToString(hash[:])
 }
@@ -51,6 +64,9 @@ func Write(events []Event, tz string, refreshInterval time.Duration) ([]byte, er
 		}
 		if event.Description != "" {
 			sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", escapeText(event.Description)))
+		}
+		if event.Source != "" {
+			sb.WriteString(fmt.Sprintf("X-SOURCE:%s\r\n", escapeText(event.Source)))
 		}
 		sb.WriteString("END:VEVENT\r\n")
 	}
