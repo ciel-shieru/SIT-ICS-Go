@@ -30,7 +30,7 @@ func GenerateUID(event Event) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func Write(events []Event, tz string) ([]byte, error) {
+func Write(events []Event, tz string, refreshInterval time.Duration) ([]byte, error) {
 	var sb strings.Builder
 
 	sb.WriteString("BEGIN:VCALENDAR\r\n")
@@ -38,6 +38,7 @@ func Write(events []Event, tz string) ([]byte, error) {
 	sb.WriteString("PRODID:-//SIT Timetable//EN\r\n")
 	sb.WriteString("CALSCALE:GREGORIAN\r\n")
 	sb.WriteString("METHOD:PUBLISH\r\n")
+	sb.WriteString(fmt.Sprintf("REFRESH-INTERVAL;VALUE=DURATION:%s\r\n", formatDuration(refreshInterval)))
 
 	for _, event := range events {
 		sb.WriteString("BEGIN:VEVENT\r\n")
@@ -69,4 +70,17 @@ func escapeText(text string) string {
 	text = strings.ReplaceAll(text, ",", "\\,")
 	text = strings.ReplaceAll(text, "\n", "\\n")
 	return text
+}
+
+func formatDuration(d time.Duration) string {
+	totalMinutes := int(d.Minutes())
+	hours := totalMinutes / 60
+	minutes := totalMinutes % 60
+
+	if hours > 0 && minutes > 0 {
+		return fmt.Sprintf("PT%dH%dM", hours, minutes)
+	} else if hours > 0 {
+		return fmt.Sprintf("PT%dH", hours)
+	}
+	return fmt.Sprintf("PT%dM", minutes)
 }

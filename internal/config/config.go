@@ -27,7 +27,8 @@ type Config struct {
 	BrowserRemotePort  int    `env:"BROWSER_REMOTE_PORT" envDefault:"9222"`
 	BrowserHeadless    bool   `env:"BROWSER_HEADLESS" envDefault:"true"`
 	BrowserDebug                      bool    `env:"BROWSER_DEBUG" envDefault:"false"`
-	ProxyURL                          string  `env:"PROXY_URL" envDefault:""`
+	ProxyURL                string        `env:"PROXY_URL" envDefault:""`
+	ICSRefreshInterval      time.Duration `env:"ICS_REFRESH_INTERVAL" envDefault:"1h"`
 }
 
 func Load() (*Config, error) {
@@ -55,6 +56,7 @@ func Load() (*Config, error) {
 	browserHeadless := fs.Bool("browser-headless", false, "Run browser in headless mode")
 	browserDebug := fs.Bool("browser-debug", false, "Enable debug logging for browser actions")
 	proxyURL := fs.String("proxy-url", "", "SOCKS5 proxy URL (e.g. socks5://localhost:1080)")
+	icsRefreshInterval := fs.Duration("ics-refresh-interval", 0, "ICS refresh interval (e.g. 1h, 30m)")
 
 	fs.Parse(os.Args[1:])
 
@@ -119,6 +121,9 @@ func Load() (*Config, error) {
 	}
 	if fs.Lookup("proxy-url").Changed {
 		cfg.ProxyURL = *proxyURL
+	}
+	if fs.Lookup("ics-refresh-interval").Changed {
+		cfg.ICSRefreshInterval = *icsRefreshInterval
 	}
 
 	return &cfg, nil

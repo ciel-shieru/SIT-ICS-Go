@@ -25,7 +25,7 @@ func TestICSCacheUpdateAndSave(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache.SaveToFile(icsPath); err != nil {
+	if err := cache.SaveToFile(icsPath, time.Hour); err != nil {
 		t.Fatalf("SaveToFile() error = %v", err)
 	}
 
@@ -57,7 +57,7 @@ func TestICSCacheLoadFromFile(t *testing.T) {
 		t.Fatalf("LoadFromFile() error = %v", err)
 	}
 
-	data := cache.Get("Asia/Singapore")
+	data := cache.Get("Asia/Singapore", time.Hour)
 	if !contains(string(data), "SUMMARY:Existing Event") {
 		t.Error("Loaded ICS missing existing event")
 	}
@@ -81,7 +81,7 @@ func TestICSCacheUpsert(t *testing.T) {
 	if err := cache.Update(events1, "Asia/Singapore"); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
-	if err := cache.SaveToFile(icsPath); err != nil {
+	if err := cache.SaveToFile(icsPath, time.Hour); err != nil {
 		t.Fatalf("SaveToFile() error = %v", err)
 	}
 
@@ -98,7 +98,7 @@ func TestICSCacheUpsert(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	data := cache.Get("Asia/Singapore")
+	data := cache.Get("Asia/Singapore", time.Hour)
 	content := string(data)
 
 	if !contains(content, "SUMMARY:Event 1") {
@@ -134,7 +134,7 @@ func TestICSCacheNoSaveWhenNotDirty(t *testing.T) {
 
 	cache.LoadFromFile(icsPath)
 
-	if err := cache.SaveToFile(icsPath); err != nil {
+	if err := cache.SaveToFile(icsPath, time.Hour); err != nil {
 		t.Fatalf("SaveToFile() error = %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestICSCacheFilterOnline(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	onlineData := cache.GetFiltered("Asia/Singapore", IsOnline)
+	onlineData := cache.GetFiltered("Asia/Singapore", IsOnline, time.Hour)
 	onlineContent := string(onlineData)
 
 	if !contains(onlineContent, "SUMMARY:Online Class") {
@@ -175,7 +175,7 @@ func TestICSCacheFilterOnline(t *testing.T) {
 		t.Error("Filtered online ICS should not contain campus event")
 	}
 
-	campusData := cache.GetFiltered("Asia/Singapore", IsNotOnline)
+	campusData := cache.GetFiltered("Asia/Singapore", IsNotOnline, time.Hour)
 	campusContent := string(campusData)
 
 	if !contains(campusContent, "SUMMARY:Campus Class") {
@@ -212,7 +212,7 @@ func TestICSCacheSaveAllToFiles(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache.SaveAllToFiles(mainPath, onlinePath, campusPath, "Asia/Singapore"); err != nil {
+	if err := cache.SaveAllToFiles(mainPath, onlinePath, campusPath, "Asia/Singapore", time.Hour); err != nil {
 		t.Fatalf("SaveAllToFiles() error = %v", err)
 	}
 

@@ -35,18 +35,18 @@ func (c *ICSCache) LoadFromFile(path string) error {
 	return nil
 }
 
-func (c *ICSCache) Get(tz string) []byte {
+func (c *ICSCache) Get(tz string, refreshInterval time.Duration) []byte {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	data, _ := Write(c.events, tz)
+	data, _ := Write(c.events, tz, refreshInterval)
 	return data
 }
 
-func (c *ICSCache) GetFiltered(tz string, filterFn func(Event) bool) []byte {
+func (c *ICSCache) GetFiltered(tz string, filterFn func(Event) bool, refreshInterval time.Duration) []byte {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	filtered := filterEvents(c.events, filterFn)
-	data, _ := Write(filtered, tz)
+	data, _ := Write(filtered, tz, refreshInterval)
 	return data
 }
 
@@ -70,7 +70,7 @@ func (c *ICSCache) Update(events []Event, tz string) error {
 	return nil
 }
 
-func (c *ICSCache) SaveToFile(path string) error {
+func (c *ICSCache) SaveToFile(path string, refreshInterval time.Duration) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -78,7 +78,7 @@ func (c *ICSCache) SaveToFile(path string) error {
 		return nil
 	}
 
-	data, _ := Write(c.events, "UTC")
+	data, _ := Write(c.events, "UTC", refreshInterval)
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		return fmt.Errorf("write temp ICS file: %w", err)
@@ -92,7 +92,7 @@ func (c *ICSCache) SaveToFile(path string) error {
 	return nil
 }
 
-func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz string) error {
+func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz string, refreshInterval time.Duration) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -100,9 +100,9 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 		return nil
 	}
 
-	mainData, _ := Write(c.events, tz)
-	onlineData, _ := Write(filterEvents(c.events, IsOnline), tz)
-	campusData, _ := Write(filterEvents(c.events, IsNotOnline), tz)
+	mainData, _ := Write(c.events, tz, refreshInterval)
+	onlineData, _ := Write(filterEvents(c.events, IsOnline), tz, refreshInterval)
+	campusData, _ := Write(filterEvents(c.events, IsNotOnline), tz, refreshInterval)
 
 	for path, data := range map[string][]byte{
 		mainPath:   mainData,
