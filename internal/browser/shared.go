@@ -403,10 +403,14 @@ func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 		Name      string `json:"Name"`
 		Code      string `json:"Code"`
 	}
-	var courses []courseItem
-	if err := fetchJSON(ctx, page, fmt.Sprintf("%s/d2l/le/manageCourses/api/mycourses", baseURL), &courses, cfg); err != nil {
+	type courseResponse struct {
+		Courses []courseItem `json:"Courses"`
+	}
+	var coursesResp courseResponse
+	if err := fetchJSON(ctx, page, fmt.Sprintf("%s/d2l/le/manageCourses/api/mycourses", baseURL), &coursesResp, cfg); err != nil {
 		return nil, fmt.Errorf("fetch courses: %w", err)
 	}
+	courses := coursesResp.Courses
 	debug(cfg, "brightspace: found %d courses", len(courses))
 
 	// Step 3: For each course, fetch calendar events and dropbox folders
