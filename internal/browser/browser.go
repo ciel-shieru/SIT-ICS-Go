@@ -76,6 +76,7 @@ func DefaultBrowserConfig(mode config.BrowserMode) BrowserConfig {
 var allowedOrigins = []string{
 	"https://in4sit.singaporetech.edu.sg",
 	"https://fs.singaporetech.edu.sg",
+	"https://xsite.singaporetech.edu.sg",
 }
 
 func isAllowedOrigin(url string) bool {

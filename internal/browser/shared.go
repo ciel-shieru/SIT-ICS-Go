@@ -357,7 +357,6 @@ func htmlToPlainText(htmlStr string) string {
 // for the ADFS redirect to complete, landing on /d2l/home.
 func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg BrowserConfig) error {
 	samlURL := fmt.Sprintf("%s/d2l/lp/auth/saml/login", baseURL)
-	homePath := "/d2l/home"
 	debug(cfg, "brightspace: initiating SAML auth via %s", samlURL)
 
 	// Reattach a fresh context to the page - the original context may be canceled.
@@ -365,80 +364,18 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 	defer freshCancel()
 	page = page.Context(freshCtx)
 
-	if err := navigateAndWaitForURL(page, samlURL, homePath, freshCtx, cfg); err != nil {
+	debug(cfg, "brightspace: navigating to SAML login")
+	if err := page.Navigate(samlURL); err != nil {
 		return fmt.Errorf("navigate to SAML login: %w", err)
 	}
 
-	debug(cfg, "brightspace: SAML auth complete, landed on /d2l/home")
+	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+	if err := page.WaitStable(5000); err != nil {
+		debug(cfg, "brightspace: wait stable after SAML auth failed: %v", err)
+	}
+
+	debug(cfg, "brightspace: SAML auth complete")
 	return nil
-}
-
-// navigateAndWaitForURL navigates to navigateURL and waits until the main frame's
-// path matches expectedPath. Query parameters are ignored.
-func navigateAndWaitForURL(page *rod.Page, navigateURL, expectedPath string, ctx context.Context, cfg BrowserConfig) error {
-	// Extract just the path portion (before query string) for comparison.
-	expectedPathOnly := strings.SplitN(expectedPath, "?", 2)[0]
-
-	debug(cfg, "navigateAndWaitForURL: before navigate, current URL: %s", getPageURL(page))
-
-	wait := page.EachEvent(func(e *proto.PageFrameNavigated) {
-		debug(cfg, "navigateAndWaitForURL: frame navigated event, URL: %s, ParentID: %s", e.Frame.URL, e.Frame.ParentID)
-		// Ignore iframe navigations.
-		if e.Frame.ParentID != "" {
-			return
-		}
-
-		currentPath := strings.SplitN(e.Frame.URL, "?", 2)[0]
-		debug(cfg, "navigateAndWaitForURL: main frame path: %s, expected: %s", currentPath, expectedPathOnly)
-		if currentPath == expectedPathOnly {
-			debug(cfg, "navigateAndWaitForURL: URL match! signaling done")
-		}
-	})
-
-	// Start navigation after the event listener is installed.
-	debug(cfg, "navigateAndWaitForURL: calling page.Navigate(%s)", navigateURL)
-	if err := page.Navigate(navigateURL); err != nil {
-		return fmt.Errorf("navigate: %w", err)
-	}
-	debug(cfg, "navigateAndWaitForURL: page.Navigate returned")
-
-	done := make(chan struct{})
-	go func() {
-		debug(cfg, "navigateAndWaitForURL: starting wait()")
-		wait()
-		debug(cfg, "navigateAndWaitForURL: wait() returned, closing done")
-		close(done)
-	}()
-
-	debug(cfg, "navigateAndWaitForURL: entering select loop")
-	select {
-	case <-done:
-		debug(cfg, "navigateAndWaitForURL: done channel received")
-		info, err := page.Info()
-		if err != nil {
-			return fmt.Errorf("get page info: %w", err)
-		}
-
-		actualPath := strings.SplitN(info.URL, "?", 2)[0]
-		if actualPath != expectedPathOnly {
-			return fmt.Errorf(
-				"expected URL path %q but current URL is %q",
-				expectedPath,
-				info.URL,
-			)
-		}
-
-		return nil
-
-	case <-ctx.Done():
-		currentURL := getPageURL(page)
-		return fmt.Errorf(
-			"timed out waiting for navigation to %q: current URL %q: %w",
-			expectedPath,
-			currentURL,
-			ctx.Err(),
-		)
-	}
 }
 
 func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg BrowserConfig) ([]BrightSpaceEntry, error) {
