@@ -16,6 +16,10 @@ type Blocklist struct {
 	// EventTitlePatterns are case-insensitive substring patterns to match against event titles.
 	// An event is blocked if any pattern is a substring of its title.
 	EventTitlePatterns []string
+
+	// EventLocationPatterns are case-insensitive substring patterns to match against event locations.
+	// An event is blocked if any pattern is a substring of its location.
+	EventLocationPatterns []string
 }
 
 // IsCourseBlocked checks whether a course should be filtered out.
@@ -37,6 +41,16 @@ func (b *Blocklist) IsCourseBlocked(orgUnitID string, name string) bool {
 func (b *Blocklist) IsEventBlocked(title string) bool {
 	for _, pattern := range b.EventTitlePatterns {
 		if strings.Contains(strings.ToLower(title), strings.ToLower(strings.TrimSpace(pattern))) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsLocationBlocked checks whether an event should be filtered out based on its location.
+func (b *Blocklist) IsLocationBlocked(location string) bool {
+	for _, pattern := range b.EventLocationPatterns {
+		if strings.Contains(strings.ToLower(location), strings.ToLower(strings.TrimSpace(pattern))) {
 			return true
 		}
 	}
