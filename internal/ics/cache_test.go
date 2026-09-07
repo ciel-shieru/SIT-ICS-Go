@@ -428,6 +428,90 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestICSCacheDeleteByPredicate(t *testing.T) {
+	cache := NewICSCache()
+	events := []Event{
+		{
+			Summary:  "Online Class",
+			Location: "Online",
+			Source:   "brightspace-calendar",
+			Title:    "Online Class",
+			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "Campus Class",
+			Location: "W1-05-07",
+			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "Zoom Meeting",
+			Location: "Zoom Online Meeting",
+			Source:   "brightspace-calendar",
+			Title:    "Zoom Meeting",
+			DTStart:  time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 8, 11, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if count := cache.EventCount(); count != 3 {
+		t.Fatalf("Expected 3 events, got %d", count)
+	}
+
+	deleted := cache.DeleteByPredicate(func(e Event) bool {
+		return e.Location == "Zoom Online Meeting"
+	})
+
+	if deleted != 1 {
+		t.Errorf("Expected 1 deleted event, got %d", deleted)
+	}
+
+	if count := cache.EventCount(); count != 2 {
+		t.Errorf("Expected 2 events after delete, got %d", count)
+	}
+
+	data := cache.Get("Asia/Singapore", time.Hour)
+	content := string(data)
+	if contains(content, "Zoom Meeting") {
+		t.Error("Deleted event should not be in cache")
+	}
+	if !contains(content, "Campus Class") {
+		t.Error("Non-matching event should still be in cache")
+	}
+	if !contains(content, "Online Class") {
+		t.Error("Non-matching event should still be in cache")
+	}
+}
+
+func TestICSCacheDeleteByPredicate_NoMatch(t *testing.T) {
+	cache := NewICSCache()
+	events := []Event{
+		{Summary: "Event 1", Location: "Room 101"},
+		{Summary: "Event 2", Location: "Room 102"},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	deleted := cache.DeleteByPredicate(func(e Event) bool {
+		return e.Location == "Nonexistent"
+	})
+
+	if deleted != 0 {
+		t.Errorf("Expected 0 deleted events, got %d", deleted)
+	}
+
+	if count := cache.EventCount(); count != 2 {
+		t.Errorf("Expected 2 events, got %d", count)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
 }

@@ -57,6 +57,21 @@ func (b *Blocklist) IsLocationBlocked(location string) bool {
 	return false
 }
 
+// Matches checks whether an event should be blocked based on all blocklist criteria.
+// The source field should be the event's Source (e.g. "brightspace-calendar").
+func (b *Blocklist) Matches(source, orgUnitID, orgUnitName, title, location string) bool {
+	if b.IsCourseBlocked(orgUnitID, orgUnitName) {
+		return true
+	}
+	if b.IsEventBlocked(title) {
+		return true
+	}
+	if b.IsLocationBlocked(location) {
+		return true
+	}
+	return false
+}
+
 // ParseCommaSeparated splits a comma-separated string into trimmed, non-empty patterns.
 func ParseCommaSeparated(s string) []string {
 	parts := strings.Split(s, ",")
