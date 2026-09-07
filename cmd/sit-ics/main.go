@@ -252,7 +252,7 @@ func browserEntriesToICSEvents(entries []browser.BrightSpaceEntry, blocklist *br
 			}
 		}
 
-		if entry.IsAllDay || dtStart.Equal(dtEnd) {
+		if entry.IsAllDay {
 			dtEnd = dtStart.Add(24 * time.Hour)
 		}
 
