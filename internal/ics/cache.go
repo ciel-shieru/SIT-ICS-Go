@@ -132,7 +132,7 @@ func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsite
 
 	mainData, _ := Write(c.events, tz, refreshInterval)
 	onlineData, _ := Write(filterEvents(c.events, IsOnline), tz, refreshInterval)
-	campusData, _ := Write(filterEvents(c.events, IsNotOnline), tz, refreshInterval)
+	campusData, _ := Write(filterEvents(c.events, IsNotOnlineAndNotBrightSpace), tz, refreshInterval)
 	xsiteEventsData, _ := Write(filterEventsBySource(c.events, "brightspace-calendar"), tz, refreshInterval)
 	xsiteDropboxData, _ := Write(filterEventsBySource(c.events, "brightspace-dropbox"), tz, refreshInterval)
 
@@ -265,6 +265,14 @@ func IsOnline(event Event) bool {
 
 func IsNotOnline(event Event) bool {
 	return !IsOnline(event)
+}
+
+func IsNotOnlineAndNotBrightSpace(event Event) bool {
+	return IsNotOnline(event) && !isBrightSpaceEvent(event)
+}
+
+func isBrightSpaceEvent(event Event) bool {
+	return strings.HasPrefix(event.Source, "brightspace-")
 }
 
 func unescapeText(text string) string {
