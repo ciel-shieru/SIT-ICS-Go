@@ -1,0 +1,108 @@
+package brightspace
+
+import (
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/ics"
+)
+
+// BrightSpaceStringEntry represents a BrightSpace event with string-based timestamps,
+// as returned by the browser scraping layer.
+type BrightSpaceStringEntry struct {
+	Title       string
+	OrgUnitId   string
+	OrgUnitName string
+	OrgUnitCode string
+	Location    string
+	Description string
+	DTStart     string
+	DTEnd       string
+	IsAllDay    bool
+	Source      string
+}
+
+// ParseTimestamp parses a BrightSpace timestamp string into a time.Time value.
+// It tries RFC3339Nano first, then falls back to "2006-01-02T15:04:05.000Z".
+func ParseTimestamp(s string, loc *time.Location) (time.Time, error) {
+	if s == "" {
+		return time.Time{}, fmt.Errorf("empty timestamp")
+	}
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		t, err2 := time.Parse("2006-01-02T15:04:05.000Z", s)
+		if err2 != nil {
+			return time.Time{}, fmt.Errorf("parse %q: not RFC3339 or YYYY-MM-DDTHH:MM:SS.sssZ", s)
+		}
+		t = t.In(loc)
+	}
+	if loc != nil {
+		t = t.In(loc)
+	}
+	return t, nil
+}
+
+// EntriesToEvents converts BrightSpace string entries to ics.Event values,
+// applying blocklist filtering.
+func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc *time.Location) []ics.Event {
+	events := make([]ics.Event, 0, len(entries))
+	for _, entry := range entries {
+		if blocklist.IsCourseBlocked(entry.OrgUnitId, entry.OrgUnitName) {
+			log.Printf("brightspace: blocked course %s (%s)", entry.OrgUnitName, entry.OrgUnitId)
+			continue
+		}
+		if blocklist.IsEventBlocked(entry.Title) {
+			log.Printf("brightspace: blocked event %q in %s", entry.Title, entry.OrgUnitName)
+			continue
+		}
+		if blocklist.IsLocationBlocked(entry.Location) {
+			log.Printf("brightspace: blocked event %q in %s (location %q)", entry.Title, entry.OrgUnitName, entry.Location)
+			continue
+		}
+
+		dtStart, err := ParseTimestamp(entry.DTStart, loc)
+		if err != nil {
+			log.Printf("brightspace: skipping entry %q: invalid start time %q: %v", entry.Title, entry.DTStart, err)
+			continue
+		}
+
+		dtEnd := dtStart
+		if entry.DTEnd != "" {
+			endTime, err := ParseTimestamp(entry.DTEnd, loc)
+			if err == nil {
+				dtEnd = endTime
+			}
+		}
+
+		if entry.IsAllDay {
+			dtEnd = dtStart.Add(24 * time.Hour)
+		}
+
+		orgUnitName := entry.OrgUnitName
+		if len(orgUnitName) > 80 {
+			orgUnitName = orgUnitName[:77] + "..."
+		}
+
+		summary := entry.Title
+		if entry.OrgUnitCode != "" {
+			summary = fmt.Sprintf("[%s] %s", entry.OrgUnitCode, entry.Title)
+		} else if orgUnitName != "" {
+			summary = fmt.Sprintf("[%s] %s", orgUnitName, entry.Title)
+		}
+
+		events = append(events, ics.Event{
+			DTStart:     dtStart,
+			DTEnd:       dtEnd,
+			Summary:     summary,
+			Title:       entry.Title,
+			OrgUnitID:   entry.OrgUnitId,
+			OrgUnitName: entry.OrgUnitName,
+			OrgUnitCode: entry.OrgUnitCode,
+			Location:    entry.Location,
+			Description: entry.Description,
+			Source:      entry.Source,
+		})
+	}
+	return events
+}
