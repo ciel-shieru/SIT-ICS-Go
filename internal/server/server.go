@@ -61,6 +61,30 @@ func (s *Server) Start() error {
 		w.Write(data)
 	})
 
+	http.HandleFunc("/xsite-events.ics", func(w http.ResponseWriter, r *http.Request) {
+		data := s.cache.GetFiltered(s.tz, func(e ics.Event) bool { return e.Source == "brightspace-calendar" }, s.refreshInterval)
+		if len(data) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/calendar")
+		w.Header().Set("Content-Disposition", `attachment; filename="xsite-events.ics"`)
+		w.Write(data)
+	})
+
+	http.HandleFunc("/xsite-dropbox.ics", func(w http.ResponseWriter, r *http.Request) {
+		data := s.cache.GetFiltered(s.tz, func(e ics.Event) bool { return e.Source == "brightspace-dropbox" }, s.refreshInterval)
+		if len(data) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/calendar")
+		w.Header().Set("Content-Disposition", `attachment; filename="xsite-dropbox.ics"`)
+		w.Write(data)
+	})
+
 	addr := fmt.Sprintf(":%d", s.port)
 	fmt.Printf("server: starting on %s\n", addr)
 	return http.ListenAndServe(addr, nil)
