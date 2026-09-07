@@ -38,27 +38,47 @@ func getPageURLFromPageInfo(page *rod.Page) string {
 	return info.URL
 }
 
-// waitForPageURL polls the page URL using multiple methods until a non-empty
-// URL is obtained or the timeout expires. This handles cross-origin navigation
-// where Chromium's target URL may not be immediately available after redirect.
-func waitForPageURL(page *rod.Page, timeout time.Duration) string {
+// findPageByDomain enumerates all pages in the browser and returns the first
+// page whose URL contains the given domain substring. Returns nil if not found.
+func findPageByDomain(browser *rod.Browser, domain string) *rod.Page {
+	var pages rod.Pages
+	safeRod(func() {
+		var err error
+		pages, err = browser.Pages()
+		if err != nil {
+			return
+		}
+	})
+	if pages == nil {
+		return nil
+	}
+	for _, p := range pages {
+		var pageURL string
+		safeRod(func() {
+			pageURL = p.MustInfo().URL
+		})
+		if strings.Contains(pageURL, domain) {
+			return p
+		}
+	}
+	return nil
+}
+
+// waitForPageURL waits for any page in the browser to load a URL containing
+// the given domain. This handles cross-origin navigation where the original
+// page reference may become stale after redirect.
+func waitForPageURL(browser *rod.Browser, domain string, timeout time.Duration) string {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		// Try CDP target info first (works on cross-origin pages).
-		if url := getPageURLFromPageInfo(page); url != "" {
-			return url
-		}
-		// Fall back to JS eval (works on same-origin pages).
-		if url := getPageURL(page); url != "" {
-			return url
+		if page := findPageByDomain(browser, domain); page != nil {
+			info, err := page.Info()
+			if err == nil && info.URL != "" {
+				return info.URL
+			}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	// Return whatever we can get on the final attempt.
-	if url := getPageURLFromPageInfo(page); url != "" {
-		return url
-	}
-	return getPageURL(page)
+	return ""
 }
 
 func findActivePage(browser *rod.Browser) (*rod.Page, error) {
@@ -388,7 +408,7 @@ func htmlToPlainText(htmlStr string) string {
 
 // authBrightSpace navigates to the BrightSpace SAML login endpoint and waits
 // for the ADFS redirect to complete, landing on /d2l/home.
-func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg BrowserConfig) error {
+func authBrightSpace(ctx context.Context, browser *rod.Browser, page *rod.Page, baseURL string, cfg BrowserConfig) error {
 	samlURL := fmt.Sprintf("%s/d2l/lp/auth/saml/login", baseURL)
 	debug(cfg, "brightspace: initiating SAML auth via %s", samlURL)
 
@@ -407,7 +427,7 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 		debug(cfg, "brightspace: wait stable after SAML auth failed: %v", err)
 	}
 
-	finalURL := waitForPageURL(page, 5*time.Second)
+	finalURL := waitForPageURL(browser, "xsite.singaporetech.edu.sg", 10*time.Second)
 	debug(cfg, "brightspace: SAML auth complete, landed on %s", finalURL)
 
 	if !isAllowedOrigin(finalURL) {
@@ -417,7 +437,7 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 	return nil
 }
 
-func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg BrowserConfig) ([]BrightSpaceEntry, error) {
+func fetchBrightSpace(ctx context.Context, browser *rod.Browser, page *rod.Page, baseURL string, cfg BrowserConfig) ([]BrightSpaceEntry, error) {
 	if page == nil {
 		return nil, fmt.Errorf("%w: no active page: authenticate first", ErrAuthentication)
 	}
@@ -425,7 +445,7 @@ func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 	baseURL = strings.TrimRight(baseURL, "/")
 
 	// Authenticate to BrightSpace via SAML using the existing ADFS session.
-	if err := authBrightSpace(ctx, page, baseURL, cfg); err != nil {
+	if err := authBrightSpace(ctx, browser, page, baseURL, cfg); err != nil {
 		return nil, fmt.Errorf("brightspace SAML auth: %w", err)
 	}
 

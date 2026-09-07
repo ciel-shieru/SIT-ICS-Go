@@ -83,7 +83,11 @@ func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
-	return fetchBrightSpace(ctx, b.page, baseURL, b.cfg)
+	browser := b.incognito
+	if browser == nil {
+		browser = b.browser
+	}
+	return fetchBrightSpace(ctx, browser, b.page, baseURL, b.cfg)
 }
 
 func (b *LocalBrowser) Close() {
