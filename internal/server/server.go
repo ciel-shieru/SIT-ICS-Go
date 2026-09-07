@@ -50,7 +50,7 @@ func (s *Server) Start() error {
 	})
 
 	http.HandleFunc("/timetable-campus.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.GetFiltered(s.tz, ics.IsNotOnline, s.refreshInterval)
+		data := s.cache.GetFiltered(s.tz, ics.IsNotOnlineAndNotBrightSpace, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -263,6 +263,171 @@ func TestICSCacheEventCount(t *testing.T) {
 	}
 }
 
+func TestICSCacheSaveAllWithXsiteFiles_ExcludesBrightSpaceFromCampus(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainPath := filepath.Join(tmpDir, "timetable.ics")
+	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
+	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
+	xsiteEventsPath := filepath.Join(tmpDir, "xsite-events.ics")
+	xsiteDropboxPath := filepath.Join(tmpDir, "xsite-dropbox.ics")
+
+	cache := NewICSCache()
+	events := []Event{
+		{
+			Summary:  "Campus Class",
+			Location: "W1-05-07",
+			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "[SIT2101] Assignment 1",
+			Location: "Online",
+			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			Source:   "brightspace-calendar",
+		},
+		{
+			Summary:  "[SIT3201] Lab 3 Due",
+			Location: "",
+			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
+			Source:   "brightspace-dropbox",
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if err := cache.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	}
+
+	mainData, _ := os.ReadFile(mainPath)
+	if !contains(string(mainData), "SUMMARY:Campus Class") {
+		t.Error("Main ICS missing campus event")
+	}
+	if !contains(string(mainData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("Main ICS missing brightspace-calendar event")
+	}
+	if !contains(string(mainData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("Main ICS missing brightspace-dropbox event")
+	}
+
+	campusData, _ := os.ReadFile(campusPath)
+	if !contains(string(campusData), "SUMMARY:Campus Class") {
+		t.Error("Campus ICS missing campus event")
+	}
+	if contains(string(campusData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("Campus ICS should not contain brightspace-calendar event")
+	}
+	if contains(string(campusData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("Campus ICS should not contain brightspace-dropbox event")
+	}
+
+	xsiteEventsData, _ := os.ReadFile(xsiteEventsPath)
+	if !contains(string(xsiteEventsData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("Xsite events ICS missing brightspace-calendar event")
+	}
+	if contains(string(xsiteEventsData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("Xsite events ICS should not contain brightspace-dropbox event")
+	}
+
+	xsiteDropboxData, _ := os.ReadFile(xsiteDropboxPath)
+	if !contains(string(xsiteDropboxData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("Xsite dropbox ICS missing brightspace-dropbox event")
+	}
+	if contains(string(xsiteDropboxData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("Xsite dropbox ICS should not contain brightspace-calendar event")
+	}
+}
+
+func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	mainPath := filepath.Join(tmpDir, "timetable.ics")
+	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
+	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
+	xsiteEventsPath := filepath.Join(tmpDir, "xsite-events.ics")
+	xsiteDropboxPath := filepath.Join(tmpDir, "xsite-dropbox.ics")
+
+	// First run: create events and save
+	cache := NewICSCache()
+	events := []Event{
+		{
+			Summary:  "Campus Class",
+			Location: "W1-05-07",
+			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "[SIT2101] Assignment 1",
+			Location: "Online",
+			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			Source:   "brightspace-calendar",
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if err := cache.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	}
+
+	// Verify campus file doesn't have brightspace events
+	campusData1, _ := os.ReadFile(campusPath)
+	if contains(string(campusData1), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("First run: Campus ICS should not contain brightspace-calendar event")
+	}
+
+	// Second run: reload from main file and verify filtering still works
+	cache2 := NewICSCache()
+	if err := cache2.LoadFromFile(mainPath); err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+
+	// Check that the brightspace event was loaded with Source field
+	for _, e := range cache2.events {
+		if e.Summary == "[SIT2101] Assignment 1" {
+			if e.Source != "brightspace-calendar" {
+				t.Errorf("Reloaded brightspace event has Source=%q, want %q", e.Source, "brightspace-calendar")
+			}
+		}
+	}
+
+	// Update with a new campus event (simulating a new fetch)
+	newEvents := []Event{
+		{
+			Summary:  "New Campus Class",
+			Location: "W2-03-04",
+			DTStart:  time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache2.Update(newEvents, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if err := cache2.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	}
+
+	// Verify campus file still doesn't have brightspace events after reload+update
+	campusData2, _ := os.ReadFile(campusPath)
+	if !contains(string(campusData2), "SUMMARY:Campus Class") {
+		t.Error("Second run: Campus ICS missing original campus event")
+	}
+	if !contains(string(campusData2), "SUMMARY:New Campus Class") {
+		t.Error("Second run: Campus ICS missing new campus event")
+	}
+	if contains(string(campusData2), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("Second run: Campus ICS should not contain brightspace-calendar event")
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
 }
