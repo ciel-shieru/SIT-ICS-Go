@@ -14,6 +14,10 @@ type Event struct {
 	DTEnd       time.Time
 	CourseCode  string
 	Summary     string
+	Title       string
+	OrgUnitID   string
+	OrgUnitName string
+	OrgUnitCode string
 	Location    string
 	Description string
 	Source      string

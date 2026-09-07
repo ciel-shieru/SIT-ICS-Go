@@ -161,16 +161,24 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 
 	// Fetch BrightSpace D2L events if enabled
 	if cfg.BrightSpaceEnabled {
+		blocklist := &brightspace.Blocklist{
+			CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseNameBlocklist),
+			CourseIDs:             brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseIDBlocklist),
+			EventTitlePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceEventTitleBlocklist),
+			EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceEventLocationBlocklist),
+		}
+
+		deleted := cache.DeleteByPredicate(func(e ics.Event) bool {
+			return blocklist.Matches(e.Source, e.OrgUnitID, e.OrgUnitName, e.Title, e.Location)
+		})
+		if deleted > 0 {
+			log.Printf("scheduler: deleted %d blocked brightspace events from cache", deleted)
+		}
+
 		bsEntries, err := provider.FetchBrightSpace(ctx, brightspaceBaseURL)
 		if err != nil {
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
-			blocklist := &brightspace.Blocklist{
-				CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseNameBlocklist),
-				CourseIDs:             brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseIDBlocklist),
-				EventTitlePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceEventTitleBlocklist),
-				EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceEventLocationBlocklist),
-			}
 			bsEvents := browserEntriesToICSEvents(bsEntries, blocklist, loc)
 			icsEvents = append(icsEvents, bsEvents...)
 			log.Printf("scheduler: added %d brightspace events", len(bsEvents))
@@ -265,6 +273,10 @@ func browserEntriesToICSEvents(entries []browser.BrightSpaceEntry, blocklist *br
 			DTStart:     dtStart,
 			DTEnd:       dtEnd,
 			Summary:     summary,
+			Title:       entry.Title,
+			OrgUnitID:   entry.OrgUnitId,
+			OrgUnitName: entry.OrgUnitName,
+			OrgUnitCode: entry.OrgUnitCode,
 			Location:    entry.Location,
 			Description: entry.Description,
 			Source:      entry.Source,

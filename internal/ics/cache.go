@@ -56,6 +56,25 @@ func (c *ICSCache) EventCount() int {
 	return len(c.events)
 }
 
+func (c *ICSCache) DeleteByPredicate(filterFn func(Event) bool) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	deleted := 0
+	filtered := make([]Event, 0, len(c.events))
+	for _, event := range c.events {
+		if filterFn(event) {
+			deleted++
+		} else {
+			filtered = append(filtered, event)
+		}
+	}
+
+	c.events = filtered
+	c.dirty = true
+	return deleted
+}
+
 func (c *ICSCache) Update(events []Event, tz string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
