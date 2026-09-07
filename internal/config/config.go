@@ -37,7 +37,8 @@ type Config struct {
 	BrightSpaceAPISecret   string  `env:"BRIGHTSPACE_API_SECRET" envDefault:""`
 	BrightSpaceCourseNameBlocklist string `env:"BRIGHTSPACE_COURSE_NAME_BLOCKLIST" envDefault:""`
 	BrightSpaceCourseIDBlocklist     string `env:"BRIGHTSPACE_COURSE_ID_BLOCKLIST" envDefault:""`
-	BrightSpaceEventTitleBlocklist string `env:"BRIGHTSPACE_EVENT_TITLE_BLOCKLIST" envDefault:""`
+	BrightSpaceEventTitleBlocklist     string `env:"BRIGHTSPACE_EVENT_TITLE_BLOCKLIST" envDefault:""`
+	BrightSpaceEventLocationBlocklist  string `env:"BRIGHTSPACE_EVENT_LOCATION_BLOCKLIST" envDefault:""`
 }
 
 func Load() (*Config, error) {
@@ -75,6 +76,7 @@ func Load() (*Config, error) {
 	brightspaceCourseNameBlocklist := fs.String("brightspace-course-name-blocklist", "", "Comma-separated course name patterns to block")
 	brightspaceCourseIDBlocklist := fs.String("brightspace-course-id-blocklist", "", "Comma-separated course OrgUnitIds to block")
 	brightspaceEventTitleBlocklist := fs.String("brightspace-event-title-blocklist", "", "Comma-separated event title patterns to block")
+	brightspaceEventLocationBlocklist := fs.String("brightspace-event-location-blocklist", "", "Comma-separated event location patterns to block")
 
 	fs.Parse(os.Args[1:])
 
@@ -169,6 +171,9 @@ func Load() (*Config, error) {
 	}
 	if fs.Lookup("brightspace-event-title-blocklist").Changed {
 		cfg.BrightSpaceEventTitleBlocklist = *brightspaceEventTitleBlocklist
+	}
+	if fs.Lookup("brightspace-event-location-blocklist").Changed {
+		cfg.BrightSpaceEventLocationBlocklist = *brightspaceEventLocationBlocklist
 	}
 
 	return &cfg, nil

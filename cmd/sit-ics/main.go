@@ -166,9 +166,10 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
 			blocklist := &brightspace.Blocklist{
-				CourseNamePatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseNameBlocklist),
-				CourseIDs:          brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseIDBlocklist),
-				EventTitlePatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceEventTitleBlocklist),
+				CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseNameBlocklist),
+				CourseIDs:             brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseIDBlocklist),
+				EventTitlePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceEventTitleBlocklist),
+				EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceEventLocationBlocklist),
 			}
 			bsEvents := browserEntriesToICSEvents(bsEntries, blocklist, loc)
 			icsEvents = append(icsEvents, bsEvents...)
@@ -222,6 +223,10 @@ func browserEntriesToICSEvents(entries []browser.BrightSpaceEntry, blocklist *br
 		}
 		if blocklist.IsEventBlocked(entry.Title) {
 			log.Printf("brightspace: blocked event %q in %s", entry.Title, entry.OrgUnitName)
+			continue
+		}
+		if blocklist.IsLocationBlocked(entry.Location) {
+			log.Printf("brightspace: blocked event %q in %s (location %q)", entry.Title, entry.OrgUnitName, entry.Location)
 			continue
 		}
 

@@ -15,9 +15,10 @@ import (
 // returning them as ics.Event entries ready for the ICS cache.
 func Fetch(ctx context.Context, client *Client, cfg *FetchConfig, loc *time.Location) ([]ics.Event, error) {
 	blocklist := &Blocklist{
-		CourseNamePatterns: cfg.CourseNameBlocklist,
-		CourseIDs:          cfg.CourseIDBlocklist,
-		EventTitlePatterns: cfg.EventTitleBlocklist,
+		CourseNamePatterns:    cfg.CourseNameBlocklist,
+		CourseIDs:             cfg.CourseIDBlocklist,
+		EventTitlePatterns:    cfg.EventTitleBlocklist,
+		EventLocationPatterns: cfg.EventLocationBlocklist,
 	}
 
 	version, err := client.CheckVersion(ctx)
@@ -57,6 +58,10 @@ func Fetch(ctx context.Context, client *Client, cfg *FetchConfig, loc *time.Loca
 				log.Printf("brightspace: blocked event %q in %s", entry.Title, course.Name)
 				continue
 			}
+			if blocklist.IsLocationBlocked(entry.Location) {
+				log.Printf("brightspace: blocked event %q in %s (location %q)", entry.Title, course.Name, entry.Location)
+				continue
+			}
 			evEvent := entryToICSEvent(&entry, loc)
 			if evEvent != nil {
 				calendarEvents = append(calendarEvents, *evEvent)
@@ -93,9 +98,10 @@ func Fetch(ctx context.Context, client *Client, cfg *FetchConfig, loc *time.Loca
 
 // FetchConfig holds the configuration for a BrightSpace fetch.
 type FetchConfig struct {
-	CourseNameBlocklist []string
-	CourseIDBlocklist   []string
-	EventTitleBlocklist []string
+	CourseNameBlocklist    []string
+	CourseIDBlocklist      []string
+	EventTitleBlocklist    []string
+	EventLocationBlocklist []string
 }
 
 func calendarEventToEntry(ev CalendarEvent, source SourceType, orgUnitID, orgUnitName, orgUnitCode string) BrightSpaceEntry {
