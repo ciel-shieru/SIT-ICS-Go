@@ -1,8 +1,6 @@
 package calendar
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"sort"
@@ -59,7 +57,17 @@ func (c *ICSCache) Get(tz string, refreshInterval time.Duration) []byte {
 	c.mu.RUnlock()
 
 	sortEvents(events)
-	data, _ := Write(events, tz, refreshInterval)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.Local
+	}
+	data, err := Render(events, RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return nil
+	}
 	return data
 }
 
@@ -71,7 +79,17 @@ func (c *ICSCache) GetFiltered(tz string, filterFn func(Event) bool, refreshInte
 
 	filtered := filterEvents(events, filterFn)
 	sortEvents(filtered)
-	data, _ := Write(filtered, tz, refreshInterval)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.Local
+	}
+	data, err := Render(filtered, RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return nil
+	}
 	return data
 }
 
@@ -132,7 +150,14 @@ func (c *ICSCache) SaveToFile(path string, refreshInterval time.Duration) error 
 		return nil
 	}
 
-	data, _ := Write(events, "UTC", refreshInterval)
+	utc := time.UTC
+	data, err := Render(events, RenderOptions{
+		Timezone:        utc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render ICS: %w", err)
+	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		return fmt.Errorf("write temp ICS file: %w", err)
@@ -161,9 +186,32 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 		return nil
 	}
 
-	mainData, _ := Write(events, tz, refreshInterval)
-	onlineData, _ := Write(filterEvents(events, IsOnline), tz, refreshInterval)
-	campusData, _ := Write(filterEvents(events, IsNotOnline), tz, refreshInterval)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.Local
+	}
+
+	mainData, err := Render(events, RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render main ICS: %w", err)
+	}
+	onlineData, err := Render(filterEvents(events, IsOnline), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render online ICS: %w", err)
+	}
+	campusData, err := Render(filterEvents(events, IsNotOnline), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render campus ICS: %w", err)
+	}
 
 	for path, data := range map[string][]byte{
 		mainPath:   mainData,
@@ -198,11 +246,46 @@ func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsite
 		return nil
 	}
 
-	mainData, _ := Write(events, tz, refreshInterval)
-	onlineData, _ := Write(filterEvents(events, IsOnline), tz, refreshInterval)
-	campusData, _ := Write(filterEvents(events, IsNotOnlineAndNotBrightSpace), tz, refreshInterval)
-	xsiteEventsData, _ := Write(filterEventsBySource(events, "brightspace-calendar"), tz, refreshInterval)
-	xsiteDropboxData, _ := Write(filterEventsBySource(events, "brightspace-dropbox"), tz, refreshInterval)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.Local
+	}
+
+	mainData, err := Render(events, RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render main ICS: %w", err)
+	}
+	onlineData, err := Render(filterEvents(events, IsOnline), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render online ICS: %w", err)
+	}
+	campusData, err := Render(filterEvents(events, IsNotOnlineAndNotBrightSpace), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render campus ICS: %w", err)
+	}
+	xsiteEventsData, err := Render(filterEventsBySource(events, "brightspace-calendar"), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render xsite-events ICS: %w", err)
+	}
+	xsiteDropboxData, err := Render(filterEventsBySource(events, "brightspace-dropbox"), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("render xsite-dropbox ICS: %w", err)
+	}
 
 	for path, data := range map[string][]byte{
 		mainPath:            mainData,
@@ -226,30 +309,6 @@ func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsite
 	return nil
 }
 
-func generateUID(event Event) string {
-	var uidStr string
-	if event.Source != "" {
-		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s-%s",
-			event.Source,
-			event.Summary,
-			event.Location,
-			event.DTStart.Format("2006-01-02"),
-			event.DTStart.Format("15:04"),
-			event.DTEnd.Format("15:04"),
-		)
-	} else {
-		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s",
-			event.Summary,
-			event.Location,
-			event.DTStart.Format("2006-01-02"),
-			event.DTStart.Format("15:04"),
-			event.DTEnd.Format("15:04"),
-		)
-	}
-	hash := sha256.Sum256([]byte(uidStr))
-	return hex.EncodeToString(hash[:])
-}
-
 // mergeEvents merges newEvents into existing cache events with non-destructive semantics:
 // - Events in newEvents are added or update matching existing events (by UID).
 // - Events absent from newEvents are retained (non-destructive).
@@ -262,7 +321,7 @@ func (c *ICSCache) mergeEvents(newEvents []Event) ([]Event, error) {
 	seenUIDs := make(map[string]bool)
 
 	for _, event := range newEvents {
-		event.UID = generateUID(event)
+		event.UID = EventID(event)
 		merged = append(merged, event)
 		seenUIDs[event.UID] = true
 	}
