@@ -75,7 +75,14 @@ func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (str
 	if b.browser == nil {
 		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
-	return fetchTimetable(ctx, b.page, weekDate, b.cfg)
+	return fetchTimetable(ctx, b.page, b.cfg)
+}
+
+func (b *LocalBrowser) NavigateTimetable(ctx context.Context) (string, error) {
+	if b.browser == nil {
+		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	return fetchTimetable(ctx, b.page, b.cfg)
 }
 
 func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
