@@ -387,12 +387,12 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		t.Fatalf("LoadFromFile() error = %v", err)
 	}
 
-	for _, e := range cache2.events {
-		if e.Summary == "[SIT2101] Assignment 1" {
-			if e.Source != "brightspace-calendar" {
-				t.Errorf("Reloaded brightspace event has Source=%q, want %q", e.Source, "brightspace-calendar")
-			}
-		}
+	filtered := cache2.GetFiltered("Asia/Singapore", func(e Event) bool {
+		return e.Summary == "[SIT2101] Assignment 1"
+	}, time.Hour)
+	content := string(filtered)
+	if !contains(content, "X-SOURCE:brightspace-calendar") {
+		t.Error("Reloaded brightspace event missing Source=brightspace-calendar")
 	}
 
 	newEvents := []Event{
@@ -459,7 +459,7 @@ func TestICSCacheDeleteByPredicate(t *testing.T) {
 		t.Fatalf("Expected 3 events, got %d", count)
 	}
 
-	deleted := cache.DeleteByPredicate(func(e Event) bool {
+	deleted := cache.RemoveWhere(func(e Event) bool {
 		return e.Location == "Zoom Online Meeting"
 	})
 
@@ -495,7 +495,7 @@ func TestICSCacheDeleteByPredicate_NoMatch(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	deleted := cache.DeleteByPredicate(func(e Event) bool {
+	deleted := cache.RemoveWhere(func(e Event) bool {
 		return e.Location == "Nonexistent"
 	})
 
@@ -627,7 +627,7 @@ func TestICSCacheDeleteByPredicate_BrightSpaceBlocklist(t *testing.T) {
 		t.Fatalf("Expected 3 events, got %d", count)
 	}
 
-	deleted := cache.DeleteByPredicate(func(e Event) bool {
+	deleted := cache.RemoveWhere(func(e Event) bool {
 		return strings.HasPrefix(e.Source, "brightspace-")
 	})
 
