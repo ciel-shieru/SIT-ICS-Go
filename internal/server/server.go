@@ -28,8 +28,8 @@ func (s *Server) Start() error {
 	http.HandleFunc("/timetable.ics", newTimetableHandler(s.cache, s.tz, s.refreshInterval))
 	http.HandleFunc("/timetable-online.ics", newOnlineHandler(s.cache, s.tz, s.refreshInterval))
 	http.HandleFunc("/timetable-campus.ics", newCampusHandler(s.cache, s.tz, s.refreshInterval))
-	http.HandleFunc("/xsite-events.ics", newXSiteEventsHandler(s.cache, s.tz, s.refreshInterval))
-	http.HandleFunc("/xsite-dropbox.ics", newXSiteDropboxHandler(s.cache, s.tz, s.refreshInterval))
+	http.HandleFunc("/brightspace-events.ics", newBrightSpaceEventsHandler(s.cache, s.tz, s.refreshInterval))
+	http.HandleFunc("/brightspace-dropbox.ics", newBrightSpaceDropboxHandler(s.cache, s.tz, s.refreshInterval))
 
 	addr := fmt.Sprintf(":%d", s.port)
 	fmt.Printf("server: starting on %s\n", addr)

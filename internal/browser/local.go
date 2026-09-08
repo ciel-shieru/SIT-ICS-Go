@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 )
@@ -78,14 +79,7 @@ func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (str
 	return fetchTimetable(ctx, b.page, b.cfg)
 }
 
-func (b *LocalBrowser) NavigateTimetable(ctx context.Context) (string, error) {
-	if b.browser == nil {
-		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
-	}
-	return fetchTimetable(ctx, b.page, b.cfg)
-}
-
-func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
+func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}

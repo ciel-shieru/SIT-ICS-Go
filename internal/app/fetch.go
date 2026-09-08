@@ -74,22 +74,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		if err != nil {
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
-			stringEntries := make([]brightspace.BrightSpaceStringEntry, 0, len(bsEntries))
-			for _, e := range bsEntries {
-				stringEntries = append(stringEntries, brightspace.BrightSpaceStringEntry{
-					Title:       e.Title,
-					OrgUnitId:   e.OrgUnitId,
-					OrgUnitName: e.OrgUnitName,
-					OrgUnitCode: e.OrgUnitCode,
-					Location:    e.Location,
-					Description: e.Description,
-					DTStart:     e.DTStart,
-					DTEnd:       e.DTEnd,
-					IsAllDay:    e.IsAllDay,
-					Source:      e.Source,
-				})
-			}
-			bsEvents := brightspace.EntriesToEvents(stringEntries, blocklist, loc)
+			bsEvents := brightspace.EntriesToEvents(bsEntries, blocklist, loc)
 			icsEvents = append(icsEvents, bsEvents...)
 			log.Printf("scheduler: added %d brightspace events", len(bsEvents))
 		}
@@ -100,7 +85,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		return
 	}
 
-	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.XsiteEventsPath, cfg.XsiteDropboxPath, cfg.TZ, cfg.ICSRefreshInterval); err != nil {
+	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.BrightSpaceEventsPath, cfg.BrightSpaceDropboxPath, cfg.TZ, cfg.ICSRefreshInterval); err != nil {
 		log.Printf("scheduler: save failed: %v", err)
 		return
 	}

@@ -20,12 +20,12 @@ func newCampusHandler(cache *calendar.ICSCache, tz string, refreshInterval time.
 	return newFilteredHandler(cache, tz, refreshInterval, calendar.IsCampus, "timetable-campus.ics")
 }
 
-func newXSiteEventsHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
-	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-calendar" }, "xsite-events.ics")
+func newBrightSpaceEventsHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
+	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-calendar" }, "brightspace-events.ics")
 }
 
-func newXSiteDropboxHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
-	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-dropbox" }, "xsite-dropbox.ics")
+func newBrightSpaceDropboxHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
+	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-dropbox" }, "brightspace-dropbox.ics")
 }
 
 func newFilteredHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, filterFn func(calendar.Event) bool, filename string) http.HandlerFunc {
