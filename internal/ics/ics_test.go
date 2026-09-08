@@ -1,74 +1,11 @@
 package ics
 
 import (
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 )
-
-func TestWrite(t *testing.T) {
-	events := []Event{
-		{
-			UID:         "test-uid-1",
-			DTStart:     time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:       time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
-			CourseCode:  "ABC 0002",
-			Summary:     "ABC 0002 - ALL (Lecture)",
-			Location:    "W1-05-07",
-			Description: "Course: ABC 0002\nSection: ALL\nType: Lecture",
-		},
-	}
-
-	data, err := Write(events, "Asia/Singapore", time.Hour)
-	if err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-
-	content := string(data)
-
-	if !strings.Contains(content, "BEGIN:VCALENDAR") {
-		t.Error("Write() missing BEGIN:VCALENDAR")
-	}
-	if !strings.Contains(content, "END:VCALENDAR") {
-		t.Error("Write() missing END:VCALENDAR")
-	}
-	if !strings.Contains(content, "BEGIN:VEVENT") {
-		t.Error("Write() missing BEGIN:VEVENT")
-	}
-	if !strings.Contains(content, "END:VEVENT") {
-		t.Error("Write() missing END:VEVENT")
-	}
-	if !strings.Contains(content, "UID:test-uid-1") {
-		t.Error("Write() missing UID")
-	}
-	if !strings.Contains(content, "SUMMARY:ABC 0002 - ALL (Lecture)") {
-		t.Error("Write() missing SUMMARY")
-	}
-	if !strings.Contains(content, "LOCATION:W1-05-07") {
-		t.Error("Write() missing LOCATION")
-	}
-	if !strings.Contains(content, "REFRESH-INTERVAL;VALUE=DURATION:PT1H") {
-		t.Error("Write() missing REFRESH-INTERVAL")
-	}
-}
-
-func TestWriteEmpty(t *testing.T) {
-	data, err := Write([]Event{}, "Asia/Singapore", time.Hour)
-	if err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-
-	content := string(data)
-	if !strings.Contains(content, "BEGIN:VCALENDAR") {
-		t.Error("Write() missing BEGIN:VCALENDAR")
-	}
-	if !strings.Contains(content, "END:VCALENDAR") {
-		t.Error("Write() missing END:VCALENDAR")
-	}
-	if strings.Contains(content, "BEGIN:VEVENT") {
-		t.Error("Write() should not contain VEVENT for empty events")
-	}
-}
 
 func TestEscapeText(t *testing.T) {
 	tests := []struct {
@@ -105,23 +42,23 @@ func TestEscapeText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := escapeText(tt.input)
+			got := EscapeText(tt.input)
 			if got != tt.want {
-				t.Errorf("escapeText() = %q, want %q", got, tt.want)
+				t.Errorf("EscapeText() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
 func TestGenerateUID(t *testing.T) {
-	event1 := Event{
+	event1 := calendar.Event{
 		DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
 		DTEnd:   time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
 		Summary: "ABC 0002 - ALL (Lecture)",
 		Location: "W1-05-07",
 	}
 
-	event2 := Event{
+	event2 := calendar.Event{
 		DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
 		DTEnd:   time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
 		Summary: "ABC 0002 - ALL (Lecture)",
@@ -141,14 +78,14 @@ func TestGenerateUID(t *testing.T) {
 }
 
 func TestGenerateUIDDifferent(t *testing.T) {
-	event1 := Event{
+	event1 := calendar.Event{
 		DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
 		DTEnd:   time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
 		Summary: "ABC 0002 - ALL (Lecture)",
 		Location: "W1-05-07",
 	}
 
-	event2 := Event{
+	event2 := calendar.Event{
 		DTStart: time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
 		DTEnd:   time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
 		Summary: "ABC 0002 - ALL (Tutorial)",

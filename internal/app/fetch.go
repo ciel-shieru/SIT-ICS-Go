@@ -8,12 +8,12 @@ import (
 
 	"github.com/ciel-shieru/sit-ics-go/internal/auth"
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
+	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
-	"github.com/ciel-shieru/sit-ics-go/internal/ics"
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 )
 
-func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCache, loc *time.Location) {
+func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.ICSCache, loc *time.Location) {
 	log.Printf("scheduler: starting timetable fetch")
 	ctx, cancel := context.WithTimeout(context.Background(), FetchTimeout)
 	defer cancel()
@@ -38,14 +38,14 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 	}
 	allEntries := entries
 
-	icsEvents := make([]ics.Event, 0, len(allEntries))
+	icsEvents := make([]calendar.Event, 0, len(allEntries))
 	for _, entry := range allEntries {
 		dtStart, dtEnd, err := peoplesoft.ParseEntryDateTime(entry, loc)
 		if err != nil {
 			log.Printf("scheduler: skipping entry %s: %v", entry.CourseCode, err)
 			continue
 		}
-		icsEvents = append(icsEvents, ics.Event{
+		icsEvents = append(icsEvents, calendar.Event{
 			CourseCode:  entry.CourseCode,
 			Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
 			Location:    entry.Location,
@@ -63,7 +63,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 			EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceEventLocationBlocklist),
 		}
 
-		deleted := cache.DeleteByPredicate(func(e ics.Event) bool {
+		deleted := cache.DeleteByPredicate(func(e calendar.Event) bool {
 			return blocklist.Matches(e.OrgUnitID, e.OrgUnitName, e.Title, e.Location)
 		})
 		if deleted > 0 {

@@ -7,8 +7,8 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/app"
 	"github.com/ciel-shieru/sit-ics-go/internal/auth"
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
+	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
-	"github.com/ciel-shieru/sit-ics-go/internal/ics"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 	}
 	time.Local = loc
 
-	cache := ics.NewICSCache()
+	cache := calendar.NewICSCache()
 	if err := cache.LoadFromFile(cfg.ICSStoragePath); err != nil {
 		log.Printf("ics: failed to load from disk: %v", err)
 	}
