@@ -7,5 +7,11 @@ import (
 )
 
 func saveAll(cache *calendar.ICSCache, mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, tz string, refreshInterval time.Duration) error {
-	return cache.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, tz, refreshInterval)
+	return cache.SaveOutputs(calendar.Outputs{
+		Main:      mainPath,
+		Online:    onlinePath,
+		Campus:    campusPath,
+		BSEvents:  xsiteEventsPath,
+		BSDropbox: xsiteDropboxPath,
+	}, tz, refreshInterval)
 }
