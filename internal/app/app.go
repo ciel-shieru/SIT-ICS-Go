@@ -120,7 +120,7 @@ func (a *App) Shutdown() {
 		a.browser.Close()
 	}
 
-	if err := saveAll(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.XsiteEventsPath, a.cfg.XsiteDropboxPath, a.cfg.TZ, a.cfg.ICSRefreshInterval); err != nil {
+	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.XsiteEventsPath, a.cfg.XsiteDropboxPath, a.cfg.TZ, a.cfg.ICSRefreshInterval); err != nil {
 		log.Printf("save on shutdown failed: %v", err)
 	}
 }

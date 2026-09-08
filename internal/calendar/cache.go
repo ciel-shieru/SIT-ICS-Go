@@ -281,7 +281,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	if err != nil {
 		return fmt.Errorf("render online ICS: %w", err)
 	}
-	campusData, err := Render(filterEvents(events, IsNotOnlineAndNotBrightSpace), RenderOptions{
+	campusData, err := Render(filterEvents(events, IsCampus), RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
 	})

@@ -37,7 +37,7 @@ func newOnlineHandler(cache *calendar.ICSCache, tz string, refreshInterval time.
 
 func newCampusHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data := cache.GetFiltered(tz, calendar.IsNotOnlineAndNotBrightSpace, refreshInterval)
+		data := cache.GetFiltered(tz, calendar.IsCampus, refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return
