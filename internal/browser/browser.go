@@ -11,6 +11,7 @@ type AuthResult struct {
 	Token       string
 }
 
+// BrightSpaceEntry represents a BrightSpace event with string-based timestamps.
 type BrightSpaceEntry struct {
 	Title       string
 	OrgUnitId   string

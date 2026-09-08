@@ -3,10 +3,42 @@ package brightspace
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/ics"
 )
+
+// htmlToPlainText strips HTML tags and common entities from an HTML string.
+func htmlToPlainText(html string) string {
+	html = strings.ReplaceAll(html, "<br>", "\n")
+	html = strings.ReplaceAll(html, "<br/>", "\n")
+	html = strings.ReplaceAll(html, "<br />", "\n")
+	html = strings.ReplaceAll(html, "</p>", "\n")
+	html = strings.ReplaceAll(html, "<p>", "")
+
+	var result strings.Builder
+	inTag := false
+	for _, ch := range html {
+		switch ch {
+		case '<':
+			inTag = true
+		case '>':
+			inTag = false
+		default:
+			if !inTag {
+				result.WriteRune(ch)
+			}
+		}
+	}
+
+	text := result.String()
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	return strings.TrimSpace(text)
+}
 
 // BrightSpaceStringEntry represents a BrightSpace event with string-based timestamps,
 // as returned by the browser scraping layer.

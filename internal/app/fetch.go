@@ -64,7 +64,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *ics.ICSCac
 		}
 
 		deleted := cache.DeleteByPredicate(func(e ics.Event) bool {
-			return blocklist.Matches(e.Source, e.OrgUnitID, e.OrgUnitName, e.Title, e.Location)
+			return blocklist.Matches(e.OrgUnitID, e.OrgUnitName, e.Title, e.Location)
 		})
 		if deleted > 0 {
 			log.Printf("scheduler: deleted %d blocked brightspace events from cache", deleted)

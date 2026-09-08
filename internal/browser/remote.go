@@ -177,7 +177,7 @@ func (b *RemoteBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
-	return fetchBrightSpace(ctx, b.page, baseURL, b.cfg)
+	return FetchBrightSpace(ctx, b.page, baseURL, b.cfg)
 }
 
 func (b *RemoteBrowser) Close() {
@@ -211,3 +211,7 @@ func (b *RemoteBrowser) Close() {
 	}
 }
 
+// GetPage returns the active page for use by brightspace package.
+func (b *RemoteBrowser) GetPage() *rod.Page {
+	return b.page
+}

@@ -89,7 +89,7 @@ func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
-	return fetchBrightSpace(ctx, b.page, baseURL, b.cfg)
+	return FetchBrightSpace(ctx, b.page, baseURL, b.cfg)
 }
 
 func (b *LocalBrowser) Close() {
@@ -140,4 +140,7 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	return url, nil
 }
 
-
+// GetPage returns the active page for use by brightspace package.
+func (b *LocalBrowser) GetPage() *rod.Page {
+	return b.page
+}
