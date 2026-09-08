@@ -3,24 +3,7 @@ package browser
 import (
 	"context"
 	"time"
-
-	"github.com/ciel-shieru/sit-ics-go/internal/config"
 )
-
-type Cookie struct {
-	Name   string
-	Value  string
-	Domain string
-	Path   string
-	Expiry int64
-}
-
-type AuthRequest struct {
-	URL        string
-	Username   string
-	Password   string
-	TOTPSecret string
-}
 
 type AuthResult struct {
 	Cookies     []Cookie
@@ -48,21 +31,7 @@ type AuthBrowser interface {
 	Close()
 }
 
-type BrowserConfig struct {
-	Mode              config.BrowserMode
-	Executable        string
-	RemoteHost        string
-	RemotePort        int
-	Headless          bool
-	Incognito         bool
-	ProxyURL          string
-	Debug             bool
-	ConnectTimeout    time.Duration
-	NavigationTimeout time.Duration
-	AuthTimeout       time.Duration
-}
-
-func DefaultBrowserConfig(mode config.BrowserMode) BrowserConfig {
+func DefaultBrowserConfig(mode BrowserMode) BrowserConfig {
 	return BrowserConfig{
 		Mode:              mode,
 		Headless:          true,
@@ -89,8 +58,8 @@ func isAllowedOrigin(url string) bool {
 }
 
 type MockAuthBrowser struct {
-	AuthenticateFunc  func(ctx context.Context, req AuthRequest) (AuthResult, error)
-	FetchTimetableFunc  func(ctx context.Context, weekDate string) (string, error)
+	AuthenticateFunc     func(ctx context.Context, req AuthRequest) (AuthResult, error)
+	FetchTimetableFunc   func(ctx context.Context, weekDate string) (string, error)
 	FetchBrightSpaceFunc func(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error)
 }
 

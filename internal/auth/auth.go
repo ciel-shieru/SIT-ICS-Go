@@ -8,8 +8,8 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 )
 
-type PeoplesoftClient interface {
-	FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error)
+type HTMLFetcher interface {
+	FetchTimetable(ctx context.Context, weekDate string) (string, error)
 }
 
 type AuthRequest struct {
@@ -24,59 +24,20 @@ type AuthResult struct {
 	Token   string
 }
 
-type ADFSProvider struct {
-	browser browser.AuthBrowser
-}
-
-func NewADFSProvider(b browser.AuthBrowser) *ADFSProvider {
-	return &ADFSProvider{
-		browser: b,
-	}
-}
-
-func (a *ADFSProvider) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
-	browserReq := browser.AuthRequest{
-		URL:        "https://in4sit.singaporetech.edu.sg",
-		Username:   req.Username,
-		Password:   req.Password,
-		TOTPSecret: req.TOTPSecret,
-	}
-
-	authResult, err := a.browser.Authenticate(ctx, browserReq)
-	if err != nil {
-		return AuthResult{}, fmt.Errorf("adfs authenticate: %w", err)
-	}
-
-	token := extractPS_TOKEN(authResult.Cookies)
-
-	return AuthResult{
-		Cookies: authResult.Cookies,
-		Token:   token,
-	}, nil
-}
-
-func (a *ADFSProvider) FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
-	html, err := a.browser.FetchTimetable(ctx, weekDate)
-	if err != nil {
-		return nil, fmt.Errorf("browser fetch timetable: %w", err)
-	}
-	year := peoplesoft.ExtractYear(weekDate)
-	return peoplesoft.ParseTimetableHTML(html, year)
-}
-
-func (a *ADFSProvider) FetchBrightSpace(ctx context.Context, baseURL string) ([]browser.BrightSpaceEntry, error) {
-	entries, err := a.browser.FetchBrightSpace(ctx, baseURL)
-	if err != nil {
-		return nil, fmt.Errorf("browser fetch brightspace: %w", err)
-	}
-	return entries, nil
-}
-
-func extractPS_TOKEN(cookies []browser.Cookie) string {
+func ExtractPS_TOKEN(cookies []browser.Cookie) string {
 	for _, c := range cookies {
 		if c.Name == "PS_TOKEN" {
 			return c.Value
 		}
 	}
 	return ""
+}
+
+func FetchTimetable(ctx context.Context, fetcher HTMLFetcher, weekDate string) ([]peoplesoft.Entry, error) {
+	html, err := fetcher.FetchTimetable(ctx, weekDate)
+	if err != nil {
+		return nil, fmt.Errorf("fetch timetable: %w", err)
+	}
+	year := peoplesoft.ExtractYear(weekDate)
+	return peoplesoft.ParseTimetableHTML(html, year)
 }

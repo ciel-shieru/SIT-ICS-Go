@@ -3,7 +3,6 @@ package browser
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -54,7 +53,7 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 		incognito = b.browser
 	}
 
-	page, err := navigateToAuthPage(authCtx, incognito, req, true, b.cfg)
+	page, err := AuthenticateADFS(authCtx, incognito, req, true, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
 		return AuthResult{}, err
@@ -134,8 +133,4 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	return url, nil
 }
 
-func (b *LocalBrowser) debug(msg string, args ...any) {
-	if b.cfg.Debug {
-		log.Printf("browser: "+msg, args...)
-	}
-}
+

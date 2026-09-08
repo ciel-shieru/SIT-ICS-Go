@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -141,7 +140,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 		incognito = b.browser
 	}
 
-	page, err := navigateToAuthPage(authCtx, incognito, req, false, b.cfg)
+	page, err := AuthenticateADFS(authCtx, incognito, req, false, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
 		return AuthResult{}, err
@@ -205,8 +204,3 @@ func (b *RemoteBrowser) Close() {
 	}
 }
 
-func (b *RemoteBrowser) debug(msg string, args ...any) {
-	if b.cfg.Debug {
-		log.Printf("browser: "+msg, args...)
-	}
-}
