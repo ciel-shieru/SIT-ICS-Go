@@ -82,7 +82,7 @@ func (c *ICSCache) Get(tz string, refreshInterval time.Duration) []byte {
 	sortEvents(events)
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
-		loc = time.Local
+		loc = time.UTC
 	}
 	data, err := Render(events, RenderOptions{
 		Timezone:        loc,
@@ -104,7 +104,7 @@ func (c *ICSCache) GetFiltered(tz string, filterFn func(Event) bool, refreshInte
 	sortEvents(filtered)
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
-		loc = time.Local
+		loc = time.UTC
 	}
 	data, err := Render(filtered, RenderOptions{
 		Timezone:        loc,

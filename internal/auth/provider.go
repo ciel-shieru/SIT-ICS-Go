@@ -9,6 +9,22 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 )
 
+type AuthRequest struct {
+	Username      string
+	Password      string
+	TOTPSecret    string
+	PeopleSoftURL string
+}
+
+func ExtractPS_TOKEN(cookies []browser.Cookie) string {
+	for _, c := range cookies {
+		if c.Name == "PS_TOKEN" {
+			return c.Value
+		}
+	}
+	return ""
+}
+
 // ADFSProvider wraps AuthBrowser and provides a higher-level interface
 // for authentication and timetable fetching.
 type ADFSProvider struct {
