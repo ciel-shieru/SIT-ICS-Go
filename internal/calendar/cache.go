@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sort"
 	"sync"
 	"time"
 )
@@ -17,6 +18,21 @@ type ICSCache struct {
 
 func NewICSCache() *ICSCache {
 	return &ICSCache{}
+}
+
+// sortEvents sorts events deterministically in-place:
+// primary by DTStart (ascending), secondary by Location (ascending),
+// tiebreaker by UID (ascending).
+func sortEvents(events []Event) {
+	sort.SliceStable(events, func(i, j int) bool {
+		if !events[i].DTStart.Equal(events[j].DTStart) {
+			return events[i].DTStart.Before(events[j].DTStart)
+		}
+		if events[i].Location != events[j].Location {
+			return events[i].Location < events[j].Location
+		}
+		return events[i].UID < events[j].UID
+	})
 }
 
 func (c *ICSCache) LoadFromFile(path string) error {
@@ -38,15 +54,23 @@ func (c *ICSCache) LoadFromFile(path string) error {
 
 func (c *ICSCache) Get(tz string, refreshInterval time.Duration) []byte {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	data, _ := Write(c.events, tz, refreshInterval)
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	c.mu.RUnlock()
+
+	sortEvents(events)
+	data, _ := Write(events, tz, refreshInterval)
 	return data
 }
 
 func (c *ICSCache) GetFiltered(tz string, filterFn func(Event) bool, refreshInterval time.Duration) []byte {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	filtered := filterEvents(c.events, filterFn)
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	c.mu.RUnlock()
+
+	filtered := filterEvents(events, filterFn)
+	sortEvents(filtered)
 	data, _ := Write(filtered, tz, refreshInterval)
 	return data
 }
@@ -57,14 +81,16 @@ func (c *ICSCache) EventCount() int {
 	return len(c.events)
 }
 
-func (c *ICSCache) DeleteByPredicate(filterFn func(Event) bool) int {
+// RemoveWhere removes events matching the predicate and returns the count removed.
+// This is an explicit deletion operation, distinct from merge retention semantics.
+func (c *ICSCache) RemoveWhere(predicate func(Event) bool) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	deleted := 0
 	filtered := make([]Event, 0, len(c.events))
 	for _, event := range c.events {
-		if filterFn(event) {
+		if predicate(event) {
 			deleted++
 		} else {
 			filtered = append(filtered, event)
@@ -76,11 +102,14 @@ func (c *ICSCache) DeleteByPredicate(filterFn func(Event) bool) int {
 	return deleted
 }
 
+// Update merges new events into the cache. The merge is non-destructive:
+// events absent from the latest upstream response are intentionally retained.
+// Matching events (by UID) are updated; new events are added; duplicates are avoided.
 func (c *ICSCache) Update(events []Event, tz string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	merged, err := c.merge(events)
+	merged, err := c.mergeEvents(events)
 	if err != nil {
 		return fmt.Errorf("merge events: %w", err)
 	}
@@ -90,15 +119,20 @@ func (c *ICSCache) Update(events []Event, tz string) error {
 	return nil
 }
 
+// SaveToFile atomically writes the ICS file if the cache is dirty.
+// The dirty flag is reset under an exclusive lock after writing.
 func (c *ICSCache) SaveToFile(path string, refreshInterval time.Duration) error {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	dirty := c.dirty
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	c.mu.RUnlock()
 
-	if !c.dirty {
+	if !dirty {
 		return nil
 	}
 
-	data, _ := Write(c.events, "UTC", refreshInterval)
+	data, _ := Write(events, "UTC", refreshInterval)
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		return fmt.Errorf("write temp ICS file: %w", err)
@@ -108,21 +142,28 @@ func (c *ICSCache) SaveToFile(path string, refreshInterval time.Duration) error 
 		return fmt.Errorf("rename ICS file: %w", err)
 	}
 
+	c.mu.Lock()
 	c.dirty = false
+	c.mu.Unlock()
 	return nil
 }
 
+// SaveAllToFiles atomically writes the main, online, and campus ICS files if dirty.
+// The dirty flag is reset under an exclusive lock after writing.
 func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz string, refreshInterval time.Duration) error {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	dirty := c.dirty
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	c.mu.RUnlock()
 
-	if !c.dirty {
+	if !dirty {
 		return nil
 	}
 
-	mainData, _ := Write(c.events, tz, refreshInterval)
-	onlineData, _ := Write(filterEvents(c.events, IsOnline), tz, refreshInterval)
-	campusData, _ := Write(filterEvents(c.events, IsNotOnline), tz, refreshInterval)
+	mainData, _ := Write(events, tz, refreshInterval)
+	onlineData, _ := Write(filterEvents(events, IsOnline), tz, refreshInterval)
+	campusData, _ := Write(filterEvents(events, IsNotOnline), tz, refreshInterval)
 
 	for path, data := range map[string][]byte{
 		mainPath:   mainData,
@@ -138,23 +179,30 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 		}
 	}
 
+	c.mu.Lock()
 	c.dirty = false
+	c.mu.Unlock()
 	return nil
 }
 
+// SaveAllWithXsiteFiles atomically writes all five ICS files if dirty.
+// The dirty flag is reset under an exclusive lock after writing.
 func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath string, tz string, refreshInterval time.Duration) error {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	dirty := c.dirty
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	c.mu.RUnlock()
 
-	if !c.dirty {
+	if !dirty {
 		return nil
 	}
 
-	mainData, _ := Write(c.events, tz, refreshInterval)
-	onlineData, _ := Write(filterEvents(c.events, IsOnline), tz, refreshInterval)
-	campusData, _ := Write(filterEvents(c.events, IsNotOnlineAndNotBrightSpace), tz, refreshInterval)
-	xsiteEventsData, _ := Write(filterEventsBySource(c.events, "brightspace-calendar"), tz, refreshInterval)
-	xsiteDropboxData, _ := Write(filterEventsBySource(c.events, "brightspace-dropbox"), tz, refreshInterval)
+	mainData, _ := Write(events, tz, refreshInterval)
+	onlineData, _ := Write(filterEvents(events, IsOnline), tz, refreshInterval)
+	campusData, _ := Write(filterEvents(events, IsNotOnlineAndNotBrightSpace), tz, refreshInterval)
+	xsiteEventsData, _ := Write(filterEventsBySource(events, "brightspace-calendar"), tz, refreshInterval)
+	xsiteDropboxData, _ := Write(filterEventsBySource(events, "brightspace-dropbox"), tz, refreshInterval)
 
 	for path, data := range map[string][]byte{
 		mainPath:            mainData,
@@ -172,7 +220,9 @@ func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsite
 		}
 	}
 
+	c.mu.Lock()
 	c.dirty = false
+	c.mu.Unlock()
 	return nil
 }
 
@@ -200,20 +250,25 @@ func generateUID(event Event) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (c *ICSCache) merge(newEvents []Event) ([]Event, error) {
-	existing := c.parseExisting()
+// mergeEvents merges newEvents into existing cache events with non-destructive semantics:
+// - Events in newEvents are added or update matching existing events (by UID).
+// - Events absent from newEvents are retained (non-destructive).
+// - No duplicates are created.
+// This does NOT implement ReplaceSource or authoritative source reconciliation.
+func (c *ICSCache) mergeEvents(newEvents []Event) ([]Event, error) {
+	existing := c.indexByUID()
 
 	merged := make([]Event, 0, len(existing)+len(newEvents))
-	newUIDs := make(map[string]bool)
+	seenUIDs := make(map[string]bool)
 
 	for _, event := range newEvents {
 		event.UID = generateUID(event)
 		merged = append(merged, event)
-		newUIDs[event.UID] = true
+		seenUIDs[event.UID] = true
 	}
 
 	for uid, event := range existing {
-		if !newUIDs[uid] {
+		if !seenUIDs[uid] {
 			merged = append(merged, event)
 		}
 	}
@@ -221,10 +276,11 @@ func (c *ICSCache) merge(newEvents []Event) ([]Event, error) {
 	return merged, nil
 }
 
-func (c *ICSCache) parseExisting() map[string]Event {
-	existing := make(map[string]Event)
+// indexByUID builds a map from UID to Event for all events currently in the cache.
+func (c *ICSCache) indexByUID() map[string]Event {
+	index := make(map[string]Event)
 	for _, event := range c.events {
-		existing[event.UID] = event
+		index[event.UID] = event
 	}
-	return existing
+	return index
 }
