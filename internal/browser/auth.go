@@ -93,7 +93,7 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 
 	if mfaVisible {
 		debug(cfg, "MFA detected, generating TOTP code")
-		totpCode, err := totp.GenerateAtOffset(req.TOTPSecret, time.Now(), 1)
+		totpCode, err := totp.GenerateAtOffset(req.TOTPSecret, time.Now().UTC(), 1)
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to generate TOTP: %v", ErrAuthentication, err)
 		}

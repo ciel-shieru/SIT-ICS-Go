@@ -15,31 +15,10 @@ func safeRod(f func()) {
 	f()
 }
 
-func findActivePage(browser *rod.Browser) (*rod.Page, error) {
-	var pages rod.Pages
-	safeRod(func() {
-		var err error
-		pages, err = browser.Pages()
-		if err != nil {
-			return
-		}
-	})
-
-	if pages == nil || len(pages) == 0 {
-		return nil, fmt.Errorf("no pages found")
-	}
-
-	for _, p := range pages {
-		var pageURL string
-		safeRod(func() {
-			pageURL = p.MustInfo().URL
-		})
-		if strings.Contains(pageURL, "singaporetech.edu.sg") {
-			return p, nil
-		}
-	}
-
-	return pages[0], nil
+func getPageURL(page *rod.Page) string {
+	var url string
+	page.Eval("() => window.location.href", &url)
+	return url
 }
 
 func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (string, error) {
@@ -76,4 +55,13 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 	if cfg.Debug {
 		fmt.Printf("browser: "+msg+"\n", args...)
 	}
+}
+
+func extractPageText(page *rod.Page) (string, error) {
+	var result string
+	safeRod(func() {
+		val := page.MustEval("() => document.body ? document.body.innerText : document.documentElement.innerText")
+		result = val.String()
+	})
+	return strings.TrimSpace(result), nil
 }
