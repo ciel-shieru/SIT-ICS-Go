@@ -55,7 +55,7 @@ func TestICSCacheLoadFromFile(t *testing.T) {
 	}
 
 	cache := NewICSCache()
-	if err := cache.LoadFromFile(icsPath); err != nil {
+	if err := cache.LoadFromFile(icsPath, time.UTC); err != nil {
 		t.Fatalf("LoadFromFile() error = %v", err)
 	}
 
@@ -116,7 +116,7 @@ func TestICSCacheLoadNonExistent(t *testing.T) {
 	icsPath := filepath.Join(tmpDir, "nonexistent.ics")
 
 	cache := NewICSCache()
-	if err := cache.LoadFromFile(icsPath); err != nil {
+	if err := cache.LoadFromFile(icsPath, time.UTC); err != nil {
 		t.Fatalf("LoadFromFile() should not error for non-existent file: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestICSCacheNoSaveWhenNotDirty(t *testing.T) {
 	initialData := []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n")
 	os.WriteFile(icsPath, initialData, 0600)
 
-	cache.LoadFromFile(icsPath)
+	cache.LoadFromFile(icsPath, time.UTC)
 
 	if err := cache.SaveToFile(icsPath, time.Hour); err != nil {
 		t.Fatalf("SaveToFile() error = %v", err)
@@ -395,7 +395,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	}
 
 	cache2 := NewICSCache()
-	if err := cache2.LoadFromFile(mainPath); err != nil {
+	if err := cache2.LoadFromFile(mainPath, time.UTC); err != nil {
 		t.Fatalf("LoadFromFile() error = %v", err)
 	}
 

@@ -11,7 +11,7 @@ import (
 
 var dayAbbrevRe = regexp.MustCompile(`^(Mo|Tu|We|Th|Fr|Sa|Su)\b`)
 
-func ParseTimetableHTML(htmlContent string, year int) ([]Entry, error) {
+func ParseTimetableHTML(htmlContent string, year int, loc *time.Location) ([]Entry, error) {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
 		return nil, fmt.Errorf("parse HTML: %w", err)
@@ -27,7 +27,7 @@ func ParseTimetableHTML(htmlContent string, year int) ([]Entry, error) {
 				if len(headerCells) >= 7 {
 					firstCellText := getTextContent(headerCells[0])
 					if strings.Contains(firstCellText, "Class Nbr") {
-						entries = append(entries, parseMeetingTable(n)...)
+						entries = append(entries, parseMeetingTable(n, loc)...)
 					}
 				}
 			}
@@ -56,7 +56,7 @@ func getRows(table *html.Node) []*html.Node {
 	return rows
 }
 
-func parseMeetingTable(table *html.Node) []Entry {
+func parseMeetingTable(table *html.Node, loc *time.Location) []Entry {
 	var entries []Entry
 
 	var rows []*html.Node
@@ -109,11 +109,11 @@ func parseMeetingTable(table *html.Node) []Entry {
 		currentSection = section
 		currentComp = comp
 		sched := getTextContent(cells[3])
-		loc := getTextContent(cells[4])
+		location := getTextContent(cells[4])
 		_ = getTextContent(cells[5])
 		dateText := getTextContent(cells[6])
 
-		meetingDate, err := parseMeetingDate(dateText)
+		meetingDate, err := parseMeetingDate(dateText, loc)
 		if err != nil {
 			continue
 		}
@@ -141,7 +141,7 @@ func parseMeetingTable(table *html.Node) []Entry {
 			Day:        entryDay,
 			StartTime:  startTime,
 			EndTime:    endTime,
-			Location:   loc,
+			Location:   location,
 		})
 	}
 
@@ -200,16 +200,16 @@ func findCourseHeader(row *html.Node, courseCode, className *string) {
 	walk(courseGroup)
 }
 
-func parseMeetingDate(s string) (time.Time, error) {
+func parseMeetingDate(s string, loc *time.Location) (time.Time, error) {
 	parts := strings.SplitN(s, " - ", 2)
 	if len(parts) < 1 {
 		return time.Time{}, fmt.Errorf("empty date: %s", s)
 	}
 	datePart := strings.TrimSpace(parts[0])
-	return parseDate(datePart)
+	return parseDate(datePart, loc)
 }
 
-func parseDate(s string) (time.Time, error) {
+func parseDate(s string, loc *time.Location) (time.Time, error) {
 	parts := strings.Split(s, "/")
 	if len(parts) != 3 {
 		return time.Time{}, fmt.Errorf("invalid date format: %s", s)
@@ -218,7 +218,7 @@ func parseDate(s string) (time.Time, error) {
 	fmt.Sscanf(parts[0], "%d", &day)
 	fmt.Sscanf(parts[1], "%d", &month)
 	fmt.Sscanf(parts[2], "%d", &year)
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local), nil
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, loc), nil
 }
 
 func parseSchedule(s string) (dayName string, timeRange string, err error) {

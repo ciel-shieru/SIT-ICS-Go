@@ -21,10 +21,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("invalid timezone %q: %v", cfg.TZ, err)
 	}
-	time.Local = loc
 
 	cache := calendar.NewICSCache()
-	if err := cache.LoadFromFile(cfg.ICSStoragePath); err != nil {
+	if err := cache.LoadFromFile(cfg.ICSStoragePath, loc); err != nil {
 		log.Printf("ics: failed to load from disk: %v", err)
 	}
 

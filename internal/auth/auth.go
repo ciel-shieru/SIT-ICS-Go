@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
@@ -33,11 +34,11 @@ func ExtractPS_TOKEN(cookies []browser.Cookie) string {
 	return ""
 }
 
-func FetchTimetable(ctx context.Context, fetcher HTMLFetcher, weekDate string) ([]peoplesoft.Entry, error) {
+func FetchTimetable(ctx context.Context, fetcher HTMLFetcher, weekDate string, loc *time.Location) ([]peoplesoft.Entry, error) {
 	html, err := fetcher.FetchTimetable(ctx, weekDate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch timetable: %w", err)
 	}
 	year := peoplesoft.ExtractYear(weekDate)
-	return peoplesoft.ParseTimetableHTML(html, year)
+	return peoplesoft.ParseTimetableHTML(html, year, loc)
 }

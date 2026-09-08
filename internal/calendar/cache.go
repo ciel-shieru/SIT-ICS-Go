@@ -56,7 +56,7 @@ func sortEvents(events []Event) {
 	})
 }
 
-func (c *ICSCache) LoadFromFile(path string) error {
+func (c *ICSCache) LoadFromFile(path string, loc *time.Location) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -68,7 +68,7 @@ func (c *ICSCache) LoadFromFile(path string) error {
 		return fmt.Errorf("read ICS file: %w", err)
 	}
 
-	c.events = parseICS(data)
+	c.events = parseICS(data, loc)
 	c.dirty = false
 	return nil
 }
