@@ -149,7 +149,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	b.page = page
 	b.pageTargetID = page.TargetID
 
-	cookies, err := extractCookies(authCtx, func(msg string, args ...any) { debug(b.cfg, msg, args...) }, page)
+	cookies, err := extractCookiesForPage(page, authCtx)
 	if err != nil {
 		return AuthResult{}, err
 	}
