@@ -409,7 +409,7 @@ func TestComputeEntryDay(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to parse date: %v", err)
 			}
-			got, err := computeEntryDay(date, tt.dayAbbr)
+			got, err := computeEntryDate(date, tt.dayAbbr)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error, got nil")

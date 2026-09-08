@@ -128,7 +128,7 @@ func parseMeetingTable(table *html.Node) []Entry {
 			continue
 		}
 
-		entryDay, err := computeEntryDay(meetingDate, dayName)
+		entryDay, err := computeEntryDate(meetingDate, dayName)
 		if err != nil {
 			continue
 		}
@@ -232,7 +232,7 @@ func parseSchedule(s string) (dayName string, timeRange string, err error) {
 	return dayName, timeRange, nil
 }
 
-func computeEntryDay(meetingDate time.Time, dayAbbr string) (string, error) {
+func computeEntryDate(meetingDate time.Time, dayAbbr string) (string, error) {
 	targetWeekday := dayToWeekday(dayAbbr)
 	currentWeekday := meetingDate.Weekday()
 	daysDiff := int(targetWeekday) - int(currentWeekday)

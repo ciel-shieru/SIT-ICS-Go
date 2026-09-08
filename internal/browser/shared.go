@@ -43,7 +43,7 @@ func findActivePage(browser *rod.Browser) (*rod.Page, error) {
 	return pages[0], nil
 }
 
-func fetchTimetable(ctx context.Context, page *rod.Page, weekDate string, cfg BrowserConfig) (string, error) {
+func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (string, error) {
 	if page == nil {
 		return "", fmt.Errorf("no active page: authenticate first")
 	}
