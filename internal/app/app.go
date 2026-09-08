@@ -10,8 +10,8 @@ import (
 
 	"github.com/ciel-shieru/sit-ics-go/internal/auth"
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
+	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
-	"github.com/ciel-shieru/sit-ics-go/internal/ics"
 	"github.com/ciel-shieru/sit-ics-go/internal/scheduler"
 	"github.com/ciel-shieru/sit-ics-go/internal/server"
 )
@@ -20,7 +20,7 @@ const FetchTimeout = 5 * time.Minute
 
 type App struct {
 	cfg      *config.Config
-	cache    *ics.ICSCache
+	cache    *calendar.ICSCache
 	browser  browser.AuthBrowser
 	provider *auth.ADFSProvider
 	loc      *time.Location
@@ -31,7 +31,7 @@ type App struct {
 	done     chan struct{}
 }
 
-func New(cfg *config.Config, cache *ics.ICSCache, browser browser.AuthBrowser, provider *auth.ADFSProvider, loc *time.Location) *App {
+func New(cfg *config.Config, cache *calendar.ICSCache, browser browser.AuthBrowser, provider *auth.ADFSProvider, loc *time.Location) *App {
 	return &App{
 		cfg:      cfg,
 		cache:    cache,

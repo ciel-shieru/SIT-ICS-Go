@@ -5,17 +5,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ciel-shieru/sit-ics-go/internal/ics"
+	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 )
 
 type Server struct {
 	port              int
-	cache             *ics.ICSCache
+	cache             *calendar.ICSCache
 	tz                string
 	refreshInterval   time.Duration
 }
 
-func NewServer(port int, cache *ics.ICSCache, tz string, refreshInterval time.Duration) *Server {
+func NewServer(port int, cache *calendar.ICSCache, tz string, refreshInterval time.Duration) *Server {
 	return &Server{
 		port:            port,
 		cache:           cache,
@@ -38,7 +38,7 @@ func (s *Server) Start() error {
 	})
 
 	http.HandleFunc("/timetable-online.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.GetFiltered(s.tz, ics.IsOnline, s.refreshInterval)
+		data := s.cache.GetFiltered(s.tz, calendar.IsOnline, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -50,7 +50,7 @@ func (s *Server) Start() error {
 	})
 
 	http.HandleFunc("/timetable-campus.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.GetFiltered(s.tz, ics.IsNotOnlineAndNotBrightSpace, s.refreshInterval)
+		data := s.cache.GetFiltered(s.tz, calendar.IsNotOnlineAndNotBrightSpace, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -62,7 +62,7 @@ func (s *Server) Start() error {
 	})
 
 	http.HandleFunc("/xsite-events.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.GetFiltered(s.tz, func(e ics.Event) bool { return e.Source == "brightspace-calendar" }, s.refreshInterval)
+		data := s.cache.GetFiltered(s.tz, func(e calendar.Event) bool { return e.Source == "brightspace-calendar" }, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -74,7 +74,7 @@ func (s *Server) Start() error {
 	})
 
 	http.HandleFunc("/xsite-dropbox.ics", func(w http.ResponseWriter, r *http.Request) {
-		data := s.cache.GetFiltered(s.tz, func(e ics.Event) bool { return e.Source == "brightspace-dropbox" }, s.refreshInterval)
+		data := s.cache.GetFiltered(s.tz, func(e calendar.Event) bool { return e.Source == "brightspace-dropbox" }, s.refreshInterval)
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return

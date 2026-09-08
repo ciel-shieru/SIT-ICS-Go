@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ciel-shieru/sit-ics-go/internal/ics"
+	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 )
 
 // htmlToPlainText strips HTML tags and common entities from an HTML string.
@@ -75,10 +75,10 @@ func ParseTimestamp(s string, loc *time.Location) (time.Time, error) {
 	return t, nil
 }
 
-// EntriesToEvents converts BrightSpace string entries to ics.Event values,
+// EntriesToEvents converts BrightSpace string entries to calendar.Event values,
 // applying blocklist filtering.
-func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc *time.Location) []ics.Event {
-	events := make([]ics.Event, 0, len(entries))
+func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc *time.Location) []calendar.Event {
+	events := make([]calendar.Event, 0, len(entries))
 	for _, entry := range entries {
 		if blocklist.IsCourseBlocked(entry.OrgUnitId, entry.OrgUnitName) {
 			log.Printf("brightspace: blocked course %s (%s)", entry.OrgUnitName, entry.OrgUnitId)
@@ -123,7 +123,7 @@ func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc
 			summary = fmt.Sprintf("[%s] %s", orgUnitName, entry.Title)
 		}
 
-		events = append(events, ics.Event{
+		events = append(events, calendar.Event{
 			DTStart:     dtStart,
 			DTEnd:       dtEnd,
 			Summary:     summary,

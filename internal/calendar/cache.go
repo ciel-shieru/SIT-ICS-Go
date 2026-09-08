@@ -1,9 +1,10 @@
-package ics
+package calendar
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 )
@@ -175,6 +176,30 @@ func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsite
 	return nil
 }
 
+func generateUID(event Event) string {
+	var uidStr string
+	if event.Source != "" {
+		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s-%s",
+			event.Source,
+			event.Summary,
+			event.Location,
+			event.DTStart.Format("2006-01-02"),
+			event.DTStart.Format("15:04"),
+			event.DTEnd.Format("15:04"),
+		)
+	} else {
+		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s",
+			event.Summary,
+			event.Location,
+			event.DTStart.Format("2006-01-02"),
+			event.DTStart.Format("15:04"),
+			event.DTEnd.Format("15:04"),
+		)
+	}
+	hash := sha256.Sum256([]byte(uidStr))
+	return hex.EncodeToString(hash[:])
+}
+
 func (c *ICSCache) merge(newEvents []Event) ([]Event, error) {
 	existing := c.parseExisting()
 
@@ -182,7 +207,7 @@ func (c *ICSCache) merge(newEvents []Event) ([]Event, error) {
 	newUIDs := make(map[string]bool)
 
 	for _, event := range newEvents {
-		event.UID = GenerateUID(event)
+		event.UID = generateUID(event)
 		merged = append(merged, event)
 		newUIDs[event.UID] = true
 	}
@@ -202,102 +227,4 @@ func (c *ICSCache) parseExisting() map[string]Event {
 		existing[event.UID] = event
 	}
 	return existing
-}
-
-func parseICS(data []byte) []Event {
-	events := make([]Event, 0)
-	content := string(data)
-	eventBlocks := strings.Split(content, "BEGIN:VEVENT")
-
-	for _, block := range eventBlocks {
-		if !strings.Contains(block, "END:VEVENT") {
-			continue
-		}
-
-		event := Event{}
-		lines := strings.Split(block, "\r\n")
-
-		for _, line := range lines {
-			line = strings.TrimPrefix(line, "END:VEVENT")
-			line = strings.TrimPrefix(line, "BEGIN:VEVENT")
-
-			if strings.HasPrefix(line, "UID:") {
-				event.UID = strings.TrimPrefix(line, "UID:")
-			} else if strings.HasPrefix(line, "SUMMARY:") {
-				event.Summary = unescapeText(strings.TrimPrefix(line, "SUMMARY:"))
-			} else if strings.HasPrefix(line, "LOCATION:") {
-				event.Location = unescapeText(strings.TrimPrefix(line, "LOCATION:"))
-			} else if strings.HasPrefix(line, "DESCRIPTION:") {
-				event.Description = unescapeText(strings.TrimPrefix(line, "DESCRIPTION:"))
-			} else if strings.HasPrefix(line, "X-SOURCE:") {
-				event.Source = unescapeText(strings.TrimPrefix(line, "X-SOURCE:"))
-			} else if strings.HasPrefix(line, "DTSTART;TZID=") {
-				timeStr := strings.SplitN(line, ":", 2)
-				if len(timeStr) == 2 {
-					t, err := time.ParseInLocation("20060102T150405", timeStr[1], time.Local)
-					if err == nil {
-						event.DTStart = t
-					}
-				}
-			} else if strings.HasPrefix(line, "DTEND;TZID=") {
-				timeStr := strings.SplitN(line, ":", 2)
-				if len(timeStr) == 2 {
-					t, err := time.ParseInLocation("20060102T150405", timeStr[1], time.Local)
-					if err == nil {
-						event.DTEnd = t
-					}
-				}
-			}
-		}
-
-		if event.UID != "" {
-			events = append(events, event)
-		}
-	}
-
-	return events
-}
-
-func filterEvents(events []Event, filterFn func(Event) bool) []Event {
-	filtered := make([]Event, 0, len(events))
-	for _, event := range events {
-		if filterFn(event) {
-			filtered = append(filtered, event)
-		}
-	}
-	return filtered
-}
-
-func filterEventsBySource(events []Event, source string) []Event {
-	filtered := make([]Event, 0, len(events))
-	for _, event := range events {
-		if event.Source == source {
-			filtered = append(filtered, event)
-		}
-	}
-	return filtered
-}
-
-func IsOnline(event Event) bool {
-	return strings.EqualFold(event.Location, "Online")
-}
-
-func IsNotOnline(event Event) bool {
-	return !IsOnline(event)
-}
-
-func IsNotOnlineAndNotBrightSpace(event Event) bool {
-	return IsNotOnline(event) && !isBrightSpaceEvent(event)
-}
-
-func isBrightSpaceEvent(event Event) bool {
-	return strings.HasPrefix(event.Source, "brightspace-")
-}
-
-func unescapeText(text string) string {
-	text = strings.ReplaceAll(text, "\\n", "\n")
-	text = strings.ReplaceAll(text, "\\,", ",")
-	text = strings.ReplaceAll(text, "\\;", ";")
-	text = strings.ReplaceAll(text, "\\\\", "\\")
-	return text
 }

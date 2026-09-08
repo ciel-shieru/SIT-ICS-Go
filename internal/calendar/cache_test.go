@@ -1,4 +1,4 @@
-package ics
+package calendar
 
 import (
 	"bytes"
@@ -352,7 +352,6 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 	xsiteEventsPath := filepath.Join(tmpDir, "xsite-events.ics")
 	xsiteDropboxPath := filepath.Join(tmpDir, "xsite-dropbox.ics")
 
-	// First run: create events and save
 	cache := NewICSCache()
 	events := []Event{
 		{
@@ -378,19 +377,16 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
 	}
 
-	// Verify campus file doesn't have brightspace events
 	campusData1, _ := os.ReadFile(campusPath)
 	if contains(string(campusData1), "SUMMARY:[SIT2101] Assignment 1") {
 		t.Error("First run: Campus ICS should not contain brightspace-calendar event")
 	}
 
-	// Second run: reload from main file and verify filtering still works
 	cache2 := NewICSCache()
 	if err := cache2.LoadFromFile(mainPath); err != nil {
 		t.Fatalf("LoadFromFile() error = %v", err)
 	}
 
-	// Check that the brightspace event was loaded with Source field
 	for _, e := range cache2.events {
 		if e.Summary == "[SIT2101] Assignment 1" {
 			if e.Source != "brightspace-calendar" {
@@ -399,7 +395,6 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		}
 	}
 
-	// Update with a new campus event (simulating a new fetch)
 	newEvents := []Event{
 		{
 			Summary:  "New Campus Class",
@@ -417,7 +412,6 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
 	}
 
-	// Verify campus file still doesn't have brightspace events after reload+update
 	campusData2, _ := os.ReadFile(campusPath)
 	if !contains(string(campusData2), "SUMMARY:Campus Class") {
 		t.Error("Second run: Campus ICS missing original campus event")
@@ -696,19 +690,6 @@ func TestICSCacheDeterministicOutput(t *testing.T) {
 	data3 := cache2.Get("Asia/Singapore", time.Hour)
 	if !bytes.Equal(data1, data3) {
 		t.Error("Separate caches with same events should produce identical output")
-	}
-
-	writeData1, err := Write(events, "Asia/Singapore", time.Hour)
-	if err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-	writeData2, err := Write(events, "Asia/Singapore", time.Hour)
-	if err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-
-	if !bytes.Equal(writeData1, writeData2) {
-		t.Error("Write() should produce deterministic output for same events")
 	}
 }
 
