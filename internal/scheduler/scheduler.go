@@ -40,10 +40,6 @@ func (s *Scheduler) AddJob(spec string, job func()) error {
 	return nil
 }
 
-func (s *Scheduler) Location() *time.Location {
-	return s.loc
-}
-
 type logger struct{}
 
 func (l *logger) Info(msg string, keysAndValues ...interface{}) {
