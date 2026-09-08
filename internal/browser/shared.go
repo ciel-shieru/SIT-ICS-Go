@@ -2,7 +2,6 @@ package browser
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -17,15 +16,6 @@ import (
 func safeRod(f func()) {
 	defer func() { recover() }()
 	f()
-}
-
-func getPageURL(page *rod.Page) string {
-	var url string
-	_, err := page.Eval("() => window.location.href", &url)
-	if err != nil {
-		return ""
-	}
-	return url
 }
 
 func findActivePage(browser *rod.Browser) (*rod.Page, error) {
@@ -53,76 +43,6 @@ func findActivePage(browser *rod.Browser) (*rod.Page, error) {
 	}
 
 	return pages[0], nil
-}
-
-func extractCookies(ctx context.Context, debugFn func(string, ...any), page *rod.Page) ([]Cookie, error) {
-	cookieCtx, cookieCancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cookieCancel()
-	ctx = cookieCtx
-
-	page = page.Context(cookieCtx)
-
-	var rodCookies []*proto.NetworkCookie
-	safeRod(func() {
-		rodCookies = page.MustCookies(page.MustInfo().URL)
-	})
-
-	if rodCookies == nil {
-		debugFn("no cookies from current page URL, trying to get all browser cookies")
-		pageURL := getPageURL(page)
-		var domains []string
-		if strings.Contains(pageURL, "in4sit.singaporetech.edu.sg") {
-			domains = append(domains, "https://in4sit.singaporetech.edu.sg/")
-		}
-		if strings.Contains(pageURL, "fs.singaporetech.edu.sg") {
-			domains = append(domains, "https://fs.singaporetech.edu.sg/")
-		}
-		if !strings.Contains(pageURL, "in4sit.singaporetech.edu.sg") {
-			domains = append(domains, "https://in4sit.singaporetech.edu.sg/")
-		}
-		if !strings.Contains(pageURL, "fs.singaporetech.edu.sg") {
-			domains = append(domains, "https://fs.singaporetech.edu.sg/")
-		}
-		for _, domainURL := range domains {
-			safeRod(func() {
-				extra := page.Context(cookieCtx).MustCookies(domainURL)
-				rodCookies = append(rodCookies, extra...)
-			})
-		}
-	}
-
-	if rodCookies == nil {
-		return nil, fmt.Errorf("%w: page became invalid during cookie extraction (session closed or navigated away)", ErrAuthentication)
-	}
-
-	cookieMap := make(map[string]Cookie)
-	for _, c := range rodCookies {
-		if !isSingaporeTechDomain(c.Domain) {
-			continue
-		}
-		expiry := int64(c.Expires)
-		existing, exists := cookieMap[c.Name]
-		if !exists || expiry > existing.Expiry {
-			cookieMap[c.Name] = Cookie{
-				Name:   c.Name,
-				Value:  c.Value,
-				Domain: c.Domain,
-				Path:   c.Path,
-				Expiry: expiry,
-			}
-		}
-	}
-
-	cookies := make([]Cookie, 0, len(cookieMap))
-	for _, c := range cookieMap {
-		cookies = append(cookies, c)
-	}
-
-	return cookies, nil
-}
-
-func isSingaporeTechDomain(domain string) bool {
-	return strings.Contains(domain, "singaporetech.edu.sg")
 }
 
 func extractErrorMessage(page *rod.Page) (string, error) {
@@ -170,7 +90,7 @@ func navigateToAuthPage(ctx context.Context, incognito *rod.Browser, req AuthReq
 	debug(cfg, "navigating to %s", initialURL)
 	page := incognito.MustPage(initialURL).Context(navigateCtx)
 
-	if err := page.WaitStable(3000); err != nil {
+	if err := page.WaitStable(3 * time.Second); err != nil {
 		debug(cfg, "wait stable failed: %v", err)
 	}
 
@@ -226,7 +146,7 @@ func navigateToAuthPage(ctx context.Context, incognito *rod.Browser, req AuthReq
 	if waitNavigation {
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 	}
-	if err := page.WaitStable(5000); err != nil {
+	if err := page.WaitStable(5 * time.Second); err != nil {
 		debug(cfg, "wait stable after submit failed: %v", err)
 	}
 
@@ -255,7 +175,7 @@ func navigateToAuthPage(ctx context.Context, incognito *rod.Browser, req AuthReq
 		}
 		debug(cfg, "waiting for SAML redirect after MFA")
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		if err := page.WaitStable(5000); err != nil {
+		if err := page.WaitStable(5 * time.Second); err != nil {
 			debug(cfg, "wait stable after MFA redirect failed: %v", err)
 		}
 
@@ -270,14 +190,14 @@ func navigateToAuthPage(ctx context.Context, incognito *rod.Browser, req AuthReq
 	} else {
 		debug(cfg, "no MFA field detected, waiting for redirect")
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		if err := page.WaitStable(5000); err != nil {
+		if err := page.WaitStable(5 * time.Second); err != nil {
 			debug(cfg, "wait stable after submit redirect failed: %v", err)
 		}
 	}
 
 	debug(cfg, "waiting for ADFS redirect to complete")
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5000); err != nil {
+	if err := page.WaitStable(5 * time.Second); err != nil {
 		debug(cfg, "wait stable after redirect failed: %v", err)
 	}
 
@@ -304,7 +224,7 @@ func fetchTimetable(ctx context.Context, page *rod.Page, weekDate string, cfg Br
 	}
 
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5000); err != nil {
+	if err := page.WaitStable(5 * time.Second); err != nil {
 		debug(cfg, "wait stable failed: %v", err)
 	}
 
@@ -370,7 +290,7 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 	}
 
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5000); err != nil {
+	if err := page.WaitStable(5 * time.Second); err != nil {
 		debug(cfg, "brightspace: wait stable after SAML auth failed: %v", err)
 	}
 
@@ -391,7 +311,7 @@ func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 	}
 
 	// Step 1: Check API version
-	version, err := fetchJSONField(ctx, page, fmt.Sprintf("%s/d2l/api/le/versions/", baseURL), "LatestVersion", cfg)
+	version, err := DecodeJSONField(page, fmt.Sprintf("%s/d2l/api/le/versions/", baseURL), "LatestVersion", cfg, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("check version: %w", err)
 	}
@@ -407,7 +327,7 @@ func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 		Courses []courseItem `json:"Courses"`
 	}
 	var coursesResp courseResponse
-	if err := fetchJSON(ctx, page, fmt.Sprintf("%s/d2l/le/manageCourses/api/mycourses", baseURL), &coursesResp, cfg); err != nil {
+	if err := DecodeJSON(page, fmt.Sprintf("%s/d2l/le/manageCourses/api/mycourses", baseURL), &coursesResp, cfg, ctx); err != nil {
 		return nil, fmt.Errorf("fetch courses: %w", err)
 	}
 	courses := coursesResp.Courses
@@ -421,7 +341,7 @@ func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 
 		// Fetch calendar events
 		var calendarEvents []CalendarEventAPI
-		if err := fetchJSON(ctx, page, fmt.Sprintf("%s/d2l/api/le/%s/%s/calendar/events/", baseURL, version, orgUnitID), &calendarEvents, cfg); err != nil {
+		if err := DecodeJSON(page, fmt.Sprintf("%s/d2l/api/le/%s/%s/calendar/events/", baseURL, version, orgUnitID), &calendarEvents, cfg, ctx); err != nil {
 			debug(cfg, "brightspace: failed to fetch calendar events for %s: %v", course.Name, err)
 			continue
 		}
@@ -463,7 +383,7 @@ func fetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 			DueDate string `json:"DueDate"`
 		}
 		var folders []dropboxFolderAPI
-		if err := fetchJSON(ctx, page, fmt.Sprintf("%s/d2l/api/le/%s/%s/dropbox/folders/", baseURL, version, orgUnitID), &folders, cfg); err != nil {
+		if err := DecodeJSON(page, fmt.Sprintf("%s/d2l/api/le/%s/%s/dropbox/folders/", baseURL, version, orgUnitID), &folders, cfg, ctx); err != nil {
 			debug(cfg, "brightspace: failed to fetch dropbox folders for %s: %v", course.Name, err)
 			continue
 		}
@@ -501,91 +421,3 @@ type CalendarEventAPI struct {
 	OrgUnitCode     string    `json:"OrgUnitCode"`
 	EventType       int       `json:"EventType"`
 }
-
-// fetchJSON navigates to a URL and parses the JSON response into the given value.
-func fetchJSON(ctx context.Context, page *rod.Page, url string, result interface{}, cfg BrowserConfig) error {
-	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	defer fetchCancel()
-
-	page = page.Context(fetchCtx)
-
-	debug(cfg, "brightspace: fetching %s", url)
-	if err := page.Navigate(url); err != nil {
-		return fmt.Errorf("navigate to %s: %w", url, err)
-	}
-
-	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(3000); err != nil {
-		debug(cfg, "brightspace: wait stable failed for %s: %v", url, err)
-	}
-
-	text, err := extractPageText(page)
-	if err != nil {
-		return fmt.Errorf("extract response from %s: %w", url, err)
-	}
-
-	if text == "" {
-		return nil
-	}
-
-	if err := json.Unmarshal([]byte(text), result); err != nil {
-		return fmt.Errorf("parse JSON from %s: %w (status=%d, body=%q)", url, err, 200, text)
-	}
-
-	return nil
-}
-
-// fetchJSONField navigates to a URL and extracts a specific JSON field as a string.
-func fetchJSONField(ctx context.Context, page *rod.Page, url, field string, cfg BrowserConfig) (string, error) {
-	type wrapper struct {
-		Data map[string]interface{} `json:"d2l-api-response"`
-	}
-
-	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	defer fetchCancel()
-
-	page = page.Context(fetchCtx)
-
-	debug(cfg, "brightspace: fetching %s", url)
-	if err := page.Navigate(url); err != nil {
-		return "", fmt.Errorf("navigate to %s: %w", url, err)
-	}
-
-	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(3000); err != nil {
-		debug(cfg, "brightspace: wait stable failed for %s: %v", url, err)
-	}
-
-	text, err := extractPageText(page)
-	if err != nil {
-		return "", fmt.Errorf("extract response from %s: %w", url, err)
-	}
-
-	if text == "" {
-		return "", fmt.Errorf("empty response from %s", url)
-	}
-
-	var raw map[string]interface{}
-	if err := json.Unmarshal([]byte(text), &raw); err != nil {
-		return "", fmt.Errorf("parse JSON from %s: %w", url, err)
-	}
-
-	val, ok := raw[field]
-	if !ok {
-		return "", fmt.Errorf("field %q not found in response from %s", field, url)
-	}
-
-	return fmt.Sprintf("%v", val), nil
-}
-
-// extractPageText extracts the text content of the page (works for JSON API responses).
-func extractPageText(page *rod.Page) (string, error) {
-	var result string
-	safeRod(func() {
-		val := page.MustEval("() => document.body ? document.body.innerText : document.documentElement.innerText")
-		result = val.String()
-	})
-	return strings.TrimSpace(result), nil
-}
-
-
