@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 )
 
@@ -69,122 +68,50 @@ func (c *Client) FetchDropboxFolders(ctx context.Context, version, orgUnitID str
 	return folders, nil
 }
 
-// FetchConfig holds the configuration for a BrightSpace fetch.
-type FetchConfig struct {
-	CourseNameBlocklist    []string
-	CourseIDBlocklist      []string
-	EventTitleBlocklist    []string
-	EventLocationBlocklist []string
-}
-
-// Fetch extracts BrightSpace D2L calendar events and dropbox due dates,
-// returning them as BrightSpaceStringEntry values for downstream ICS conversion.
-func Fetch(ctx context.Context, client *Client, cfg *FetchConfig) ([]BrightSpaceStringEntry, error) {
-	blocklist := &Blocklist{
-		CourseNamePatterns:    cfg.CourseNameBlocklist,
-		CourseIDs:             cfg.CourseIDBlocklist,
-		EventTitlePatterns:    cfg.EventTitleBlocklist,
-		EventLocationPatterns: cfg.EventLocationBlocklist,
-	}
-
+// Fetch extracts BrightSpace D2L calendar events and dropbox due dates.
+// Returns raw API objects; callers should use EntriesToEvents() for conversion
+// and blocklist filtering to avoid duplication.
+func Fetch(ctx context.Context, client *Client) ([]CalendarEventAPI, []DropboxFolderAPI, error) {
 	version, err := client.CheckVersion(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("check version: %w", err)
+		return nil, nil, fmt.Errorf("check version: %w", err)
 	}
 	log.Printf("brightspace: API version %s", version)
 
 	courses, err := client.FetchCourses(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("fetch courses: %w", err)
+		return nil, nil, fmt.Errorf("fetch courses: %w", err)
 	}
 	log.Printf("brightspace: found %d courses", len(courses))
 
-	var entries []BrightSpaceStringEntry
+	var allEvents []CalendarEventAPI
+	var allFolders []DropboxFolderAPI
 
 	for _, course := range courses {
-		if blocklist.IsCourseBlocked(course.OrgUnitId, course.Name) {
-			log.Printf("brightspace: blocked course %s (%s)", course.Name, course.OrgUnitId)
-			continue
-		}
-
-		// Fetch calendar events
 		events, err := client.FetchCalendarEvents(ctx, version, course.OrgUnitId)
 		if err != nil {
 			log.Printf("brightspace: failed to fetch calendar events for %s: %v", course.Name, err)
 			continue
 		}
 		for _, ev := range events {
-			title := ev.Title
-			if title == "" {
-				title = ev.OrgUnitName
-			}
-
-			descParts := []string{}
-			if ev.Description != "" {
-				plainDesc := htmlToPlainText(ev.Description)
-				if plainDesc != "" {
-					descParts = append(descParts, plainDesc)
-				}
-			}
-			if ev.LocationName != "" {
-				descParts = append(descParts, "Location: "+ev.LocationName)
-			}
-
-			entry := BrightSpaceStringEntry{
-				Title:       title,
-				OrgUnitId:   strconv.Itoa(ev.OrgUnitId),
-				OrgUnitName: course.Name,
-				OrgUnitCode: course.Code,
-				Location:    ev.LocationName,
-				Description: strings.Join(descParts, "\n"),
-				DTStart:     ev.StartDateTime,
-				DTEnd:       ev.EndDateTime,
-				IsAllDay:    ev.IsAllDayEvent,
-				Source:      "brightspace-calendar",
-			}
-			if entry.Title == "" {
-				continue
-			}
-			if blocklist.IsEventBlocked(entry.Title) {
-				log.Printf("brightspace: blocked event %q in %s", entry.Title, course.Name)
-				continue
-			}
-			if blocklist.IsLocationBlocked(entry.Location) {
-				log.Printf("brightspace: blocked event %q in %s (location %q)", entry.Title, course.Name, entry.Location)
-				continue
-			}
-			entries = append(entries, entry)
+			ev.OrgUnitName = course.Name
+			ev.OrgUnitCode = course.Code
+			allEvents = append(allEvents, ev)
 		}
 
-		// Fetch dropbox folders
 		folders, err := client.FetchDropboxFolders(ctx, version, course.OrgUnitId)
 		if err != nil {
 			log.Printf("brightspace: failed to fetch dropbox folders for %s: %v", course.Name, err)
 			continue
 		}
 		for _, folder := range folders {
-			entry := BrightSpaceStringEntry{
-				Title:       fmt.Sprintf("[Submission Due] %s", folder.Name),
-				OrgUnitId:   strconv.Itoa(folder.Id),
-				OrgUnitName: course.Name,
-				OrgUnitCode: course.Code,
-				Description: "Dropbox: " + folder.Name,
-				DTStart:     folder.DueDate,
-				DTEnd:       folder.DueDate,
-				IsAllDay:    false,
-				Source:      "brightspace-dropbox",
-			}
-			if entry.Title == "" {
-				continue
-			}
-			if blocklist.IsEventBlocked(entry.Title) {
-				log.Printf("brightspace: blocked dropbox %q in %s", entry.Title, course.Name)
-				continue
-			}
-			entries = append(entries, entry)
+			folder.OrgUnitId = course.OrgUnitId
+			folder.OrgUnitName = course.Name
+			folder.OrgUnitCode = course.Code
+			allFolders = append(allFolders, folder)
 		}
 	}
 
-	log.Printf("brightspace: extracted %d entries", len(entries))
-	return entries, nil
+	log.Printf("brightspace: extracted %d events, %d dropbox folders", len(allEvents), len(allFolders))
+	return allEvents, allFolders, nil
 }

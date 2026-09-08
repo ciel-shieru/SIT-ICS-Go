@@ -74,9 +74,9 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		if err != nil {
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
-			var bsStringEntries []brightspace.BrightSpaceStringEntry
+			stringEntries := make([]brightspace.BrightSpaceStringEntry, 0, len(bsEntries))
 			for _, e := range bsEntries {
-				bsStringEntries = append(bsStringEntries, brightspace.BrightSpaceStringEntry{
+				stringEntries = append(stringEntries, brightspace.BrightSpaceStringEntry{
 					Title:       e.Title,
 					OrgUnitId:   e.OrgUnitId,
 					OrgUnitName: e.OrgUnitName,
@@ -89,7 +89,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 					Source:      e.Source,
 				})
 			}
-			bsEvents := brightspace.EntriesToEvents(bsStringEntries, blocklist, loc)
+			bsEvents := brightspace.EntriesToEvents(stringEntries, blocklist, loc)
 			icsEvents = append(icsEvents, bsEvents...)
 			log.Printf("scheduler: added %d brightspace events", len(bsEvents))
 		}
