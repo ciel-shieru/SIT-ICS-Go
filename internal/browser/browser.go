@@ -3,6 +3,8 @@ package browser
 import (
 	"context"
 	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 )
 
 type AuthResult struct {
@@ -11,24 +13,10 @@ type AuthResult struct {
 	Token       string
 }
 
-// BrightSpaceEntry represents a BrightSpace event with string-based timestamps.
-type BrightSpaceEntry struct {
-	Title       string
-	OrgUnitId   string
-	OrgUnitName string
-	OrgUnitCode string
-	Location    string
-	Description string
-	DTStart     string
-	DTEnd       string
-	IsAllDay    bool
-	Source      string
-}
-
 type AuthBrowser interface {
 	Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error)
 	FetchTimetable(ctx context.Context, weekDate string) (string, error)
-	FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error)
+	FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	Close()
 }
 
@@ -61,7 +49,7 @@ func isAllowedOrigin(url string) bool {
 type MockAuthBrowser struct {
 	AuthenticateFunc     func(ctx context.Context, req AuthRequest) (AuthResult, error)
 	FetchTimetableFunc   func(ctx context.Context, weekDate string) (string, error)
-	FetchBrightSpaceFunc func(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error)
+	FetchBrightSpaceFunc func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 }
 
 func (m *MockAuthBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
@@ -78,7 +66,7 @@ func (m *MockAuthBrowser) FetchTimetable(ctx context.Context, weekDate string) (
 	return "", nil
 }
 
-func (m *MockAuthBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
+func (m *MockAuthBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	if m.FetchBrightSpaceFunc != nil {
 		return m.FetchBrightSpaceFunc(ctx, baseURL)
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
+	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 )
 
@@ -73,7 +74,7 @@ func (a *ADFSProvider) FetchTimetable(ctx context.Context, weekDate string, loc 
 }
 
 // FetchBrightSpace fetches BrightSpace entries using the existing authenticated session.
-func (a *ADFSProvider) FetchBrightSpace(ctx context.Context, baseURL string) ([]browser.BrightSpaceEntry, error) {
+func (a *ADFSProvider) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	entries, err := a.browser.FetchBrightSpace(ctx, baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("browser fetch brightspace: %w", err)

@@ -38,8 +38,8 @@ func applyFlags(cfg *Config) error {
 	browserDebug                       := fs.Bool("browser-debug", false, "Enable debug logging for browser actions")
 	proxyURL                           := fs.String("proxy-url", "", "SOCKS5 proxy URL (e.g. socks5://localhost:1080)")
 	icsRefreshInterval                 := fs.Duration("ics-refresh-interval", 0, "ICS refresh interval (e.g. 1h, 30m)")
-	xsiteEventsPath                    := fs.String("xsite-events-path", "", "Path to xsite events ICS file")
-	xsiteDropboxPath                   := fs.String("xsite-dropbox-path", "", "Path to xsite dropbox ICS file")
+	brightspaceEventsPath              := fs.String("brightspace-events-path", "", "Path to brightspace events ICS file")
+	brightspaceDropboxPath             := fs.String("brightspace-dropbox-path", "", "Path to brightspace dropbox ICS file")
 	brightspaceEnabled                 := fs.Bool("brightspace-enabled", false, "Enable BrightSpace D2L extraction")
 	brightspaceBaseURL                 := fs.String("brightspace-base-url", "", "BrightSpace D2L base URL")
 	brightspaceAPIKey                  := fs.String("brightspace-api-key", "", "BrightSpace D2L API key")
@@ -116,11 +116,11 @@ func applyFlags(cfg *Config) error {
 	if fs.Lookup("ics-refresh-interval").Changed {
 		cfg.ICSRefreshInterval = *icsRefreshInterval
 	}
-	if fs.Lookup("xsite-events-path").Changed {
-		cfg.XsiteEventsPath = *xsiteEventsPath
+	if fs.Lookup("brightspace-events-path").Changed {
+		cfg.BrightSpaceEventsPath = *brightspaceEventsPath
 	}
-	if fs.Lookup("xsite-dropbox-path").Changed {
-		cfg.XsiteDropboxPath = *xsiteDropboxPath
+	if fs.Lookup("brightspace-dropbox-path").Changed {
+		cfg.BrightSpaceDropboxPath = *brightspaceDropboxPath
 	}
 	if fs.Lookup("brightspace-enabled").Changed {
 		cfg.BrightSpaceEnabled = *brightspaceEnabled

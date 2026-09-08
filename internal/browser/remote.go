@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 )
@@ -173,7 +174,7 @@ func (b *RemoteBrowser) NavigateTimetable(ctx context.Context) (string, error) {
 	return fetchTimetable(ctx, b.page, b.cfg)
 }
 
-func (b *RemoteBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
+func (b *RemoteBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}

@@ -16,8 +16,8 @@ type Config struct {
 	ICSStoragePath                    string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
 	ICSOnlinePath                     string        `env:"ICS_ONLINE_PATH" envDefault:"./timetable-online.ics"`
 	ICSCampusPath                     string        `env:"ICS_CAMPUS_PATH" envDefault:"./timetable-campus.ics"`
-	XsiteEventsPath                   string        `env:"XSITE_EVENTS_PATH" envDefault:"./xsite-events.ics"`
-	XsiteDropboxPath                  string        `env:"XSITE_DROPBOX_PATH" envDefault:"./xsite-dropbox.ics"`
+	BrightSpaceEventsPath             string        `env:"BRIGHTSPACE_EVENTS_PATH" envDefault:"./brightspace-events.ics"`
+	BrightSpaceDropboxPath            string        `env:"BRIGHTSPACE_DROPBOX_PATH" envDefault:"./brightspace-dropbox.ics"`
 	BrowserMode                       BrowserMode   `env:"BROWSER_MODE" envDefault:"auto"`
 	BrowserExecutable                 string        `env:"BROWSER_EXECUTABLE" envDefault:""`
 	BrowserRemoteHost                 string        `env:"BROWSER_REMOTE_HOST" envDefault:""`

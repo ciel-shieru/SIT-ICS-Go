@@ -69,7 +69,7 @@ func (f *RodFetcher) DecodeJSON(url string, v interface{}) error {
 }
 
 // FetchBrightSpace fetches BrightSpace entries using the authenticated browser session.
-func FetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg BrowserConfig) ([]BrightSpaceEntry, error) {
+func FetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg BrowserConfig) ([]brightspace.BrightSpaceStringEntry, error) {
 	if page == nil {
 		return nil, fmt.Errorf("%w: no active page: authenticate first", ErrAuthentication)
 	}
@@ -89,37 +89,12 @@ func FetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 		return nil, fmt.Errorf("brightspace fetch: %w", err)
 	}
 
-	// Convert API objects to BrightSpaceEntry (string-based timestamps)
-	entries := make([]BrightSpaceEntry, 0, len(events)+len(folders))
+	entries := make([]brightspace.BrightSpaceStringEntry, 0, len(events)+len(folders))
 	for _, ev := range events {
-		se := brightspace.APIToStringEntry(ev, "brightspace-calendar")
-		entries = append(entries, BrightSpaceEntry{
-			Title:       se.Title,
-			OrgUnitId:   se.OrgUnitId,
-			OrgUnitName: se.OrgUnitName,
-			OrgUnitCode: se.OrgUnitCode,
-			Location:    se.Location,
-			Description: se.Description,
-			DTStart:     se.DTStart,
-			DTEnd:       se.DTEnd,
-			IsAllDay:    se.IsAllDay,
-			Source:      se.Source,
-		})
+		entries = append(entries, brightspace.APIToStringEntry(ev, "brightspace-calendar"))
 	}
 	for _, folder := range folders {
-		se := brightspace.FolderToStringEntry(folder)
-		entries = append(entries, BrightSpaceEntry{
-			Title:       se.Title,
-			OrgUnitId:   se.OrgUnitId,
-			OrgUnitName: se.OrgUnitName,
-			OrgUnitCode: se.OrgUnitCode,
-			Location:    se.Location,
-			Description: se.Description,
-			DTStart:     se.DTStart,
-			DTEnd:       se.DTEnd,
-			IsAllDay:    se.IsAllDay,
-			Source:      se.Source,
-		})
+		entries = append(entries, brightspace.FolderToStringEntry(folder))
 	}
 
 	return entries, nil
