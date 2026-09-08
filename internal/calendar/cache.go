@@ -14,6 +14,29 @@ type ICSCache struct {
 	dirty  bool
 }
 
+type Outputs struct {
+	Main       string
+	Online     string
+	Campus     string
+	BSEvents   string
+	BSDropbox  string
+}
+
+type outputErrors []outputError
+
+type outputError struct {
+	path string
+	err  error
+}
+
+func (e outputErrors) Error() string {
+	msgs := make([]string, 0, len(e))
+	for _, o := range e {
+		msgs = append(msgs, fmt.Sprintf("%s: %v", o.path, o.err))
+	}
+	return fmt.Sprintf("output errors: %v", msgs)
+}
+
 func NewICSCache() *ICSCache {
 	return &ICSCache{}
 }
@@ -158,13 +181,9 @@ func (c *ICSCache) SaveToFile(path string, refreshInterval time.Duration) error 
 	if err != nil {
 		return fmt.Errorf("render ICS: %w", err)
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
-		return fmt.Errorf("write temp ICS file: %w", err)
-	}
 
-	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("rename ICS file: %w", err)
+	if err := writeAtomic(path, data); err != nil {
+		return fmt.Errorf("write ICS file %q: %w", path, err)
 	}
 
 	c.mu.Lock()
@@ -218,12 +237,8 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 		onlinePath: onlineData,
 		campusPath: campusData,
 	} {
-		tmp := path + ".tmp"
-		if err := os.WriteFile(tmp, data, 0600); err != nil {
-			return fmt.Errorf("write temp ICS file %q: %w", tmp, err)
-		}
-		if err := os.Rename(tmp, path); err != nil {
-			return fmt.Errorf("rename ICS file %q: %w", path, err)
+		if err := writeAtomic(path, data); err != nil {
+			return fmt.Errorf("write ICS file %q: %w", path, err)
 		}
 	}
 
@@ -233,9 +248,10 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 	return nil
 }
 
-// SaveAllWithXsiteFiles atomically writes all five ICS files if dirty.
-// The dirty flag is reset under an exclusive lock after writing.
-func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath string, tz string, refreshInterval time.Duration) error {
+// SaveOutputs atomically writes all configured ICS output files if dirty.
+// Uses writeAtomic for individual file persistence.
+// If any output fails, the cache dirty flag is preserved and all errors are returned.
+func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Duration) error {
 	c.mu.RLock()
 	dirty := c.dirty
 	events := make([]Event, len(c.events))
@@ -272,35 +288,46 @@ func (c *ICSCache) SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsite
 	if err != nil {
 		return fmt.Errorf("render campus ICS: %w", err)
 	}
-	xsiteEventsData, err := Render(filterEventsBySource(events, "brightspace-calendar"), RenderOptions{
+	bsEventsData, err := Render(filterEventsBySource(events, "brightspace-calendar"), RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
 	})
 	if err != nil {
-		return fmt.Errorf("render xsite-events ICS: %w", err)
+		return fmt.Errorf("render brightspace-events ICS: %w", err)
 	}
-	xsiteDropboxData, err := Render(filterEventsBySource(events, "brightspace-dropbox"), RenderOptions{
+	bsDropboxData, err := Render(filterEventsBySource(events, "brightspace-dropbox"), RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
 	})
 	if err != nil {
-		return fmt.Errorf("render xsite-dropbox ICS: %w", err)
+		return fmt.Errorf("render brightspace-dropbox ICS: %w", err)
 	}
 
-	for path, data := range map[string][]byte{
-		mainPath:            mainData,
-		onlinePath:          onlineData,
-		campusPath:          campusData,
-		xsiteEventsPath:     xsiteEventsData,
-		xsiteDropboxPath:    xsiteDropboxData,
-	} {
-		tmp := path + ".tmp"
-		if err := os.WriteFile(tmp, data, 0600); err != nil {
-			return fmt.Errorf("write temp ICS file %q: %w", tmp, err)
+	type fileOutput struct {
+		path string
+		data []byte
+	}
+
+	files := []fileOutput{
+		{out.Main, mainData},
+		{out.Online, onlineData},
+		{out.Campus, campusData},
+		{out.BSEvents, bsEventsData},
+		{out.BSDropbox, bsDropboxData},
+	}
+
+	var errs outputErrors
+	for _, f := range files {
+		if f.path == "" {
+			continue
 		}
-		if err := os.Rename(tmp, path); err != nil {
-			return fmt.Errorf("rename ICS file %q: %w", path, err)
+		if err := writeAtomic(f.path, f.data); err != nil {
+			errs = append(errs, outputError{path: f.path, err: err})
 		}
+	}
+
+	if len(errs) > 0 {
+		return errs
 	}
 
 	c.mu.Lock()

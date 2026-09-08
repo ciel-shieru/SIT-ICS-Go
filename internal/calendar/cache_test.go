@@ -265,7 +265,7 @@ func TestICSCacheEventCount(t *testing.T) {
 	}
 }
 
-func TestICSCacheSaveAllWithXsiteFiles_ExcludesBrightSpaceFromCampus(t *testing.T) {
+func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainPath := filepath.Join(tmpDir, "timetable.ics")
 	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
@@ -301,8 +301,14 @@ func TestICSCacheSaveAllWithXsiteFiles_ExcludesBrightSpaceFromCampus(t *testing.
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
-		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	if err := cache.SaveOutputs(Outputs{
+		Main:      mainPath,
+		Online:    onlinePath,
+		Campus:    campusPath,
+		BSEvents:  xsiteEventsPath,
+		BSDropbox: xsiteDropboxPath,
+	}, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
 	mainData, _ := os.ReadFile(mainPath)
@@ -344,7 +350,7 @@ func TestICSCacheSaveAllWithXsiteFiles_ExcludesBrightSpaceFromCampus(t *testing.
 	}
 }
 
-func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
+func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainPath := filepath.Join(tmpDir, "timetable.ics")
 	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
@@ -373,8 +379,14 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
-		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	if err := cache.SaveOutputs(Outputs{
+		Main:      mainPath,
+		Online:    onlinePath,
+		Campus:    campusPath,
+		BSEvents:  xsiteEventsPath,
+		BSDropbox: xsiteDropboxPath,
+	}, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
 	campusData1, _ := os.ReadFile(campusPath)
@@ -408,8 +420,14 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache2.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
-		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	if err := cache2.SaveOutputs(Outputs{
+		Main:      mainPath,
+		Online:    onlinePath,
+		Campus:    campusPath,
+		BSEvents:  xsiteEventsPath,
+		BSDropbox: xsiteDropboxPath,
+	}, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
 	campusData2, _ := os.ReadFile(campusPath)
@@ -715,7 +733,7 @@ func TestICSCachePersistenceFailure(t *testing.T) {
 		t.Fatal("SaveToFile() should return error when parent directory doesn't exist")
 	}
 
-	if !strings.Contains(err.Error(), "write temp ICS file") {
+	if !strings.Contains(err.Error(), "write ICS file") {
 		t.Errorf("Error should mention write failure, got: %v", err)
 	}
 
@@ -729,7 +747,7 @@ func TestICSCachePersistenceFailure(t *testing.T) {
 		t.Fatal("SaveAllToFiles() should return error when parent directory doesn't exist")
 	}
 
-	if !strings.Contains(err.Error(), "write temp ICS file") {
+	if !strings.Contains(err.Error(), "write ICS file") {
 		t.Errorf("Error should mention write failure, got: %v", err)
 	}
 }

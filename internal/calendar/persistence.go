@@ -1,9 +1,22 @@
 package calendar
 
 import (
+	"os"
 	"strings"
 	"time"
 )
+
+func writeAtomic(path string, data []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
+}
 
 func parseICS(data []byte) []Event {
 	events := make([]Event, 0)
