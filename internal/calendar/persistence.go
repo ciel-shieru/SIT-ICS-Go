@@ -18,7 +18,7 @@ func writeAtomic(path string, data []byte) error {
 	return nil
 }
 
-func parseICS(data []byte) []Event {
+func parseICS(data []byte, loc *time.Location) []Event {
 	events := make([]Event, 0)
 	content := string(data)
 	eventBlocks := strings.Split(content, "BEGIN:VEVENT")
@@ -48,7 +48,7 @@ func parseICS(data []byte) []Event {
 			} else if strings.HasPrefix(line, "DTSTART;TZID=") {
 				timeStr := strings.SplitN(line, ":", 2)
 				if len(timeStr) == 2 {
-					t, err := time.ParseInLocation("20060102T150405", timeStr[1], time.Local)
+					t, err := time.ParseInLocation("20060102T150405", timeStr[1], loc)
 					if err == nil {
 						event.DTStart = t
 					}
@@ -56,7 +56,7 @@ func parseICS(data []byte) []Event {
 			} else if strings.HasPrefix(line, "DTEND;TZID=") {
 				timeStr := strings.SplitN(line, ":", 2)
 				if len(timeStr) == 2 {
-					t, err := time.ParseInLocation("20060102T150405", timeStr[1], time.Local)
+					t, err := time.ParseInLocation("20060102T150405", timeStr[1], loc)
 					if err == nil {
 						event.DTEnd = t
 					}

@@ -31,7 +31,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 
 	log.Printf("scheduler: auth successful, %d cookies set, fetching timetable", len(authResult.Cookies))
 
-	entries, err := provider.FetchTimetable(ctx, "")
+	entries, err := provider.FetchTimetable(ctx, "", loc)
 	if err != nil {
 		log.Printf("scheduler: fetch failed: %v", err)
 		return

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
@@ -46,13 +47,13 @@ func (a *ADFSProvider) Authenticate(ctx context.Context, req AuthRequest) (brows
 }
 
 // FetchTimetable fetches and parses the timetable from PeopleSoft.
-func (a *ADFSProvider) FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+func (a *ADFSProvider) FetchTimetable(ctx context.Context, weekDate string, loc *time.Location) ([]peoplesoft.Entry, error) {
 	html, err := a.browser.FetchTimetable(ctx, weekDate)
 	if err != nil {
 		return nil, fmt.Errorf("browser fetch timetable: %w", err)
 	}
 	year := peoplesoft.ExtractYear(weekDate)
-	return peoplesoft.ParseTimetableHTML(html, year)
+	return peoplesoft.ParseTimetableHTML(html, year, loc)
 }
 
 // FetchBrightSpace fetches BrightSpace entries using the existing authenticated session.

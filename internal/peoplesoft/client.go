@@ -3,6 +3,7 @@ package peoplesoft
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // Fetcher abstracts the browser page interaction for fetching PeopleSoft timetable HTML.
@@ -13,11 +14,12 @@ type Fetcher interface {
 // Client owns PeopleSoft URL, navigation, and HTML parsing.
 type Client struct {
 	fetcher Fetcher
+	loc     *time.Location
 }
 
 // NewClient creates a new Client that uses the given Fetcher for navigation.
-func NewClient(f Fetcher) *Client {
-	return &Client{fetcher: f}
+func NewClient(f Fetcher, loc *time.Location) *Client {
+	return &Client{fetcher: f, loc: loc}
 }
 
 // FetchTimetable navigates to the PeopleSoft timetable endpoint and returns the HTML.
@@ -35,7 +37,7 @@ func (c *Client) FetchEntries(ctx context.Context) ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := ParseTimetableHTML(html, 0)
+	entries, err := ParseTimetableHTML(html, 0, c.loc)
 	if err != nil {
 		return nil, fmt.Errorf("parse timetable: %w", err)
 	}
