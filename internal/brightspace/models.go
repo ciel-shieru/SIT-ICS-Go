@@ -43,9 +43,12 @@ type CalendarEventAPI struct {
 // DropboxFolderAPI mirrors the BrightSpace dropbox folder JSON structure
 // with string-based timestamps for browser-based fetching.
 type DropboxFolderAPI struct {
-	Id      int    `json:"Id"`
-	Name    string `json:"Name"`
-	DueDate string `json:"DueDate"`
+	Id          int    `json:"Id"`
+	Name        string `json:"Name"`
+	DueDate     string `json:"DueDate"`
+	OrgUnitId   string `json:"-"`
+	OrgUnitName string `json:"-"`
+	OrgUnitCode string `json:"-"`
 }
 
 // BrightSpaceEntry is the internal representation of a BrightSpace event/due date.

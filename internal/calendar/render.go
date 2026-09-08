@@ -52,15 +52,15 @@ func Render(events []Event, opts RenderOptions) ([]byte, error) {
 		sb.WriteString(fmt.Sprintf("UID:%s\r\n", event.UID))
 		sb.WriteString(fmt.Sprintf("DTSTART;TZID=%s:%s\r\n", opts.Timezone.String(), toICSTime(event.DTStart, opts.Timezone)))
 		sb.WriteString(fmt.Sprintf("DTEND;TZID=%s:%s\r\n", opts.Timezone.String(), toICSTime(event.DTEnd, opts.Timezone)))
-		sb.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", escapeText(event.Summary)))
+		sb.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", EscapeText(event.Summary)))
 		if event.Location != "" {
-			sb.WriteString(fmt.Sprintf("LOCATION:%s\r\n", escapeText(event.Location)))
+			sb.WriteString(fmt.Sprintf("LOCATION:%s\r\n", EscapeText(event.Location)))
 		}
 		if event.Description != "" {
-			sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", escapeText(event.Description)))
+			sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", EscapeText(event.Description)))
 		}
 		if event.Source != "" {
-			sb.WriteString(fmt.Sprintf("X-SOURCE:%s\r\n", escapeText(event.Source)))
+			sb.WriteString(fmt.Sprintf("X-SOURCE:%s\r\n", EscapeText(event.Source)))
 		}
 		sb.WriteString("END:VEVENT\r\n")
 	}
@@ -74,7 +74,8 @@ func toICSTime(t time.Time, loc *time.Location) string {
 	return t.In(loc).Format("20060102T150405")
 }
 
-func escapeText(text string) string {
+// EscapeText escapes ICS special characters in text per RFC 5545.
+func EscapeText(text string) string {
 	text = strings.ReplaceAll(text, "\\", "\\\\")
 	text = strings.ReplaceAll(text, ";", "\\;")
 	text = strings.ReplaceAll(text, ",", "\\,")

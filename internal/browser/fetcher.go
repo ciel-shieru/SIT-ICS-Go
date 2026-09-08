@@ -84,21 +84,30 @@ func FetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 	fetcher := NewRodFetcher(page, cfg)
 	client := brightspace.NewClient(baseURL, fetcher)
 
-	fetchCfg := &brightspace.FetchConfig{
-		CourseNameBlocklist:    []string{},
-		CourseIDBlocklist:      []string{},
-		EventTitleBlocklist:    []string{},
-		EventLocationBlocklist: []string{},
-	}
-
-	stringEntries, err := brightspace.Fetch(ctx, client, fetchCfg)
+	events, folders, err := brightspace.Fetch(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("brightspace fetch: %w", err)
 	}
 
-	// Convert string entries to BrightSpaceEntry (string-based timestamps)
-	entries := make([]BrightSpaceEntry, 0, len(stringEntries))
-	for _, se := range stringEntries {
+	// Convert API objects to BrightSpaceEntry (string-based timestamps)
+	entries := make([]BrightSpaceEntry, 0, len(events)+len(folders))
+	for _, ev := range events {
+		se := brightspace.APIToStringEntry(ev, "brightspace-calendar")
+		entries = append(entries, BrightSpaceEntry{
+			Title:       se.Title,
+			OrgUnitId:   se.OrgUnitId,
+			OrgUnitName: se.OrgUnitName,
+			OrgUnitCode: se.OrgUnitCode,
+			Location:    se.Location,
+			Description: se.Description,
+			DTStart:     se.DTStart,
+			DTEnd:       se.DTEnd,
+			IsAllDay:    se.IsAllDay,
+			Source:      se.Source,
+		})
+	}
+	for _, folder := range folders {
+		se := brightspace.FolderToStringEntry(folder)
 		entries = append(entries, BrightSpaceEntry{
 			Title:       se.Title,
 			OrgUnitId:   se.OrgUnitId,

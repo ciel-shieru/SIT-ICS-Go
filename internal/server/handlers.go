@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -8,71 +9,40 @@ import (
 )
 
 func newTimetableHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		data := cache.Get(tz, refreshInterval)
-		if len(data) == 0 {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/calendar")
-		w.Header().Set("Content-Disposition", `attachment; filename="timetable.ics"`)
-		w.Write(data)
-	}
+	return newFilteredHandler(cache, tz, refreshInterval, nil, "timetable.ics")
 }
 
 func newOnlineHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		data := cache.GetFiltered(tz, calendar.IsOnline, refreshInterval)
-		if len(data) == 0 {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/calendar")
-		w.Header().Set("Content-Disposition", `attachment; filename="timetable-online.ics"`)
-		w.Write(data)
-	}
+	return newFilteredHandler(cache, tz, refreshInterval, calendar.IsOnline, "timetable-online.ics")
 }
 
 func newCampusHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		data := cache.GetFiltered(tz, calendar.IsCampus, refreshInterval)
-		if len(data) == 0 {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/calendar")
-		w.Header().Set("Content-Disposition", `attachment; filename="timetable-campus.ics"`)
-		w.Write(data)
-	}
+	return newFilteredHandler(cache, tz, refreshInterval, calendar.IsCampus, "timetable-campus.ics")
 }
 
 func newXSiteEventsHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		data := cache.GetFiltered(tz, func(e calendar.Event) bool { return e.Source == "brightspace-calendar" }, refreshInterval)
-		if len(data) == 0 {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/calendar")
-		w.Header().Set("Content-Disposition", `attachment; filename="xsite-events.ics"`)
-		w.Write(data)
-	}
+	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-calendar" }, "xsite-events.ics")
 }
 
 func newXSiteDropboxHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration) http.HandlerFunc {
+	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-dropbox" }, "xsite-dropbox.ics")
+}
+
+func newFilteredHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, filterFn func(calendar.Event) bool, filename string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data := cache.GetFiltered(tz, func(e calendar.Event) bool { return e.Source == "brightspace-dropbox" }, refreshInterval)
+		var data []byte
+		if filterFn == nil {
+			data = cache.Get(tz, refreshInterval)
+		} else {
+			data = cache.GetFiltered(tz, filterFn, refreshInterval)
+		}
 		if len(data) == 0 {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
 		w.Header().Set("Content-Type", "text/calendar")
-		w.Header().Set("Content-Disposition", `attachment; filename="xsite-dropbox.ics"`)
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 		w.Write(data)
 	}
 }

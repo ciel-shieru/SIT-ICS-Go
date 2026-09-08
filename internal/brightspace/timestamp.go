@@ -9,6 +9,55 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 )
 
+// APIToStringEntry converts a CalendarEventAPI to a BrightSpaceStringEntry.
+func APIToStringEntry(ev CalendarEventAPI, source string) BrightSpaceStringEntry {
+	title := ev.Title
+	if title == "" {
+		title = ev.OrgUnitName
+	}
+
+	descParts := []string{}
+	if ev.Description != "" {
+		plainDesc := htmlToPlainText(ev.Description)
+		if plainDesc != "" {
+			descParts = append(descParts, plainDesc)
+		}
+	}
+	if ev.LocationName != "" {
+		descParts = append(descParts, "Location: "+ev.LocationName)
+	}
+
+	return BrightSpaceStringEntry{
+		Title:       title,
+		OrgUnitId:   fmt.Sprintf("%d", ev.OrgUnitId),
+		OrgUnitName: ev.OrgUnitName,
+		OrgUnitCode: ev.OrgUnitCode,
+		Location:    ev.LocationName,
+		Description: strings.Join(descParts, "\n"),
+		DTStart:     ev.StartDateTime,
+		DTEnd:       ev.EndDateTime,
+		IsAllDay:    ev.IsAllDayEvent,
+		Source:      source,
+	}
+}
+
+// FolderToStringEntry converts a DropboxFolderAPI to a BrightSpaceStringEntry.
+func FolderToStringEntry(folder DropboxFolderAPI) BrightSpaceStringEntry {
+	return BrightSpaceStringEntry{
+		Title:       fmt.Sprintf("[Submission Due] %s", folder.Name),
+		OrgUnitId:   folder.OrgUnitId,
+		OrgUnitName: folder.OrgUnitName,
+		OrgUnitCode: folder.OrgUnitCode,
+		Description: "Dropbox: " + folder.Name,
+		DTStart:     folder.DueDate,
+		DTEnd:       folder.DueDate,
+		IsAllDay:    false,
+		Source:      "brightspace-dropbox",
+	}
+}
+
+
+
 // htmlToPlainText strips HTML tags and common entities from an HTML string.
 func htmlToPlainText(html string) string {
 	html = strings.ReplaceAll(html, "<br>", "\n")
