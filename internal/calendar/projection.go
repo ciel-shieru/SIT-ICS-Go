@@ -32,7 +32,9 @@ func IsNotOnline(event Event) bool {
 	return !IsOnline(event)
 }
 
-func IsNotOnlineAndNotBrightSpace(event Event) bool {
+// IsCampus returns true for events that belong to the campus projection:
+// non-online events that are not sourced from BrightSpace.
+func IsCampus(event Event) bool {
 	return IsNotOnline(event) && !isBrightSpaceEvent(event)
 }
 

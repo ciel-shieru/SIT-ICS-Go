@@ -19,7 +19,7 @@ func New(tz string) (*Scheduler, error) {
 		return nil, fmt.Errorf("invalid timezone %q: %w", tz, err)
 	}
 
-	c := cron.New(cron.WithLocation(loc), cron.WithLogger(&logger{}))
+	c := cron.New(cron.WithLocation(loc), cron.WithLogger(&cronLogger{}))
 
 	return &Scheduler{cron: c, loc: loc}, nil
 }
@@ -40,12 +40,12 @@ func (s *Scheduler) AddJob(spec string, job func()) error {
 	return nil
 }
 
-type logger struct{}
+type cronLogger struct{}
 
-func (l *logger) Info(msg string, keysAndValues ...interface{}) {
+func (l *cronLogger) Info(msg string, keysAndValues ...interface{}) {
 	log.Printf("cron: %s %v", msg, keysAndValues)
 }
 
-func (l *logger) Error(err error, msg string, keysAndValues ...interface{}) {
+func (l *cronLogger) Error(err error, msg string, keysAndValues ...interface{}) {
 	log.Printf("cron ERROR: %s err=%v %v", msg, err, keysAndValues)
 }

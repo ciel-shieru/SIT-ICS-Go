@@ -100,7 +100,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		return
 	}
 
-	if err := saveAll(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.XsiteEventsPath, cfg.XsiteDropboxPath, cfg.TZ, cfg.ICSRefreshInterval); err != nil {
+	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.XsiteEventsPath, cfg.XsiteDropboxPath, cfg.TZ, cfg.ICSRefreshInterval); err != nil {
 		log.Printf("scheduler: save failed: %v", err)
 		return
 	}
