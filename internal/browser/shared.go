@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -53,7 +54,7 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 
 func debug(cfg BrowserConfig, msg string, args ...any) {
 	if cfg.Debug {
-		fmt.Printf("browser: "+msg+"\n", args...)
+		log.Printf("browser: "+msg, args...)
 	}
 }
 
