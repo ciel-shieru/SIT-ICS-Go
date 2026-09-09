@@ -54,7 +54,7 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 		incognito = b.browser
 	}
 
-	page, err := AuthenticateADFS(authCtx, incognito, req, false, b.cfg, isAllowedOrigin)
+	page, err := AuthenticateADFS(authCtx, incognito, req, true, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
 		return AuthResult{}, err

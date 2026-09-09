@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
+	// "time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
@@ -39,7 +39,7 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 	}
 
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5 * time.Second); err != nil {
+	if err := page.WaitStable(5000); err != nil {
 		debug(cfg, "wait stable failed: %v", err)
 	}
 
