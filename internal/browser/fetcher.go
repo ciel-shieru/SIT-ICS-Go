@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
+	// "time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/go-rod/rod"
@@ -40,7 +40,7 @@ func (f *RodFetcher) Navigate(url string) error {
 	}
 
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(3 * time.Second); err != nil {
+	if err := page.WaitStable(3000); err != nil {
 		debug(f.cfg, "brightspace wait stable failed for %s: %v", url, err)
 	}
 	return nil
@@ -106,7 +106,7 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 	samlURL := fmt.Sprintf("%s/d2l/lp/auth/saml/login", baseURL)
 	debug(cfg, "brightspace: initiating SAML auth via %s", samlURL)
 
-	freshCtx, freshCancel := context.WithTimeout(ctx, 5*time.Minute)
+	freshCtx, freshCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
 	defer freshCancel()
 	page = page.Context(freshCtx)
 
@@ -116,7 +116,7 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 	}
 
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5 * time.Second); err != nil {
+	if err := page.WaitStable(5000); err != nil {
 		debug(cfg, "brightspace: wait stable after SAML auth failed: %v", err)
 	}
 

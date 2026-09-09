@@ -20,14 +20,11 @@ import (
 // 5. Wait for SAML redirect
 // 6. Verify authenticated destination
 func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthRequest, waitNavigation bool, cfg BrowserConfig, isAllowedOrigin func(string) bool) (*rod.Page, error) {
-	navigateCtx, navigateCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	defer navigateCancel()
-
 	initialURL := req.URL
 	debug(cfg, "navigating to %s", initialURL)
-	page := incognito.MustPage(initialURL).Context(navigateCtx)
+	page := incognito.MustPage(initialURL).Context(ctx)
 
-	if err := page.WaitStable(3 * time.Second); err != nil {
+	if err := page.WaitStable(3000); err != nil {
 		debug(cfg, "wait stable failed: %v", err)
 	}
 
@@ -83,7 +80,7 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	if waitNavigation {
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 	}
-	if err := page.WaitStable(5 * time.Second); err != nil {
+	if err := page.WaitStable(5000); err != nil {
 		debug(cfg, "wait stable after submit failed: %v", err)
 	}
 
@@ -112,7 +109,7 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 		}
 		debug(cfg, "waiting for SAML redirect after MFA")
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		if err := page.WaitStable(5 * time.Second); err != nil {
+		if err := page.WaitStable(5000); err != nil {
 			debug(cfg, "wait stable after MFA redirect failed: %v", err)
 		}
 
@@ -127,14 +124,14 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	} else {
 		debug(cfg, "no MFA field detected, waiting for redirect")
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		if err := page.WaitStable(5 * time.Second); err != nil {
+		if err := page.WaitStable(5000); err != nil {
 			debug(cfg, "wait stable after submit redirect failed: %v", err)
 		}
 	}
 
 	debug(cfg, "waiting for ADFS redirect to complete")
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5 * time.Second); err != nil {
+	if err := page.WaitStable(5000); err != nil {
 		debug(cfg, "wait stable after redirect failed: %v", err)
 	}
 
