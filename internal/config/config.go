@@ -34,6 +34,11 @@ type Config struct {
 	BrightSpaceCourseIDBlocklist      string        `env:"BRIGHTSPACE_COURSE_ID_BLOCKLIST" envDefault:""`
 	BrightSpaceEventTitleBlocklist    string        `env:"BRIGHTSPACE_EVENT_TITLE_BLOCKLIST" envDefault:""`
 	BrightSpaceEventLocationBlocklist string        `env:"BRIGHTSPACE_EVENT_LOCATION_BLOCKLIST" envDefault:""`
+	TimetableAlerts                   string        `env:"TIMETABLE_ALERTS" envDefault:""`
+	TimetableOnlineAlerts             string        `env:"TIMETABLE_ONLINE_ALERTS" envDefault:""`
+	ICSCampusAlerts                   string        `env:"ICS_CAMPUS_ALERTS" envDefault:""`
+	BrightSpaceEventsAlerts           string        `env:"BRIGHTSPACE_EVENTS_ALERTS" envDefault:""`
+	BrightSpaceDropboxAlerts          string        `env:"BRIGHTSPACE_DROPBOX_ALERTS" envDefault:""`
 }
 
 func Load() (*Config, error) {

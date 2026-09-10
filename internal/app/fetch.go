@@ -85,7 +85,15 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		return
 	}
 
-	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.BrightSpaceEventsPath, cfg.BrightSpaceDropboxPath, cfg.TZ, cfg.ICSRefreshInterval); err != nil {
+	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts := calendar.AlertsFromConfig(
+		cfg.TimetableAlerts,
+		cfg.TimetableOnlineAlerts,
+		cfg.ICSCampusAlerts,
+		cfg.BrightSpaceEventsAlerts,
+		cfg.BrightSpaceDropboxAlerts,
+	)
+
+	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.BrightSpaceEventsPath, cfg.BrightSpaceDropboxPath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts); err != nil {
 		log.Printf("scheduler: save failed: %v", err)
 		return
 	}

@@ -307,7 +307,7 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 		Campus:    campusPath,
 		BSEvents:  bsEventsPath,
 		BSDropbox: bsDropboxPath,
-	}, "Asia/Singapore", time.Hour); err != nil {
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
@@ -385,7 +385,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 		Campus:    campusPath,
 		BSEvents:  bsEventsPath,
 		BSDropbox: bsDropboxPath,
-	}, "Asia/Singapore", time.Hour); err != nil {
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
@@ -426,7 +426,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 		Campus:    campusPath,
 		BSEvents:  bsEventsPath,
 		BSDropbox: bsDropboxPath,
-	}, "Asia/Singapore", time.Hour); err != nil {
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 

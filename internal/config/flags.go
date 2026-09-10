@@ -48,6 +48,11 @@ func applyFlags(cfg *Config) error {
 	brightspaceCourseIDBlocklist       := fs.String("brightspace-course-id-blocklist", "", "Comma-separated course OrgUnitIds to block")
 	brightspaceEventTitleBlocklist     := fs.String("brightspace-event-title-blocklist", "", "Comma-separated event title patterns to block")
 	brightspaceEventLocationBlocklist  := fs.String("brightspace-event-location-blocklist", "", "Comma-separated event location patterns to block")
+	timetableOnlineAlerts              := fs.String("timetable-online-alerts", "", "Comma-separated ICS duration strings for timetable online VALARM (e.g. -P2D,-P1D)")
+	icsCampusAlerts                    := fs.String("ics-campus-alerts", "", "Comma-separated ICS duration strings for campus VALARM")
+	brightspaceEventsAlerts            := fs.String("brightspace-events-alerts", "", "Comma-separated ICS duration strings for brightspace events VALARM")
+	brightspaceDropboxAlerts           := fs.String("brightspace-dropbox-alerts", "", "Comma-separated ICS duration strings for brightspace dropbox VALARM")
+	timetableAlerts                    := fs.String("timetable-alerts", "", "Comma-separated ICS duration strings for main timetable VALARM (e.g. -P2D,-P1D)")
 
 	fs.Parse(os.Args[1:])
 
@@ -145,6 +150,21 @@ func applyFlags(cfg *Config) error {
 	}
 	if fs.Lookup("brightspace-event-location-blocklist").Changed {
 		cfg.BrightSpaceEventLocationBlocklist = *brightspaceEventLocationBlocklist
+	}
+	if fs.Lookup("timetable-online-alerts").Changed {
+		cfg.TimetableOnlineAlerts = *timetableOnlineAlerts
+	}
+	if fs.Lookup("ics-campus-alerts").Changed {
+		cfg.ICSCampusAlerts = *icsCampusAlerts
+	}
+	if fs.Lookup("brightspace-events-alerts").Changed {
+		cfg.BrightSpaceEventsAlerts = *brightspaceEventsAlerts
+	}
+	if fs.Lookup("brightspace-dropbox-alerts").Changed {
+		cfg.BrightSpaceDropboxAlerts = *brightspaceDropboxAlerts
+	}
+	if fs.Lookup("timetable-alerts").Changed {
+		cfg.TimetableAlerts = *timetableAlerts
 	}
 
 	return nil

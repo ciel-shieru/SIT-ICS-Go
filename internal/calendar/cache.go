@@ -116,6 +116,31 @@ func (c *ICSCache) GetFiltered(tz string, filterFn func(Event) bool, refreshInte
 	return data
 }
 
+func (c *ICSCache) GetWithAlerts(tz string, refreshInterval time.Duration, alerts []Alert) ([]byte, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc, _ = time.LoadLocation("Asia/Singapore")
+	}
+	return Render(events, RenderOptions{Timezone: loc, RefreshInterval: refreshInterval, Alerts: alerts})
+}
+
+func (c *ICSCache) GetFilteredWithAlerts(filterFn func(Event) bool, tz string, refreshInterval time.Duration, alerts []Alert) ([]byte, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	filtered := filterEvents(events, filterFn)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc, _ = time.LoadLocation("Asia/Singapore")
+	}
+	return Render(filtered, RenderOptions{Timezone: loc, RefreshInterval: refreshInterval, Alerts: alerts})
+}
+
 func (c *ICSCache) EventCount() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -251,7 +276,7 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 // SaveOutputs atomically writes all configured ICS output files if dirty.
 // Uses writeAtomic for individual file persistence.
 // If any output fails, the cache dirty flag is preserved and all errors are returned.
-func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Duration) error {
+func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts []Alert) error {
 	c.mu.RLock()
 	dirty := c.dirty
 	events := make([]Event, len(c.events))
@@ -270,6 +295,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	mainData, err := Render(events, RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
+		Alerts:          mainAlerts,
 	})
 	if err != nil {
 		return fmt.Errorf("render main ICS: %w", err)
@@ -277,6 +303,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	onlineData, err := Render(filterEvents(events, IsOnline), RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
+		Alerts:          onlineAlerts,
 	})
 	if err != nil {
 		return fmt.Errorf("render online ICS: %w", err)
@@ -284,6 +311,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	campusData, err := Render(filterEvents(events, IsCampus), RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
+		Alerts:          campusAlerts,
 	})
 	if err != nil {
 		return fmt.Errorf("render campus ICS: %w", err)
@@ -291,6 +319,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	bsEventsData, err := Render(filterEventsBySource(events, "brightspace-calendar"), RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
+		Alerts:          bsEventsAlerts,
 	})
 	if err != nil {
 		return fmt.Errorf("render brightspace-events ICS: %w", err)
@@ -298,6 +327,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	bsDropboxData, err := Render(filterEventsBySource(events, "brightspace-dropbox"), RenderOptions{
 		Timezone:        loc,
 		RefreshInterval: refreshInterval,
+		Alerts:          bsDropboxAlerts,
 	})
 	if err != nil {
 		return fmt.Errorf("render brightspace-dropbox ICS: %w", err)
