@@ -16,6 +16,9 @@ This directory contains Architecture Decision Records (ADRs) for the SIT ICS Go 
 | [0010](0010-natural-browser-redirect-for-adfs-peoplesoft-saml-exchange.md) | Natural Browser Redirect for ADFS→PeopleSoft SAML Exchange | Accepted | 2026-09-03 |
 | [0011](0011-browser-based-timetable-fetch-instead-of-http-client.md) | Browser-Based Timetable Fetch Instead of HTTP Client with Cookie Injection | Superseded by ADR-0012 | 2026-09-03 |
 | [0012](0012-peopleSoft-timetable-fetch-to-list-endpoint.md) | Switch PeopleSoft Timetable Fetch to SSR_SSENRL_LIST Endpoint | Proposed | 2026-09-05 |
+| [0013](0013-brightspace-d2l-event-integration.md) | BrightSpace D2L Event Integration via Reused Browser Session | Accepted | 2026-09-08 |
+| [0014](0014-xsite-ics-http-endpoints.md) | Xsite ICS HTTP Endpoints for BrightSpace Event Distribution | Accepted | 2026-09-08 |
+| [0015](0015-codebase-restructuring-for-production-readiness.md) | Codebase Restructuring for Production Readiness | Accepted | 2026-09-08 |
 
 ## Superseded ADRs
 

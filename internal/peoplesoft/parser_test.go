@@ -136,7 +136,7 @@ func TestParseTimetableHTML(t *testing.T) {
 </body>
 </html>`
 
-	entries, err := ParseTimetableHTML(htmlContent, 2026)
+	entries, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestParseTimetableHTML(t *testing.T) {
 
 func TestParseTimetableHTML_NoTable(t *testing.T) {
 	htmlContent := `<html><body><p>No timetable here</p></body></html>`
-	entries, err := ParseTimetableHTML(htmlContent, 2026)
+	entries, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -405,11 +405,11 @@ func TestComputeEntryDay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.date+"-"+tt.dayAbbr, func(t *testing.T) {
-			date, err := parseDate(tt.date)
+			date, err := parseDate(tt.date, time.Local)
 			if err != nil {
 				t.Fatalf("failed to parse date: %v", err)
 			}
-			got, err := computeEntryDay(date, tt.dayAbbr)
+			got, err := computeEntryDate(date, tt.dayAbbr)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error, got nil")
@@ -438,7 +438,7 @@ func TestParseMeetingDate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := parseMeetingDate(tt.input)
+			got, err := parseMeetingDate(tt.input, time.Local)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error for %q, got nil", tt.input)

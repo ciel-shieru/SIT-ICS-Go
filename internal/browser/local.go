@@ -3,8 +3,8 @@ package browser
 import (
 	"context"
 	"fmt"
-	"log"
 
+	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 )
@@ -54,14 +54,14 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 		incognito = b.browser
 	}
 
-	page, err := navigateToAuthPage(authCtx, incognito, req, true, b.cfg)
+	page, err := AuthenticateADFS(authCtx, incognito, req, true, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
 		return AuthResult{}, err
 	}
 	b.page = page
 
-	cookies, err := extractCookies(authCtx, func(msg string, args ...any) { debug(b.cfg, msg, args...) }, page)
+	cookies, err := extractCookiesForPage(page, authCtx)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -76,14 +76,14 @@ func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (str
 	if b.browser == nil {
 		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
-	return fetchTimetable(ctx, b.page, weekDate, b.cfg)
+	return fetchTimetable(ctx, b.page, b.cfg)
 }
 
-func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
+func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
-	return fetchBrightSpace(ctx, b.page, baseURL, b.cfg)
+	return FetchBrightSpace(ctx, b.page, baseURL, b.cfg)
 }
 
 func (b *LocalBrowser) Close() {
@@ -134,8 +134,7 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	return url, nil
 }
 
-func (b *LocalBrowser) debug(msg string, args ...any) {
-	if b.cfg.Debug {
-		log.Printf("browser: "+msg, args...)
-	}
+// GetPage returns the active page for use by brightspace package.
+func (b *LocalBrowser) GetPage() *rod.Page {
+	return b.page
 }
