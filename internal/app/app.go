@@ -56,7 +56,14 @@ func (a *App) Run() error {
 
 	go func() { a.Fetch() }()
 
-	a.srv = server.NewServer(a.cfg.ServerPort, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval)
+	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts := calendar.AlertsFromConfig(
+		a.cfg.TimetableAlerts,
+		a.cfg.TimetableOnlineAlerts,
+		a.cfg.ICSCampusAlerts,
+		a.cfg.BrightSpaceEventsAlerts,
+		a.cfg.BrightSpaceDropboxAlerts,
+	)
+	a.srv = server.NewServer(a.cfg.ServerPort, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts)
 	go func() { _ = a.srv.Start() }()
 
 	sigChan := make(chan os.Signal, 1)
@@ -120,7 +127,14 @@ func (a *App) Shutdown() {
 		a.browser.Close()
 	}
 
-	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.BrightSpaceEventsPath, a.cfg.BrightSpaceDropboxPath, a.cfg.TZ, a.cfg.ICSRefreshInterval); err != nil {
+	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts := calendar.AlertsFromConfig(
+		a.cfg.TimetableAlerts,
+		a.cfg.TimetableOnlineAlerts,
+		a.cfg.ICSCampusAlerts,
+		a.cfg.BrightSpaceEventsAlerts,
+		a.cfg.BrightSpaceDropboxAlerts,
+	)
+	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.BrightSpaceEventsPath, a.cfg.BrightSpaceDropboxPath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts); err != nil {
 		log.Printf("save on shutdown failed: %v", err)
 	}
 }

@@ -8,9 +8,22 @@ import (
 	"time"
 )
 
+type AlertAction int
+
+const (
+	AlertDisplay AlertAction = iota
+)
+
 type RenderOptions struct {
 	Timezone        *time.Location
 	RefreshInterval time.Duration
+	Alerts          []Alert
+}
+
+type Alert struct {
+	Duration    time.Duration
+	Action      AlertAction
+	Description string
 }
 
 func EventID(e Event) string {
@@ -62,6 +75,9 @@ func Render(events []Event, opts RenderOptions) ([]byte, error) {
 		if event.Source != "" {
 			sb.WriteString(fmt.Sprintf("X-SOURCE:%s\r\n", EscapeText(event.Source)))
 		}
+		for _, alert := range opts.Alerts {
+			renderVALARM(&sb, alert)
+		}
 		sb.WriteString("END:VEVENT\r\n")
 	}
 
@@ -94,4 +110,45 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("PT%dH", hours)
 	}
 	return fmt.Sprintf("PT%dM", minutes)
+}
+
+func renderVALARM(sb *strings.Builder, alert Alert) {
+	sb.WriteString("BEGIN:VALARM\r\n")
+	sb.WriteString("ACTION:DISPLAY\r\n")
+	sb.WriteString(fmt.Sprintf("TRIGGER:%s\r\n", formatICSDuration(alert.Duration)))
+	if alert.Description != "" {
+		sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", EscapeText(alert.Description)))
+	}
+	sb.WriteString("END:VALARM\r\n")
+}
+
+func formatICSDuration(d time.Duration) string {
+	neg := d < 0
+	if neg {
+		d = -d
+	}
+	totalMinutes := int(d.Minutes())
+	days := totalMinutes / (24 * 60)
+	remaining := totalMinutes % (24 * 60)
+	hours := remaining / 60
+	minutes := remaining % 60
+
+	var prefix string
+	if neg {
+		prefix = "-"
+	}
+
+	if days > 0 {
+		if hours > 0 || minutes > 0 {
+			return fmt.Sprintf("%sP%dDT%dH%dM", prefix, days, hours, minutes)
+		}
+		return fmt.Sprintf("%sP%dD", prefix, days)
+	}
+	if hours > 0 {
+		if minutes > 0 {
+			return fmt.Sprintf("%sPT%dH%dM", prefix, hours, minutes)
+		}
+		return fmt.Sprintf("%sPT%dH", prefix, hours)
+	}
+	return fmt.Sprintf("%sPT%dM", prefix, minutes)
 }
