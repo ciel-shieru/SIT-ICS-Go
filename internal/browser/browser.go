@@ -8,7 +8,6 @@ import (
 )
 
 type AuthResult struct {
-	Cookies     []Cookie
 	RedirectURL string
 	Token       string
 }

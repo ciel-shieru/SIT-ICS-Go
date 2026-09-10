@@ -43,8 +43,8 @@ func TestMockAuthBrowser(t *testing.T) {
 		mock := &MockAuthBrowser{
 			AuthenticateFunc: func(ctx context.Context, req AuthRequest) (AuthResult, error) {
 				return AuthResult{
-					Cookies: []Cookie{{Name: "test", Value: "value"}},
-					Token:   "token123",
+					RedirectURL: "https://example.com",
+					Token:       "token123",
 				}, nil
 			},
 		}
@@ -56,11 +56,11 @@ func TestMockAuthBrowser(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(result.Cookies) != 1 {
-			t.Errorf("expected 1 cookie, got %d", len(result.Cookies))
-		}
 		if result.Token != "token123" {
 			t.Errorf("expected token 'token123', got '%s'", result.Token)
+		}
+		if result.RedirectURL != "https://example.com" {
+			t.Errorf("expected redirect URL 'https://example.com', got '%s'", result.RedirectURL)
 		}
 	})
 
@@ -77,22 +77,6 @@ func TestMockAuthBrowser(t *testing.T) {
 		}
 		if !errors.Is(err, ErrAuthenticationTimeout) {
 			t.Errorf("expected ErrAuthenticationTimeout, got %v", err)
-		}
-	})
-
-	t.Run("empty cookies", func(t *testing.T) {
-		mock := &MockAuthBrowser{
-			AuthenticateFunc: func(ctx context.Context, req AuthRequest) (AuthResult, error) {
-				return AuthResult{Cookies: nil}, nil
-			},
-		}
-
-		result, err := mock.Authenticate(context.Background(), AuthRequest{})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Cookies != nil {
-			t.Error("expected nil cookies")
 		}
 	})
 }
@@ -120,68 +104,4 @@ func TestDefaultBrowserConfig(t *testing.T) {
 	}
 }
 
-func TestCookieDeduplication(t *testing.T) {
-	cookieMap := make(map[string]Cookie)
 
-	cookies := []Cookie{
-		{Name: "PS_TOKEN", Value: "old-token", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 1000},
-		{Name: "AWSALB", Value: "cookie1", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 2000},
-		{Name: "PS_TOKEN", Value: "new-token", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 3000},
-		{Name: "PS_TOKEN", Value: "oldest-token", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 500},
-		{Name: "SessionID", Value: "sess1", Domain: "in4sit.singaporetech.edu.sg", Path: "/", Expiry: 4000},
-	}
-
-	for _, c := range cookies {
-		existing, exists := cookieMap[c.Name]
-		if !exists || c.Expiry > existing.Expiry {
-			cookieMap[c.Name] = c
-		}
-	}
-
-	if len(cookieMap) != 3 {
-		t.Errorf("expected 3 unique cookies, got %d", len(cookieMap))
-	}
-
-	psToken := cookieMap["PS_TOKEN"]
-	if psToken.Value != "new-token" {
-		t.Errorf("expected PS_TOKEN value 'new-token', got '%s'", psToken.Value)
-	}
-	if psToken.Expiry != 3000 {
-		t.Errorf("expected PS_TOKEN expiry 3000, got %d", psToken.Expiry)
-	}
-
-	awsAlb := cookieMap["AWSALB"]
-	if awsAlb.Value != "cookie1" {
-		t.Errorf("expected AWSALB value 'cookie1', got '%s'", awsAlb.Value)
-	}
-
-	sessionID := cookieMap["SessionID"]
-	if sessionID.Value != "sess1" {
-		t.Errorf("expected SessionID value 'sess1', got '%s'", sessionID.Value)
-	}
-}
-
-func TestCookieExpiryZeroIsSessionCookie(t *testing.T) {
-	cookieMap := make(map[string]Cookie)
-
-	cookies := []Cookie{
-		{Name: "SessionCookie", Value: "session-val", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 0},
-		{Name: "PersistentCookie", Value: "persist-val", Domain: ".singaporetech.edu.sg", Path: "/", Expiry: 9999999},
-	}
-
-	for _, c := range cookies {
-		existing, exists := cookieMap[c.Name]
-		if !exists || c.Expiry > existing.Expiry {
-			cookieMap[c.Name] = c
-		}
-	}
-
-	if len(cookieMap) != 2 {
-		t.Errorf("expected 2 cookies, got %d", len(cookieMap))
-	}
-
-	session := cookieMap["SessionCookie"]
-	if session.Expiry != 0 {
-		t.Errorf("expected session cookie expiry 0, got %d", session.Expiry)
-	}
-}

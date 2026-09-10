@@ -17,15 +17,6 @@ type AuthRequest struct {
 	PeopleSoftURL string
 }
 
-func ExtractPS_TOKEN(cookies []browser.Cookie) string {
-	for _, c := range cookies {
-		if c.Name == "PS_TOKEN" {
-			return c.Value
-		}
-	}
-	return ""
-}
-
 // ADFSProvider wraps AuthBrowser and provides a higher-level interface
 // for authentication and timetable fetching.
 type ADFSProvider struct {
@@ -41,7 +32,7 @@ func NewADFSProvider(b browser.AuthBrowser) *ADFSProvider {
 }
 
 // Authenticate performs ADFS authentication using the wrapped browser
-// and returns the resulting cookies and PS_TOKEN.
+// and returns the redirect URL after successful authentication.
 func (a *ADFSProvider) Authenticate(ctx context.Context, req AuthRequest) (browser.AuthResult, error) {
 	browserReq := browser.AuthRequest{
 		URL:        "https://in4sit.singaporetech.edu.sg",
@@ -55,12 +46,7 @@ func (a *ADFSProvider) Authenticate(ctx context.Context, req AuthRequest) (brows
 		return browser.AuthResult{}, fmt.Errorf("adfs authenticate: %w", err)
 	}
 
-	token := ExtractPS_TOKEN(authResult.Cookies)
-
-	return browser.AuthResult{
-		Cookies: authResult.Cookies,
-		Token:   token,
-	}, nil
+	return authResult, nil
 }
 
 // FetchTimetable fetches and parses the timetable from PeopleSoft.

@@ -61,13 +61,7 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	}
 	b.page = page
 
-	cookies, err := extractCookiesForPage(page, authCtx)
-	if err != nil {
-		return AuthResult{}, err
-	}
-
 	return AuthResult{
-		Cookies:     cookies,
 		RedirectURL: getPageURL(page),
 	}, nil
 }

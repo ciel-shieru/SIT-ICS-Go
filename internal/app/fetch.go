@@ -18,7 +18,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 	ctx, cancel := context.WithTimeout(context.Background(), FetchTimeout)
 	defer cancel()
 
-	authResult, err := provider.Authenticate(ctx, auth.AuthRequest{
+	_, err := provider.Authenticate(ctx, auth.AuthRequest{
 		Username:      cfg.Username,
 		Password:      cfg.Password,
 		TOTPSecret:    cfg.TOTPSecret,
@@ -29,7 +29,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		return
 	}
 
-	log.Printf("scheduler: auth successful, %d cookies set, fetching timetable", len(authResult.Cookies))
+	log.Printf("scheduler: auth successful, fetching timetable")
 
 	entries, err := provider.FetchTimetable(ctx, "", loc)
 	if err != nil {
