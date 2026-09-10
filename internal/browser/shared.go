@@ -11,10 +11,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-func safeRod(f func()) {
-	defer func() { recover() }()
-	f()
-}
+
 
 func getPageURL(page *rod.Page) string {
 	var url string
@@ -58,11 +55,19 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 	}
 }
 
-func extractPageText(page *rod.Page) (string, error) {
-	var result string
-	safeRod(func() {
-		val := page.MustEval("() => document.body ? document.body.innerText : document.documentElement.innerText")
-		result = val.String()
-	})
-	return strings.TrimSpace(result), nil
+func extractPageText(page *rod.Page) (result string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = ""
+			err = fmt.Errorf("browser evaluation failed: %v", recovered)
+		}
+	}()
+
+	value := page.MustEval(`() => document.body ? document.body.innerText : ""`)
+	return strings.TrimSpace(value.String()), nil
+}
+
+func safeRod(fn func()) {
+	defer func() { recover() }()
+	fn()
 }

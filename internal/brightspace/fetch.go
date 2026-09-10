@@ -9,7 +9,6 @@ import (
 
 // Fetcher abstracts browser page operations for BrightSpace fetching.
 type Fetcher interface {
-	Navigate(url string) error
 	DecodeJSON(url string, v interface{}) error
 }
 
