@@ -96,7 +96,7 @@ func TestGenerateDifferentTimes(t *testing.T) {
 	}
 }
 
-func TestGenerateWithTolerance(t *testing.T) {
+func TestGenerateAtOffset(t *testing.T) {
 	secret := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 
 	tests := []struct {
@@ -124,26 +124,26 @@ func TestGenerateWithTolerance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			now := time.Unix(59, 0).UTC().Add(time.Duration(tt.timeOffset) * time.Second)
-			got, err := GenerateWithTolerance(secret, now, 1)
+			got, err := GenerateAtOffset(secret, now, 1)
 			if err != nil {
-				t.Fatalf("GenerateWithTolerance() error = %v", err)
+				t.Fatalf("GenerateAtOffset() error = %v", err)
 			}
 			if got != tt.want {
-				t.Errorf("GenerateWithTolerance() = %s, want %s", got, tt.want)
+				t.Errorf("GenerateAtOffset() = %s, want %s", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestGenerateWithToleranceOutsideRange(t *testing.T) {
+func TestGenerateAtOffsetOutsideRange(t *testing.T) {
 	secret := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 	now := time.Unix(59-60, 0).UTC()
-	got, err := GenerateWithTolerance(secret, now, 1)
+	got, err := GenerateAtOffset(secret, now, 1)
 	if err != nil {
-		t.Fatalf("GenerateWithTolerance() error = %v", err)
+		t.Fatalf("GenerateAtOffset() error = %v", err)
 	}
 	if got == "" {
-		t.Error("GenerateWithTolerance() returned empty string")
+		t.Error("GenerateAtOffset() returned empty string")
 	}
 }
 

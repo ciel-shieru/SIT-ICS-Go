@@ -1,8 +1,10 @@
-package ics
+package calendar
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -53,7 +55,7 @@ func TestICSCacheLoadFromFile(t *testing.T) {
 	}
 
 	cache := NewICSCache()
-	if err := cache.LoadFromFile(icsPath); err != nil {
+	if err := cache.LoadFromFile(icsPath, time.UTC); err != nil {
 		t.Fatalf("LoadFromFile() error = %v", err)
 	}
 
@@ -114,7 +116,7 @@ func TestICSCacheLoadNonExistent(t *testing.T) {
 	icsPath := filepath.Join(tmpDir, "nonexistent.ics")
 
 	cache := NewICSCache()
-	if err := cache.LoadFromFile(icsPath); err != nil {
+	if err := cache.LoadFromFile(icsPath, time.UTC); err != nil {
 		t.Fatalf("LoadFromFile() should not error for non-existent file: %v", err)
 	}
 
@@ -132,7 +134,7 @@ func TestICSCacheNoSaveWhenNotDirty(t *testing.T) {
 	initialData := []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n")
 	os.WriteFile(icsPath, initialData, 0600)
 
-	cache.LoadFromFile(icsPath)
+	cache.LoadFromFile(icsPath, time.UTC)
 
 	if err := cache.SaveToFile(icsPath, time.Hour); err != nil {
 		t.Fatalf("SaveToFile() error = %v", err)
@@ -263,13 +265,13 @@ func TestICSCacheEventCount(t *testing.T) {
 	}
 }
 
-func TestICSCacheSaveAllWithXsiteFiles_ExcludesBrightSpaceFromCampus(t *testing.T) {
+func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainPath := filepath.Join(tmpDir, "timetable.ics")
 	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
 	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
-	xsiteEventsPath := filepath.Join(tmpDir, "xsite-events.ics")
-	xsiteDropboxPath := filepath.Join(tmpDir, "xsite-dropbox.ics")
+	bsEventsPath := filepath.Join(tmpDir, "brightspace-events.ics")
+	bsDropboxPath := filepath.Join(tmpDir, "brightspace-dropbox.ics")
 
 	cache := NewICSCache()
 	events := []Event{
@@ -299,8 +301,14 @@ func TestICSCacheSaveAllWithXsiteFiles_ExcludesBrightSpaceFromCampus(t *testing.
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
-		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	if err := cache.SaveOutputs(Outputs{
+		Main:      mainPath,
+		Online:    onlinePath,
+		Campus:    campusPath,
+		BSEvents:  bsEventsPath,
+		BSDropbox: bsDropboxPath,
+	}, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
 	mainData, _ := os.ReadFile(mainPath)
@@ -325,32 +333,31 @@ func TestICSCacheSaveAllWithXsiteFiles_ExcludesBrightSpaceFromCampus(t *testing.
 		t.Error("Campus ICS should not contain brightspace-dropbox event")
 	}
 
-	xsiteEventsData, _ := os.ReadFile(xsiteEventsPath)
-	if !contains(string(xsiteEventsData), "SUMMARY:[SIT2101] Assignment 1") {
-		t.Error("Xsite events ICS missing brightspace-calendar event")
+	bsEventsData, _ := os.ReadFile(bsEventsPath)
+	if !contains(string(bsEventsData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("BrightSpace events ICS missing brightspace-calendar event")
 	}
-	if contains(string(xsiteEventsData), "SUMMARY:[SIT3201] Lab 3 Due") {
-		t.Error("Xsite events ICS should not contain brightspace-dropbox event")
+	if contains(string(bsEventsData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("BrightSpace events ICS should not contain brightspace-dropbox event")
 	}
 
-	xsiteDropboxData, _ := os.ReadFile(xsiteDropboxPath)
-	if !contains(string(xsiteDropboxData), "SUMMARY:[SIT3201] Lab 3 Due") {
-		t.Error("Xsite dropbox ICS missing brightspace-dropbox event")
+	bsDropboxData, _ := os.ReadFile(bsDropboxPath)
+	if !contains(string(bsDropboxData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("BrightSpace dropbox ICS missing brightspace-dropbox event")
 	}
-	if contains(string(xsiteDropboxData), "SUMMARY:[SIT2101] Assignment 1") {
-		t.Error("Xsite dropbox ICS should not contain brightspace-calendar event")
+	if contains(string(bsDropboxData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("BrightSpace dropbox ICS should not contain brightspace-calendar event")
 	}
 }
 
-func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
+func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	mainPath := filepath.Join(tmpDir, "timetable.ics")
 	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
 	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
-	xsiteEventsPath := filepath.Join(tmpDir, "xsite-events.ics")
-	xsiteDropboxPath := filepath.Join(tmpDir, "xsite-dropbox.ics")
+	bsEventsPath := filepath.Join(tmpDir, "brightspace-events.ics")
+	bsDropboxPath := filepath.Join(tmpDir, "brightspace-dropbox.ics")
 
-	// First run: create events and save
 	cache := NewICSCache()
 	events := []Event{
 		{
@@ -372,32 +379,34 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
-		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	if err := cache.SaveOutputs(Outputs{
+		Main:      mainPath,
+		Online:    onlinePath,
+		Campus:    campusPath,
+		BSEvents:  bsEventsPath,
+		BSDropbox: bsDropboxPath,
+	}, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
-	// Verify campus file doesn't have brightspace events
 	campusData1, _ := os.ReadFile(campusPath)
 	if contains(string(campusData1), "SUMMARY:[SIT2101] Assignment 1") {
 		t.Error("First run: Campus ICS should not contain brightspace-calendar event")
 	}
 
-	// Second run: reload from main file and verify filtering still works
 	cache2 := NewICSCache()
-	if err := cache2.LoadFromFile(mainPath); err != nil {
+	if err := cache2.LoadFromFile(mainPath, time.UTC); err != nil {
 		t.Fatalf("LoadFromFile() error = %v", err)
 	}
 
-	// Check that the brightspace event was loaded with Source field
-	for _, e := range cache2.events {
-		if e.Summary == "[SIT2101] Assignment 1" {
-			if e.Source != "brightspace-calendar" {
-				t.Errorf("Reloaded brightspace event has Source=%q, want %q", e.Source, "brightspace-calendar")
-			}
-		}
+	filtered := cache2.GetFiltered("Asia/Singapore", func(e Event) bool {
+		return e.Summary == "[SIT2101] Assignment 1"
+	}, time.Hour)
+	content := string(filtered)
+	if !contains(content, "X-SOURCE:brightspace-calendar") {
+		t.Error("Reloaded brightspace event missing Source=brightspace-calendar")
 	}
 
-	// Update with a new campus event (simulating a new fetch)
 	newEvents := []Event{
 		{
 			Summary:  "New Campus Class",
@@ -411,11 +420,16 @@ func TestICSCacheSaveAllWithXsiteFiles_RoundTrip(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	if err := cache2.SaveAllWithXsiteFiles(mainPath, onlinePath, campusPath, xsiteEventsPath, xsiteDropboxPath, "Asia/Singapore", time.Hour); err != nil {
-		t.Fatalf("SaveAllWithXsiteFiles() error = %v", err)
+	if err := cache2.SaveOutputs(Outputs{
+		Main:      mainPath,
+		Online:    onlinePath,
+		Campus:    campusPath,
+		BSEvents:  bsEventsPath,
+		BSDropbox: bsDropboxPath,
+	}, "Asia/Singapore", time.Hour); err != nil {
+		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
-	// Verify campus file still doesn't have brightspace events after reload+update
 	campusData2, _ := os.ReadFile(campusPath)
 	if !contains(string(campusData2), "SUMMARY:Campus Class") {
 		t.Error("Second run: Campus ICS missing original campus event")
@@ -463,7 +477,7 @@ func TestICSCacheDeleteByPredicate(t *testing.T) {
 		t.Fatalf("Expected 3 events, got %d", count)
 	}
 
-	deleted := cache.DeleteByPredicate(func(e Event) bool {
+	deleted := cache.RemoveWhere(func(e Event) bool {
 		return e.Location == "Zoom Online Meeting"
 	})
 
@@ -499,7 +513,7 @@ func TestICSCacheDeleteByPredicate_NoMatch(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	deleted := cache.DeleteByPredicate(func(e Event) bool {
+	deleted := cache.RemoveWhere(func(e Event) bool {
 		return e.Location == "Nonexistent"
 	})
 
@@ -509,6 +523,232 @@ func TestICSCacheDeleteByPredicate_NoMatch(t *testing.T) {
 
 	if count := cache.EventCount(); count != 2 {
 		t.Errorf("Expected 2 events, got %d", count)
+	}
+}
+
+func TestICSCacheEventRetention(t *testing.T) {
+	cache := NewICSCache()
+
+	eventsAB := []Event{
+		{
+			Summary:  "Event A",
+			Location: "Room 101",
+			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "Event B",
+			Location: "Room 102",
+			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache.Update(eventsAB, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if count := cache.EventCount(); count != 2 {
+		t.Fatalf("Expected 2 events after first merge, got %d", count)
+	}
+
+	eventsA := []Event{
+		{
+			Summary:  "Event A",
+			Location: "Room 101",
+			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache.Update(eventsA, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if count := cache.EventCount(); count != 2 {
+		t.Errorf("Expected 2 events after second merge (B retained), got %d", count)
+	}
+
+	data := cache.Get("Asia/Singapore", time.Hour)
+	content := string(data)
+
+	if !contains(content, "SUMMARY:Event A") {
+		t.Error("Event A should still be in cache")
+	}
+	if !contains(content, "SUMMARY:Event B") {
+		t.Error("Event B should still be in cache (event retention)")
+	}
+}
+
+func TestICSCacheRepeatedMergeIdempotency(t *testing.T) {
+	cache := NewICSCache()
+
+	events := []Event{
+		{
+			Summary:  "Repeated Event",
+			Location: "Room 101",
+			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for i := 0; i < 3; i++ {
+		if err := cache.Update(events, "Asia/Singapore"); err != nil {
+			t.Fatalf("Update() iteration %d error = %v", i+1, err)
+		}
+	}
+
+	if count := cache.EventCount(); count != 1 {
+		t.Errorf("Expected 1 event after 3 identical merges (no duplicates), got %d", count)
+	}
+
+	data := cache.Get("Asia/Singapore", time.Hour)
+	content := string(data)
+
+	summaryCount := strings.Count(content, "SUMMARY:Repeated Event")
+	if summaryCount != 1 {
+		t.Errorf("Expected 1 SUMMARY, got %d (duplicates detected)", summaryCount)
+	}
+}
+
+func TestICSCacheDeleteByPredicate_BrightSpaceBlocklist(t *testing.T) {
+	cache := NewICSCache()
+
+	events := []Event{
+		{
+			Summary:  "Campus Class",
+			Location: "W1-05-07",
+			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "[SIT2101] Assignment 1",
+			Location: "Online",
+			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			Source:   "brightspace-calendar",
+		},
+		{
+			Summary:  "[SIT3201] Lab 3 Due",
+			Location: "",
+			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
+			Source:   "brightspace-dropbox",
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if count := cache.EventCount(); count != 3 {
+		t.Fatalf("Expected 3 events, got %d", count)
+	}
+
+	deleted := cache.RemoveWhere(func(e Event) bool {
+		return strings.HasPrefix(e.Source, "brightspace-")
+	})
+
+	if deleted != 2 {
+		t.Errorf("Expected 2 deleted BrightSpace events, got %d", deleted)
+	}
+
+	if count := cache.EventCount(); count != 1 {
+		t.Errorf("Expected 1 event after deletion, got %d", count)
+	}
+
+	data := cache.Get("Asia/Singapore", time.Hour)
+	content := string(data)
+
+	if !contains(content, "SUMMARY:Campus Class") {
+		t.Error("Non-BrightSpace event should still be in cache")
+	}
+	if contains(content, "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("BrightSpace-calendar event should be deleted")
+	}
+	if contains(content, "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("BrightSpace-dropbox event should be deleted")
+	}
+}
+
+func TestICSCacheDeterministicOutput(t *testing.T) {
+	cache := NewICSCache()
+
+	events := []Event{
+		{
+			Summary:  "Event A",
+			Location: "Room 101",
+			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "Event B",
+			Location: "Room 102",
+			DTStart:  time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 13, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	data1 := cache.Get("Asia/Singapore", time.Hour)
+	data2 := cache.Get("Asia/Singapore", time.Hour)
+
+	if !bytes.Equal(data1, data2) {
+		t.Error("Identical cache state should produce identical ICS output")
+	}
+
+	cache2 := NewICSCache()
+	if err := cache2.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	data3 := cache2.Get("Asia/Singapore", time.Hour)
+	if !bytes.Equal(data1, data3) {
+		t.Error("Separate caches with same events should produce identical output")
+	}
+}
+
+func TestICSCachePersistenceFailure(t *testing.T) {
+	cache := NewICSCache()
+
+	events := []Event{
+		{
+			Summary:  "Test Event",
+			Location: "Room 101",
+			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	invalidPath := filepath.Join(t.TempDir(), "nonexistent_dir", "test.ics")
+	err := cache.SaveToFile(invalidPath, time.Hour)
+	if err == nil {
+		t.Fatal("SaveToFile() should return error when parent directory doesn't exist")
+	}
+
+	if !strings.Contains(err.Error(), "write ICS file") {
+		t.Errorf("Error should mention write failure, got: %v", err)
+	}
+
+	baseDir := t.TempDir()
+	mainPath := filepath.Join(baseDir, "nonexistent_dir", "main.ics")
+	onlinePath := filepath.Join(baseDir, "nonexistent_dir", "online.ics")
+	campusPath := filepath.Join(baseDir, "nonexistent_dir", "campus.ics")
+
+	err = cache.SaveAllToFiles(mainPath, onlinePath, campusPath, "Asia/Singapore", time.Hour)
+	if err == nil {
+		t.Fatal("SaveAllToFiles() should return error when parent directory doesn't exist")
+	}
+
+	if !strings.Contains(err.Error(), "write ICS file") {
+		t.Errorf("Error should mention write failure, got: %v", err)
 	}
 }
 

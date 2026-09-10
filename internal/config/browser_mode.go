@@ -1,10 +1,12 @@
 package config
 
-type BrowserMode string
+import "github.com/ciel-shieru/sit-ics-go/internal/browser"
+
+type BrowserMode = browser.BrowserMode
 
 const (
-	BrowserAuto   BrowserMode = "auto"
-	BrowserSystem BrowserMode = "system"
-	BrowserRod    BrowserMode = "rod"
-	BrowserRemote BrowserMode = "remote"
+	BrowserAuto   BrowserMode = browser.BrowserModeAuto
+	BrowserSystem BrowserMode = browser.BrowserModeSystem
+	BrowserRod    BrowserMode = browser.BrowserModeRod
+	BrowserRemote BrowserMode = browser.BrowserModeRemote
 )

@@ -11,9 +11,9 @@ type VersionResponse struct {
 }
 
 type MyCoursesResponse struct {
-	Courses []Course `json:"Courses"`
+	Courses  []Course `json:"Courses"`
 	Bookmark *string  `json:"Bookmark"`
-	Sort    string   `json:"Sort"`
+	Sort     string   `json:"Sort"`
 }
 
 type Course struct {
@@ -23,14 +23,16 @@ type Course struct {
 	IsActive  bool   `json:"IsActive"`
 }
 
-type CalendarEvent struct {
+// CalendarEventAPI mirrors the BrightSpace calendar event JSON structure
+// with string-based timestamps for browser-based fetching.
+type CalendarEventAPI struct {
 	CalendarEventId int       `json:"CalendarEventId"`
 	OrgUnitId       int       `json:"OrgUnitId"`
 	Title           string    `json:"Title"`
 	Description     string    `json:"Description"`
 	IsAllDayEvent   bool      `json:"IsAllDayEvent"`
-	StartDateTime   time.Time `json:"StartDateTime"`
-	EndDateTime     time.Time `json:"EndDateTime"`
+	StartDateTime   string    `json:"StartDateTime"`
+	EndDateTime     string    `json:"EndDateTime"`
 	IsRecurring     bool      `json:"IsRecurring"`
 	LocationName    string    `json:"LocationName"`
 	OrgUnitName     string    `json:"OrgUnitName"`
@@ -38,13 +40,15 @@ type CalendarEvent struct {
 	EventType       int       `json:"EventType"`
 }
 
-type DropboxFolder struct {
-	Id            int    `json:"Id"`
-	Name          string `json:"Name"`
-	DueDate       time.Time `json:"DueDate"`
-	DisplayInCalendar bool `json:"DisplayInCalendar"`
-	OrgUnitName   string `json:"-"`
-	OrgUnitCode   string `json:"-"`
+// DropboxFolderAPI mirrors the BrightSpace dropbox folder JSON structure
+// with string-based timestamps for browser-based fetching.
+type DropboxFolderAPI struct {
+	Id          int    `json:"Id"`
+	Name        string `json:"Name"`
+	DueDate     string `json:"DueDate"`
+	OrgUnitId   string `json:"-"`
+	OrgUnitName string `json:"-"`
+	OrgUnitCode string `json:"-"`
 }
 
 // BrightSpaceEntry is the internal representation of a BrightSpace event/due date.

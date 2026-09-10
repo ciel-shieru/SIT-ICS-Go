@@ -4,23 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/ciel-shieru/sit-ics-go/internal/config"
+	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 )
-
-type Cookie struct {
-	Name   string
-	Value  string
-	Domain string
-	Path   string
-	Expiry int64
-}
-
-type AuthRequest struct {
-	URL        string
-	Username   string
-	Password   string
-	TOTPSecret string
-}
 
 type AuthResult struct {
 	Cookies     []Cookie
@@ -28,41 +13,14 @@ type AuthResult struct {
 	Token       string
 }
 
-type BrightSpaceEntry struct {
-	Title       string
-	OrgUnitId   string
-	OrgUnitName string
-	OrgUnitCode string
-	Location    string
-	Description string
-	DTStart     string
-	DTEnd       string
-	IsAllDay    bool
-	Source      string
-}
-
 type AuthBrowser interface {
 	Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error)
 	FetchTimetable(ctx context.Context, weekDate string) (string, error)
-	FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error)
+	FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	Close()
 }
 
-type BrowserConfig struct {
-	Mode              config.BrowserMode
-	Executable        string
-	RemoteHost        string
-	RemotePort        int
-	Headless          bool
-	Incognito         bool
-	ProxyURL          string
-	Debug             bool
-	ConnectTimeout    time.Duration
-	NavigationTimeout time.Duration
-	AuthTimeout       time.Duration
-}
-
-func DefaultBrowserConfig(mode config.BrowserMode) BrowserConfig {
+func DefaultBrowserConfig(mode BrowserMode) BrowserConfig {
 	return BrowserConfig{
 		Mode:              mode,
 		Headless:          true,
@@ -89,9 +47,9 @@ func isAllowedOrigin(url string) bool {
 }
 
 type MockAuthBrowser struct {
-	AuthenticateFunc  func(ctx context.Context, req AuthRequest) (AuthResult, error)
-	FetchTimetableFunc  func(ctx context.Context, weekDate string) (string, error)
-	FetchBrightSpaceFunc func(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error)
+	AuthenticateFunc     func(ctx context.Context, req AuthRequest) (AuthResult, error)
+	FetchTimetableFunc   func(ctx context.Context, weekDate string) (string, error)
+	FetchBrightSpaceFunc func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 }
 
 func (m *MockAuthBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
@@ -108,7 +66,7 @@ func (m *MockAuthBrowser) FetchTimetable(ctx context.Context, weekDate string) (
 	return "", nil
 }
 
-func (m *MockAuthBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]BrightSpaceEntry, error) {
+func (m *MockAuthBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	if m.FetchBrightSpaceFunc != nil {
 		return m.FetchBrightSpaceFunc(ctx, baseURL)
 	}

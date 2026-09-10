@@ -58,8 +58,7 @@ func (b *Blocklist) IsLocationBlocked(location string) bool {
 }
 
 // Matches checks whether an event should be blocked based on all blocklist criteria.
-// The source field should be the event's Source (e.g. "brightspace-calendar").
-func (b *Blocklist) Matches(source, orgUnitID, orgUnitName, title, location string) bool {
+func (b *Blocklist) Matches(orgUnitID, orgUnitName, title, location string) bool {
 	if b.IsCourseBlocked(orgUnitID, orgUnitName) {
 		return true
 	}

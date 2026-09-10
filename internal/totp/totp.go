@@ -17,10 +17,10 @@ func Generate(secret string, now time.Time) (string, error) {
 	return totp.GenerateCode(secret, now)
 }
 
-// GenerateWithTolerance generates a TOTP code by trying multiple time steps
+// GenerateAtOffset generates a TOTP code by trying multiple time steps
 // within ±tolerancePeriods of the current time. This handles clock skew and
 // processing delays between generating the code and submitting it.
-func GenerateWithTolerance(secret string, now time.Time, tolerancePeriods int) (string, error) {
+func GenerateAtOffset(secret string, now time.Time, tolerancePeriods int) (string, error) {
 	if secret == "" {
 		return "", fmt.Errorf("TOTP secret is empty")
 	}
