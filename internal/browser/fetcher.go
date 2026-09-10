@@ -28,15 +28,16 @@ func NewRodFetcher(page *rod.Page, cfg BrowserConfig) *RodFetcher {
 	}
 }
 
-// Navigate navigates the page to the given URL.
-func (f *RodFetcher) Navigate(url string) error {
+func (f *RodFetcher) requestPage() (*rod.Page, context.CancelFunc) {
 	fetchCtx, cancel := context.WithTimeout(f.ctx, f.cfg.NavigationTimeout)
-	defer cancel()
-	page := f.page.Context(fetchCtx)
+	return f.page.Context(fetchCtx), cancel
+}
 
+// Navigate navigates the page to the given URL.
+func (f *RodFetcher) Navigate(page *rod.Page, url string) error {
 	debug(f.cfg, "brightspace fetching %s", url)
 	if err := page.Navigate(url); err != nil {
-		return fmt.Errorf("navigate to %s: %w", url, err)
+		return fmt.Errorf("navigate %q: %w", url, err)
 	}
 
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
@@ -48,13 +49,16 @@ func (f *RodFetcher) Navigate(url string) error {
 
 // DecodeJSON navigates to a URL and parses the JSON response into v.
 func (f *RodFetcher) DecodeJSON(url string, v interface{}) error {
-	if err := f.Navigate(url); err != nil {
-		return err
+	page, cancel := f.requestPage()
+	defer cancel()
+
+	if err := f.Navigate(page, url); err != nil {
+		return fmt.Errorf("decode JSON %q: %w", url, err)
 	}
 
-	text, err := extractPageText(f.page)
+	text, err := extractPageText(page)
 	if err != nil {
-		return fmt.Errorf("extract response from %s: %w", url, err)
+		return fmt.Errorf("decode JSON %q: extract response: %w", url, err)
 	}
 
 	if text == "" {
@@ -62,7 +66,7 @@ func (f *RodFetcher) DecodeJSON(url string, v interface{}) error {
 	}
 
 	if err := json.Unmarshal([]byte(text), v); err != nil {
-		return fmt.Errorf("parse JSON from %s: %w (body=%q)", url, err, text)
+		return fmt.Errorf("decode JSON %q: %w (body=%q)", url, err, text)
 	}
 
 	return nil

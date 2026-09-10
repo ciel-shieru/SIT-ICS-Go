@@ -16,12 +16,13 @@ func extractCookiesForPage(page *rod.Page, ctx context.Context) ([]Cookie, error
 	page = page.Context(cookieCtx)
 
 	var rodCookies []*proto.NetworkCookie
-	safeRod(func() {
+	func() {
+		defer func() { recover() }()
 		cookies, err := page.Cookies([]string{})
 		if err == nil {
 			rodCookies = cookies
 		}
-	})
+	}()
 
 	if rodCookies == nil {
 		pageURL := getPageURL(page)
@@ -33,12 +34,13 @@ func extractCookiesForPage(page *rod.Page, ctx context.Context) ([]Cookie, error
 			domains = append(domains, "https://fs.singaporetech.edu.sg/")
 		}
 		for _, domain := range domains {
-			safeRod(func() {
+			func() {
+				defer func() { recover() }()
 				extra, err := page.Context(cookieCtx).Cookies([]string{domain})
 				if err == nil {
 					rodCookies = append(rodCookies, extra...)
 				}
-			})
+			}()
 		}
 	}
 
