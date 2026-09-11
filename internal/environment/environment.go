@@ -1,38 +1,42 @@
-// Package environment detects whether the current process appears to be running
-// in a container deployment.
+// Package environment provides compile-time container detection via Go build
+// tags. The presence of the "container" build tag causes IsContainerized to
+// return true; its absence causes it to return false.
 //
-// Detection is based on locally observable runtime and deployment signals:
-// cgroup hierarchy markers, Kubernetes environment variables, container marker
-// files, and Kubernetes ServiceAccount namespace files.
+// This replaces the previous runtime cgroup/.dockerenv-based detection with
+// a compile-time gate, ensuring that sandbox disablement is decided at build
+// time rather than at runtime.
 //
-// The result is intentionally a boolean: true means the process is running in a
-// container deployment, false means it is running directly on the host or in a
-// non-container environment. Absence of one particular signal does not imply a
-// non-container environment — multiple independent signals are checked and any
-// single positive match is sufficient.
+// The result is not a security boundary. It provides best-effort detection
+// suitable for operational decisions only.
 //
-// The result is not a security boundary. It provides best-effort detection suitable
-// for operational decisions only.
-//
-// On non-Linux platforms, IsContainerized always returns false.
+// IsContainerized() returns true when built with -tags container (Docker
+// images). It returns false for all other builds (desktop binaries, CI
+// binaries, release binaries).
 //
 // The result is cached after the first call via sync.Once.
 package environment
 
-import (
-	"os"
+import "sync"
+
+var (
+	containerized bool
+	once          sync.Once
 )
 
-// filesystem abstracts OS operations for testability.
-type filesystem interface {
-	Stat(name string) (os.FileInfo, error)
-	ReadFile(name string) ([]byte, error)
-	LookupEnv(key string) (string, bool)
+// IsContainerized reports whether the current binary was built with the
+// "container" build tag. This determines Chromium sandbox behavior:
+// true = sandbox disabled (for container deployments),
+// false = sandbox enabled (for desktop and server builds).
+func IsContainerized() bool {
+	once.Do(func() {
+		containerized = isContainerizedImpl()
+	})
+	return containerized
 }
 
-// realFS implements filesystem using the real OS.
-type realFS struct{}
-
-func (realFS) Stat(name string) (os.FileInfo, error) { return os.Stat(name) }
-func (realFS) ReadFile(name string) ([]byte, error)  { return os.ReadFile(name) }
-func (realFS) LookupEnv(key string) (string, bool)   { return os.LookupEnv(key) }
+// resetForTesting resets the cached containerized result.
+// Only for use in tests.
+func resetForTesting() {
+	once = sync.Once{}
+	containerized = false
+}

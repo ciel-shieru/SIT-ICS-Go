@@ -12,6 +12,7 @@ RUN go mod download
 COPY . .
 ARG VERSION=dev
 RUN go build \
+    -tags container \
     -ldflags="-s -w -X main.version=${VERSION}" \
     -o /out/sit-ics ./cmd/sit-ics
 
@@ -30,7 +31,7 @@ CMD ["/sit-ics"]
 # COPY go.mod go.sum ./
 # RUN go mod download
 # COPY . .
-# RUN go build -o /out/sit-ics ./cmd/sit-ics
+# RUN go build -tags container -o /out/sit-ics ./cmd/sit-ics
 #
 # # ── Debug image ──
 # FROM debug-build AS debug
