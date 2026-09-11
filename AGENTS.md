@@ -79,9 +79,9 @@ Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
 All via env vars with CLI flag override (flags take priority):
 | Env var | Default | Description |
 |---------|---------|-------------|
-| `USERNAME` | — | ADFS username |
-| `PASSWORD` | — | ADFS password |
-| `TOTP_SECRET` | — | Azure MFA TOTP secret |
+| `USERNAME` | — | ADFS username (desktop: keyring fallback, container: env var only) |
+| `PASSWORD` | — | ADFS password (desktop: keyring fallback, container: env var only) |
+| `TOTP_SECRET` | — | Azure MFA TOTP secret (desktop: keyring fallback, container: env var only) |
 | `TZ` | Asia/Singapore | IANA timezone |
 | `FETCH_CRON` | `0 1 * * *` | Cron schedule for fetches |
 | `SERVER_PORT` | 8080 | HTTP listen port |
@@ -113,7 +113,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Go 1.26.5** — pinned in go.mod. Do not upgrade without verifying rod compatibility.
 - **No third-party ICS library** — custom writer in `internal/calendar/render.go` for full RFC 5545 control.
 - **Rod is the only browser dep** — rest of codebase never imports `github.com/go-rod/rod`.
-- **Credentials via env only** — `USERNAME`, `PASSWORD`, `TOTP_SECRET`. Never logged, never persisted.
+- **Credentials sourcing**: Desktop builds (`!container`) source credentials from OS keyring (`sit-ics-go` service) with env var fallback. Container builds (`-tags container`) source from env vars only. CLI flags `--username`, `--password`, `--totp-secret` are removed.
 - **ICS upsert semantics** — non-destructive merge by UID. Events absent from new data are retained. Changing the UID formula breaks idempotency.
 - **Timezone** — all time ops use `TZ` env var (default `Asia/Singapore`). `time.Local` is set at startup.
 - **Browser modes** — `auto`, `system`, `rod` all use `LocalBrowser`; `remote` uses `RemoteBrowser`. Controlled by `BROWSER_MODE`.
