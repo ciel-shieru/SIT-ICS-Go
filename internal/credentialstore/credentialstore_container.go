@@ -24,11 +24,11 @@ func NewStore() Store {
 
 func (s *containerStore) GetUsername() (string, error) {
 	s.mu.RLock()
-	if !s.hasCreds {
-		s.mu.RUnlock()
+	ok := s.hasCreds
+	s.mu.RUnlock()
+	if !ok {
 		return "", ErrNotFound
 	}
-	s.mu.RUnlock()
 	val := os.Getenv("USERNAME")
 	if val == "" {
 		return "", ErrNotFound
@@ -46,11 +46,11 @@ func (s *containerStore) SetUsername(username string) error {
 
 func (s *containerStore) GetPassword() (string, error) {
 	s.mu.RLock()
-	if !s.hasCreds {
-		s.mu.RUnlock()
+	ok := s.hasCreds
+	s.mu.RUnlock()
+	if !ok {
 		return "", ErrNotFound
 	}
-	s.mu.RUnlock()
 	val := os.Getenv("PASSWORD")
 	if val == "" {
 		return "", ErrNotFound
@@ -68,11 +68,11 @@ func (s *containerStore) SetPassword(password string) error {
 
 func (s *containerStore) GetTOTPSecret() (string, error) {
 	s.mu.RLock()
-	if !s.hasCreds {
-		s.mu.RUnlock()
+	ok := s.hasCreds
+	s.mu.RUnlock()
+	if !ok {
 		return "", ErrNotFound
 	}
-	s.mu.RUnlock()
 	val := os.Getenv("TOTP_SECRET")
 	if val == "" {
 		return "", ErrNotFound

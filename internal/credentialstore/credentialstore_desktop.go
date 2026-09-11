@@ -3,6 +3,7 @@
 package credentialstore
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -129,15 +130,16 @@ func (s *desktopStore) Delete() error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var firstErr error
+	var errs []error
 	for _, id := range []string{"username", "password", "totp_secret"} {
 		if err := keyring.Delete(serviceName, id); err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("delete %s: %w", id, err)
-			}
+			errs = append(errs, fmt.Errorf("delete %s: %w", id, err))
 		}
 	}
-	return firstErr
+	if len(errs) > 0 {
+		return fmt.Errorf("delete credentials: %w", errors.Join(errs...))
+	}
+	return nil
 }
 
 func (s *desktopStore) Close() {}
