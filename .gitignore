@@ -1,9 +1,3 @@
-<<<<<<< HEAD
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-=======
 # Binaries
 /sit-ics
 /sit-ics-*
@@ -35,23 +29,6 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-=======
-*.test
-
-# Binary images
-*.bz2
-*.rar
-*.zip
-*.msi
-*.gz
-*.tar.gz
-*.swf
-*.swc
-*.wal
-*.deb
-*.rpm
-*.jar
-*.war
 
 # OS generated files
 .DS_Store
