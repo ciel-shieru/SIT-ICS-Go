@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
+	"github.com/ciel-shieru/sit-ics-go/internal/environment"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 )
@@ -113,7 +114,7 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 
 	launcherInst = launcherInst.Headless(b.cfg.Headless)
 	debug(b.cfg, "headless: %t", b.cfg.Headless)
-	launcherInst = launcherInst.NoSandbox(true)
+	launcherInst = launcherInst.NoSandbox(environment.IsContainerized())
 	launcherInst = launcherInst.Set("disable-gpu", "true")
 	launcherInst = launcherInst.Set("disable-dev-shm-usage", "true")
 	launcherInst = launcherInst.Set("disable-setuid-sandbox", "true")
