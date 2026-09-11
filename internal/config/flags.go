@@ -19,9 +19,6 @@ func loadEnv() (*Config, error) {
 
 func applyFlags(cfg *Config) error {
 	fs := pflag.NewFlagSet("app", pflag.ContinueOnError)
-	username := fs.String("username", "", "ADFS username")
-	password := fs.String("password", "", "ADFS password")
-	totpSecret := fs.String("totp-secret", "", "TOTP secret")
 	startDate := fs.String("start-date", "", "Start date (YYYY-MM-DD)")
 	endDate := fs.String("end-date", "", "End date (YYYY-MM-DD)")
 	tz := fs.String("tz", "", "Timezone (IANA name)")
@@ -56,15 +53,6 @@ func applyFlags(cfg *Config) error {
 
 	fs.Parse(os.Args[1:])
 
-	if fs.Lookup("username").Changed {
-		cfg.Username = *username
-	}
-	if fs.Lookup("password").Changed {
-		cfg.Password = *password
-	}
-	if fs.Lookup("totp-secret").Changed {
-		cfg.TOTPSecret = *totpSecret
-	}
 	if fs.Lookup("start-date").Changed && *startDate != "" {
 		t, err := time.Parse("2006-01-02", *startDate)
 		if err != nil {

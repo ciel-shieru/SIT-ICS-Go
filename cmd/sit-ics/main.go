@@ -9,6 +9,7 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
+	"github.com/ciel-shieru/sit-ics-go/internal/credentialstore"
 )
 
 func main() {
@@ -16,6 +17,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	defer credentialstore.NewStore().Close()
 
 	loc, err := time.LoadLocation(cfg.TZ)
 	if err != nil {

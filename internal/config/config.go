@@ -2,6 +2,8 @@ package config
 
 import (
 	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/credentialstore"
 )
 
 type Config struct {
@@ -39,6 +41,8 @@ type Config struct {
 	ICSCampusAlerts                   string        `env:"ICS_CAMPUS_ALERTS" envDefault:""`
 	BrightSpaceEventsAlerts           string        `env:"BRIGHTSPACE_EVENTS_ALERTS" envDefault:""`
 	BrightSpaceDropboxAlerts          string        `env:"BRIGHTSPACE_DROPBOX_ALERTS" envDefault:""`
+
+	credStore credentialstore.Store
 }
 
 func Load() (*Config, error) {
@@ -47,7 +51,13 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	cfg.credStore = credentialstore.NewStore()
+
 	if err := applyFlags(cfg); err != nil {
+		return nil, err
+	}
+
+	if err := cfg.loadCredentialsFromStore(); err != nil {
 		return nil, err
 	}
 
@@ -56,4 +66,28 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func (c *Config) loadCredentialsFromStore() error {
+	if c.credStore == nil {
+		return nil
+	}
+
+	if c.Username == "" {
+		if username, err := c.credStore.GetUsername(); err == nil && username != "" {
+			c.Username = username
+		}
+	}
+	if c.Password == "" {
+		if password, err := c.credStore.GetPassword(); err == nil && password != "" {
+			c.Password = password
+		}
+	}
+	if c.TOTPSecret == "" {
+		if totp, err := c.credStore.GetTOTPSecret(); err == nil && totp != "" {
+			c.TOTPSecret = totp
+		}
+	}
+
+	return nil
 }
