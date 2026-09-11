@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/ciel-shieru/sit-ics-go/internal/environment"
@@ -117,7 +118,7 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	launcherInst = launcherInst.NoSandbox(environment.IsContainerized())
 	launcherInst = launcherInst.Set("disable-gpu", "true")
 	launcherInst = launcherInst.Set("disable-dev-shm-usage", "true")
-	launcherInst = launcherInst.Set("disable-setuid-sandbox", "true")
+	launcherInst = launcherInst.Set("disable-setuid-sandbox", strconv.FormatBool(environment.IsContainerized()))
 
 	url, err := launcherInst.Launch()
 	if err != nil {
