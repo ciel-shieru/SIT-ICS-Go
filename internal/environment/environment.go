@@ -2,8 +2,8 @@
 // in a container deployment.
 //
 // Detection is based on locally observable runtime and deployment signals:
-// Kubernetes environment variables, container marker files, Kubernetes ServiceAccount
-// namespace files, and cgroup hierarchy markers.
+// cgroup hierarchy markers, Kubernetes environment variables, container marker
+// files, and Kubernetes ServiceAccount namespace files.
 //
 // The result is intentionally a boolean: true means the process is running in a
 // container deployment, false means it is running directly on the host or in a
