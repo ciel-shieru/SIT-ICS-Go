@@ -16,6 +16,10 @@ var containerMarkers = []string{
 }
 
 func detectWithFS(fs filesystem) bool {
+	if checkCgroup(fs) {
+		return true
+	}
+
 	if val, ok := fs.LookupEnv("KUBERNETES_SERVICE_HOST"); ok && val != "" {
 		return true
 	}
@@ -32,7 +36,7 @@ func detectWithFS(fs filesystem) bool {
 		return true
 	}
 
-	return checkCgroup(fs)
+	return false
 }
 
 func checkCgroup(fs filesystem) bool {
