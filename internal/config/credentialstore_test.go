@@ -38,6 +38,7 @@ func (m *mockStore) GetTOTPSecret() (string, error) {
 func (m *mockStore) SetTOTPSecret(string) error { return nil }
 func (m *mockStore) Delete() error              { return nil }
 func (m *mockStore) Close()                     {}
+func (m *mockStore) IsOpen() bool               { return true }
 
 func TestLoadCredentialsFromStore_EnvVarPriority(t *testing.T) {
 	os.Setenv("USERNAME", "from-env")

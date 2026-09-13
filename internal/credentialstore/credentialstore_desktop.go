@@ -143,3 +143,9 @@ func (s *desktopStore) Delete() error {
 }
 
 func (s *desktopStore) Close() {}
+
+func (s *desktopStore) IsOpen() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.open
+}
