@@ -5,17 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/caarlos0/env/v10"
 	"github.com/spf13/pflag"
 )
-
-func loadEnv() (*Config, error) {
-	var cfg Config
-	if err := env.Parse(&cfg); err != nil {
-		return nil, fmt.Errorf("parse env vars: %w", err)
-	}
-	return &cfg, nil
-}
 
 func applyFlags(cfg *Config) error {
 	fs := pflag.NewFlagSet("app", pflag.ContinueOnError)

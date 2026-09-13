@@ -99,3 +99,7 @@ func (s *containerStore) Delete() error {
 }
 
 func (s *containerStore) Close() {}
+
+func (s *containerStore) IsOpen() bool {
+	return true
+}

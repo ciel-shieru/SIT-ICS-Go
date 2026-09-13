@@ -42,4 +42,5 @@ type Store interface {
 	SetTOTPSecret(secret string) error
 	Delete() error
 	Close()
+	IsOpen() bool
 }

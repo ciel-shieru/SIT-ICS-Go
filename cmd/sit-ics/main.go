@@ -10,6 +10,7 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
 	"github.com/ciel-shieru/sit-ics-go/internal/credentialstore"
+	"github.com/ciel-shieru/sit-ics-go/internal/credprompt"
 )
 
 func main() {
@@ -17,6 +18,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+
+	// Desktop builds: prompt for credentials interactively.
+	// Container builds: this is a no-op (build-tagged stub).
+	if err := credprompt.PromptIfNeeded(cfg); err != nil {
+		log.Fatalf("credential prompt: %v", err)
+	}
+
 	defer credentialstore.NewStore().Close()
 
 	loc, err := time.LoadLocation(cfg.TZ)
