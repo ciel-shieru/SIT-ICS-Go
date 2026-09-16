@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewStore(t *testing.T) {
-	defer resetForTesting()
+	defer ResetForTesting()
 	store := NewStore()
 	if store == nil {
 		t.Fatal("NewStore() returned nil")
@@ -17,7 +17,7 @@ func TestNewStore(t *testing.T) {
 }
 
 func TestGetNotFound(t *testing.T) {
-	defer resetForTesting()
+	defer ResetForTesting()
 	store := NewStore()
 	defer store.Close()
 
@@ -51,7 +51,7 @@ func TestGetNotFound(t *testing.T) {
 }
 
 func TestSetAndGet(t *testing.T) {
-	defer resetForTesting()
+	defer ResetForTesting()
 	store := NewStore()
 	defer store.Close()
 
@@ -99,7 +99,7 @@ func TestSetAndGet(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	defer resetForTesting()
+	defer ResetForTesting()
 	store := NewStore()
 	defer store.Close()
 
@@ -128,7 +128,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	defer resetForTesting()
+	defer ResetForTesting()
 	store := NewStore()
 	defer store.Close()
 
@@ -227,7 +227,7 @@ func TestDesktopUnavailable(t *testing.T) {
 }
 
 func TestContainerHasCredsGuard(t *testing.T) {
-	defer resetForTesting()
+	defer ResetForTesting()
 
 	store := NewStore()
 	defer store.Close()
