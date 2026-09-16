@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	// "time"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
@@ -35,12 +35,35 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 		return "", fmt.Errorf("navigate to timetable: %w", err)
 	}
 
-	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5000); err != nil {
-		debug(cfg, "wait stable failed: %v", err)
+	// Wait for navigation with context awareness
+	navDone := make(chan struct{})
+	go func() {
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		close(navDone)
+	}()
+
+	select {
+	case <-fetchCtx.Done():
+		return "", fmt.Errorf("navigate to timetable: %w", fetchCtx.Err())
+	case <-navDone:
 	}
 
-	if err := handleTermSelection(page, cfg); err != nil {
+	// Wait for stable with context awareness
+	stableDone := make(chan error)
+	go func() {
+		stableDone <- page.WaitStable(5000)
+	}()
+
+	select {
+	case <-fetchCtx.Done():
+		return "", fmt.Errorf("wait for stable: %w", fetchCtx.Err())
+	case err := <-stableDone:
+		if err != nil {
+			debug(cfg, "wait stable failed: %v", err)
+		}
+	}
+
+	if err := handleTermSelection(fetchCtx, page, cfg); err != nil {
 		return "", fmt.Errorf("handle term selection: %w", err)
 	}
 
@@ -59,10 +82,16 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 	}
 }
 
-func handleTermSelection(page *rod.Page, cfg BrowserConfig) error {
+func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
 	debug(cfg, "checking for term selection screen")
 
-	radioButtons, err := page.Elements("input[name^='SSR_DUMMY_RECV1$sels$']")
+	// Wait for term selection radio buttons to appear with timeout
+	_, err := page.Timeout(5 * time.Second).Element("input.PSRADIOBUTTON")
+	if err != nil {
+		return fmt.Errorf("term selection radio button not found: %w", err)
+	}
+
+	radioButtons, err := page.Elements("input.PSRADIOBUTTON")
 	if err != nil {
 		return fmt.Errorf("query term selection radio buttons: %w", err)
 	}
@@ -91,9 +120,33 @@ func handleTermSelection(page *rod.Page, cfg BrowserConfig) error {
 	}
 
 	debug(cfg, "waiting for navigation after term selection")
-	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5000); err != nil {
-		debug(cfg, "wait stable after term selection failed: %v", err)
+
+	// Wait for navigation after term selection with context awareness
+	navDone := make(chan struct{})
+	go func() {
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		close(navDone)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait navigation after term selection: %w", ctx.Err())
+	case <-navDone:
+	}
+
+	// Wait for stable with context awareness
+	stableDone := make(chan error)
+	go func() {
+		stableDone <- page.WaitStable(5000)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait stable after term selection: %w", ctx.Err())
+	case err := <-stableDone:
+		if err != nil {
+			debug(cfg, "wait stable after term selection failed: %v", err)
+		}
 	}
 
 	debug(cfg, "term selection handled successfully")
