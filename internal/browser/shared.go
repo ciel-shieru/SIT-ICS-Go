@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
@@ -61,57 +62,43 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
 	debug(cfg, "checking for term selection screen")
 
-	// Check if term selection table exists by evaluating in JS
-	var radioCount int
-	var evalErr error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				evalErr = fmt.Errorf("panic during term selection check: %v", r)
-			}
-		}()
-		_, evalErr = page.Eval(`() => {
-			const radios = document.querySelectorAll('input[name^="SSR_DUMMY_RECV1$sels$"]');
-			return radios.length;
-		}`, &radioCount)
-	}()
-	if evalErr != nil {
-		return fmt.Errorf("check term selection: %w", evalErr)
+	// Create a fresh context for term selection to avoid cancellation from the parent fetchCtx.
+	selectCtx, selectCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer selectCancel()
+	page = page.Context(selectCtx)
+
+	radioButtons, err := page.Elements("input[name^='SSR_DUMMY_RECV1$sels$']")
+	if err != nil {
+		return fmt.Errorf("query term selection radio buttons: %w", err)
 	}
 
-	if radioCount == 0 {
-		debug(cfg, "no term selection table detected, skipping")
+	if len(radioButtons) == 0 {
+		debug(cfg, "no term selection radio buttons found, skipping")
 		return nil
 	}
 
-	debug(cfg, "term selection detected with %d option(s)", radioCount)
+	debug(cfg, "found %d term selection radio button(s)", len(radioButtons))
 
-	// Select the LAST radio button via JavaScript
-	_, err := page.Eval(`() => {
-		const radios = document.querySelectorAll('input[name^="SSR_DUMMY_RECV1$sels$"]');
-		if (radios.length > 0) {
-			radios[radios.length - 1].click();
-		}
-	}`)
-	if err != nil {
-		return fmt.Errorf("select term radio button: %w", err)
+	lastRadio := radioButtons[len(radioButtons)-1]
+	debug(cfg, "selecting last radio button (index %d of %d)", len(radioButtons)-1, len(radioButtons))
+	if err := lastRadio.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return fmt.Errorf("click term selection radio button: %w", err)
 	}
-	debug(cfg, "selected last radio button via JS")
 
-	// Click Continue button via JavaScript
-	_, err = page.Eval(`() => {
-		const btn = document.querySelector('input[name="DERIVED_SSS_SCT_SSR_PB_GO"]');
-		if (btn) btn.click();
-	}`)
+	continueEl, err := page.Element("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
 	if err != nil {
+		return fmt.Errorf("find continue button: %w", err)
+	}
+
+	debug(cfg, "clicking continue button")
+	if err := continueEl.Click(proto.InputMouseButtonLeft, 1); err != nil {
 		return fmt.Errorf("click continue button: %w", err)
 	}
-	debug(cfg, "clicked continue button via JS")
 
-	// Wait for navigation and stability after Continue
+	debug(cfg, "waiting for navigation after term selection")
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 	if err := page.WaitStable(5000); err != nil {
-		debug(cfg, "wait stable after term selection: %v", err)
+		debug(cfg, "wait stable after term selection failed: %v", err)
 	}
 
 	debug(cfg, "term selection handled successfully")
