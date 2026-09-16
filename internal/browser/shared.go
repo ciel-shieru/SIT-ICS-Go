@@ -23,8 +23,16 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 	if page == nil {
 		return "", fmt.Errorf("no active page: authenticate first")
 	}
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("timetable fetch context already expired: %w", err)
+	}
 
 	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
+	defer fetchCancel()
+	page = page.Context(fetchCtx)
+	if deadline, ok := fetchCtx.Deadline(); ok {
+		debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
+	}
 	defer fetchCancel()
 
 	page = page.Context(fetchCtx)
@@ -84,7 +92,12 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 
 func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
 	debug(cfg, "checking for term selection screen")
-
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("term selection context already expired: %w", err)
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		debug(cfg, "term selection context deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
+	}
 	// Wait for term selection radio buttons to appear with timeout
 	_, err := page.Timeout(5 * time.Second).Element("input.PSRADIOBUTTON")
 	if err != nil {
