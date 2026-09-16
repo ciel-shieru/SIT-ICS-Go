@@ -40,7 +40,7 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 		debug(cfg, "wait stable failed: %v", err)
 	}
 
-	if err := handleTermSelection(ctx, page, cfg); err != nil {
+	if err := handleTermSelection(page, cfg); err != nil {
 		return "", fmt.Errorf("handle term selection: %w", err)
 	}
 
@@ -59,7 +59,7 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 	}
 }
 
-func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
+func handleTermSelection(page *rod.Page, cfg BrowserConfig) error {
 	debug(cfg, "checking for term selection screen")
 
 	radioButtons, err := page.Elements("input[name^='SSR_DUMMY_RECV1$sels$']")
