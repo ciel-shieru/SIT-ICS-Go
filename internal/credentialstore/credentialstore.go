@@ -23,9 +23,9 @@ var (
 	defaultStore Store
 )
 
-// resetForTesting clears the singleton so subsequent tests start fresh.
+// ResetForTesting clears the singleton so subsequent tests start fresh.
 // Only used in tests.
-func resetForTesting() {
+func ResetForTesting() {
 	once = sync.Once{}
 	defaultStore = nil
 }

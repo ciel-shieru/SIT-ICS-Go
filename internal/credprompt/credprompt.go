@@ -24,6 +24,12 @@ var ErrNonInteractive = fmt.Errorf("interactive credential prompt requires a ter
 func PromptIfNeeded(cfg *config.Config) error {
 	store := credentialstore.NewStore()
 
+	// Skip prompting if all three credentials already exist in the store,
+	// even if stdin is not a terminal (e.g., piped input, CI).
+	if hasAllCredentials(store) {
+		return nil
+	}
+
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
 		return ErrNonInteractive
@@ -142,6 +148,22 @@ func zeroBytes(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
+}
+
+// hasAllCredentials checks whether all three credentials exist in the store.
+// Returns true only if GetUsername, GetPassword, and GetTOTPSecret all return
+// non-empty strings with no errors. Any error or empty value is treated as missing.
+func hasAllCredentials(store credentialstore.Store) bool {
+	if u, err := store.GetUsername(); err != nil || u == "" {
+		return false
+	}
+	if p, err := store.GetPassword(); err != nil || p == "" {
+		return false
+	}
+	if t, err := store.GetTOTPSecret(); err != nil || t == "" {
+		return false
+	}
+	return true
 }
 
 
