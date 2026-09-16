@@ -16,7 +16,19 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/server"
 )
 
-const FetchTimeout = 5 * time.Minute
+const (
+	// FetchTimeout is the maximum duration of an individual browser-backed
+	// operation. Authentication and subsequent data fetches must not share one
+	// already-running deadline.
+	FetchTimeout = 5 * time.Minute
+
+	// TimetableFetchTimeout is independent of the authentication timeout. The
+	// browser itself applies the tighter NavigationTimeout to the actual
+	// PeopleSoft navigation.
+	TimetableFetchTimeout = 5 * time.Minute
+
+	BrightSpaceFetchTimeout = 5 * time.Minute
+)
 
 type App struct {
 	cfg      *config.Config

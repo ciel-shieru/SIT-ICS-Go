@@ -15,23 +15,33 @@ import (
 
 func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.ICSCache, loc *time.Location) {
 	log.Printf("scheduler: starting timetable fetch")
-	ctx, cancel := context.WithTimeout(context.Background(), FetchTimeout)
-	defer cancel()
 
-	_, err := provider.Authenticate(ctx, auth.AuthRequest{
+	// Authentication is its own operation. Do not reuse its context for the
+	// subsequent PeopleSoft timetable fetch: a slow MFA/SAML flow can consume
+	// most or all of the deadline before the timetable page is even opened.
+	authCtx, authCancel := context.WithTimeout(context.Background(), FetchTimeout)
+	started := time.Now()
+	_, err := provider.Authenticate(authCtx, auth.AuthRequest{
 		Username:      cfg.Username,
 		Password:      cfg.Password,
 		TOTPSecret:    cfg.TOTPSecret,
 		PeopleSoftURL: "https://in4sit.singaporetech.edu.sg/",
 	})
+	authCancel()
+
 	if err != nil {
 		log.Printf("scheduler: auth failed: %v", err)
 		return
 	}
 
-	log.Printf("scheduler: auth successful, fetching timetable")
+	log.Printf("scheduler: auth successful after %s, fetching timetable", time.Since(started).Round(time.Millisecond))
 
-	entries, err := provider.FetchTimetable(ctx, "", loc)
+	// Start a fresh deadline for timetable fetching. This is the critical fix:
+	// the PeopleSoft page must not inherit an authentication deadline that may
+	// already be expired or nearly expired.
+	timetableCtx, timetableCancel := context.WithTimeout(context.Background(), TimetableFetchTimeout)
+	entries, err := provider.FetchTimetable(timetableCtx, "", loc)
+	timetableCancel()
 	if err != nil {
 		log.Printf("scheduler: fetch failed: %v", err)
 		return
@@ -70,7 +80,9 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 			log.Printf("scheduler: deleted %d blocked brightspace events from cache", deleted)
 		}
 
-		bsEntries, err := provider.FetchBrightSpace(ctx, cfg.BrightSpaceBaseURL)
+		brightSpaceCtx, brightSpaceCancel := context.WithTimeout(context.Background(), BrightSpaceFetchTimeout)
+		bsEntries, err := provider.FetchBrightSpace(brightSpaceCtx, cfg.BrightSpaceBaseURL)
+		brightSpaceCancel()
 		if err != nil {
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
