@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
+	// "time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
@@ -61,11 +61,6 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 
 func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
 	debug(cfg, "checking for term selection screen")
-
-	// Create a fresh context for term selection to avoid cancellation from the parent fetchCtx.
-	selectCtx, selectCancel := context.WithTimeout(ctx, 15*time.Second)
-	defer selectCancel()
-	page = page.Context(selectCtx)
 
 	radioButtons, err := page.Elements("input[name^='SSR_DUMMY_RECV1$sels$']")
 	if err != nil {
