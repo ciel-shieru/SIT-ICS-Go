@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/ciel-shieru/sit-ics-go/internal/environment"
@@ -12,11 +13,12 @@ import (
 )
 
 type LocalBrowser struct {
-	cfg         BrowserConfig
-	launcherURL string
-	browser     *rod.Browser
-	incognito   *rod.Browser
-	page        *rod.Page
+	cfg           BrowserConfig
+	launcherURL   string
+	browser       *rod.Browser
+	incognito     *rod.Browser
+	page          *rod.Page
+	browserCancel context.CancelFunc
 }
 
 func NewLocalBrowser(cfg BrowserConfig) (*LocalBrowser, error) {
@@ -33,14 +35,34 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	}
 	b.launcherURL = launcherURL
 
-	connectCtx, connectCancel := context.WithTimeout(authCtx, b.cfg.ConnectTimeout)
-	defer connectCancel()
+	// The Rod browser/page object must outlive the authentication operation.
+	// AuthenticateADFS derives a short-lived page context from this browser,
+	// while Rod's page root remains tied to the browser's session context.
+	// Therefore the connection context must not inherit authCtx or expire after
+	// ConnectTimeout; otherwise later Click()/Hover()/WaitStableRAF() calls can
+	// observe context.Canceled through the page root.
+	browserCtx, browserCancel := context.WithCancel(context.Background())
+	connectCtx, connectCancel := context.WithCancel(browserCtx)
+	var connectTimer *time.Timer
+	if b.cfg.ConnectTimeout > 0 {
+		connectTimer = time.AfterFunc(b.cfg.ConnectTimeout, connectCancel)
+	}
 
 	b.browser = rod.New().ControlURL(launcherURL).Context(connectCtx)
 	if err := b.browser.Connect(); err != nil {
+		if connectTimer != nil {
+			connectTimer.Stop()
+		}
+		connectCancel()
+		browserCancel()
 		debug(b.cfg, "connect failed: %v", err)
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
 	}
+	if connectTimer != nil {
+		connectTimer.Stop()
+	}
+	b.browserCancel = browserCancel
+	_ = connectCancel
 	debug(b.cfg, "connected to browser")
 
 	var incognito *rod.Browser
@@ -59,6 +81,8 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	page, err := AuthenticateADFS(authCtx, incognito, req, true, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
+		browserCancel()
+		b.browser = nil
 		return AuthResult{}, err
 	}
 	b.page = page
@@ -95,6 +119,10 @@ func (b *LocalBrowser) Close() {
 		})
 		b.browser = nil
 		b.page = nil
+	}
+	if b.browserCancel != nil {
+		b.browserCancel()
+		b.browserCancel = nil
 	}
 }
 

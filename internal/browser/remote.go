@@ -21,6 +21,7 @@ type RemoteBrowser struct {
 	incognito     *rod.Browser
 	page          *rod.Page
 	pageTargetID  proto.TargetTargetID
+	browserCancel context.CancelFunc
 }
 
 // resolveHost resolves an FQDN to its IP address for use in HTTP requests
@@ -108,23 +109,43 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	authCtx, authCancel := context.WithTimeout(ctx, b.cfg.AuthTimeout)
 	defer authCancel()
 
-	connectCtx, connectCancel := context.WithTimeout(authCtx, b.cfg.ConnectTimeout)
-	defer connectCancel()
-
+	// Keep the browser/session context alive for the lifetime of the browser.
+	// ADFS authentication gets a short-lived child context, but the underlying
+	// Rod page root must not inherit that deadline/cancellation.
+	browserCtx, browserCancel := context.WithCancel(context.Background())
+	connectCtx, connectCancel := context.WithCancel(browserCtx)
+	var connectTimer *time.Timer
+	if b.cfg.ConnectTimeout > 0 {
+		connectTimer = time.AfterFunc(b.cfg.ConnectTimeout, connectCancel)
+	}
 	// Discover the WebSocket URL fresh on every Authenticate() call.
 	// The webSocketDebuggerUrl contains a per-session UUID that may change
 	// when Chromium restarts or new sessions are created.
 	// Use the resolved IP address to avoid Chromium's 500 error on FQDN hosts.
 	wsURL, err := discoverWebSocketURL(connectCtx, b.resolvedHost, b.cfg.RemotePort, b.cfg.ConnectTimeout)
 	if err != nil {
+		if connectTimer != nil {
+			connectTimer.Stop()
+		}
+		connectCancel()
+		browserCancel()
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
 	}
-
 	b.browser = rod.New().ControlURL(wsURL).Context(connectCtx)
 	if err := b.browser.Connect(); err != nil {
+		if connectTimer != nil {
+			connectTimer.Stop()
+		}
+		connectCancel()
+		browserCancel()
 		debug(b.cfg, "connect failed: %v", err)
 		return AuthResult{}, fmt.Errorf("%w: %v", ErrBrowserConnect, err)
 	}
+	if connectTimer != nil {
+		connectTimer.Stop()
+	}
+	b.browserCancel = browserCancel
+	_ = connectCancel
 	debug(b.cfg, "connected to remote browser via %s", wsURL)
 
 	var incognito *rod.Browser
@@ -144,6 +165,8 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	page, err := AuthenticateADFS(authCtx, incognito, req, false, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
+		browserCancel()
+		b.browser = nil
 		return AuthResult{}, err
 	}
 	b.page = page
@@ -203,6 +226,10 @@ func (b *RemoteBrowser) Close() {
 			b.browser.Close()
 		})
 		b.browser = nil
+	}
+	if b.browserCancel != nil {
+		b.browserCancel()
+		b.browserCancel = nil
 	}
 }
 
