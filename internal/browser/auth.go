@@ -138,7 +138,15 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	finalURL = getPageURL(page)
 	debug(cfg, "auth complete, final URL: %s", finalURL)
 
-	return page, nil
+	// The authentication context belongs only to the authentication operation.
+	// Do not return a page whose context is tied to that operation, because the
+	// caller is expected to cancel ctx immediately after Authenticate returns.
+	//
+	// Rod's Context creates a shallow clone, so this detaches the authenticated
+	// page's operation context while keeping the same underlying browser target,
+	// session and cookies. Subsequent operations attach their own bounded context
+	// with page.Context(...).
+	return page.Context(context.Background()), nil
 }
 
 // ExtractADFSLoginError extracts the error message from an ADFS login page.
