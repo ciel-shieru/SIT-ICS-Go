@@ -33,9 +33,6 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 	if deadline, ok := fetchCtx.Deadline(); ok {
 		debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
 	}
-	defer fetchCancel()
-
-	page = page.Context(fetchCtx)
 
 	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
 	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
@@ -99,12 +96,16 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 		debug(cfg, "term selection context deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
 	}
 	// Wait for term selection radio buttons to appear with timeout
-	_, err := page.Timeout(5 * time.Second).Element("input.PSRADIOBUTTON")
+	termCtx, termCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer termCancel()
+	termPage := page.Context(termCtx)
+
+	_, err := termPage.Element("input.PSRADIOBUTTON")
 	if err != nil {
 		return fmt.Errorf("term selection radio button not found: %w", err)
 	}
 
-	radioButtons, err := page.Elements("input.PSRADIOBUTTON")
+	radioButtons, err := termPage.Elements("input.PSRADIOBUTTON")
 	if err != nil {
 		return fmt.Errorf("query term selection radio buttons: %w", err)
 	}
