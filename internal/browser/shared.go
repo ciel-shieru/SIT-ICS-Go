@@ -27,62 +27,49 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 		return "", fmt.Errorf("timetable fetch context already expired: %w", err)
 	}
 
-	// Keep the timetable operation alive for the caller-provided timetable
-	// deadline. The individual initial navigation below gets its own shorter
-	// NavigationTimeout; PeopleSoft's post-term-selection rendering can take
-	// substantially longer than that.
-	fetchCtx, fetchCancel := context.WithCancel(ctx)
+	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
 	defer fetchCancel()
 	page = page.Context(fetchCtx)
+	if deadline, ok := fetchCtx.Deadline(); ok {
+		debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
+	}
+
 	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
 	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
-
-	initialNavCtx, initialNavCancel := context.WithTimeout(fetchCtx, cfg.NavigationTimeout)
-	initialNavPage := page.Context(initialNavCtx)
-	if deadline, ok := initialNavCtx.Deadline(); ok {
-		debug(cfg, "initial timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
-	}
-	if err := initialNavPage.Navigate(timetableURL); err != nil {
-		initialNavCancel()
+	if err := page.Navigate(timetableURL); err != nil {
 		return "", fmt.Errorf("navigate to timetable: %w", err)
 	}
 
 	// Wait for navigation with context awareness
 	navDone := make(chan struct{})
 	go func() {
-		initialNavPage.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 		close(navDone)
 	}()
+
 	select {
-	case <-initialNavCtx.Done():
-		initialNavCancel()
-		return "", fmt.Errorf("navigate to timetable: %w", initialNavCtx.Err())
+	case <-fetchCtx.Done():
+		return "", fmt.Errorf("navigate to timetable: %w", fetchCtx.Err())
 	case <-navDone:
 	}
 
 	// Wait for stable with context awareness
 	stableDone := make(chan error)
 	go func() {
-		initialNavPage.WaitStable(5000)
+		stableDone <- page.WaitStable(5000)
 	}()
 
 	select {
-	case <-initialNavCtx.Done():
-		initialNavCancel()
-		return "", fmt.Errorf("wait for stable: %w", initialNavCtx.Err())
+	case <-fetchCtx.Done():
+		return "", fmt.Errorf("wait for stable: %w", fetchCtx.Err())
 	case err := <-stableDone:
 		if err != nil {
 			debug(cfg, "wait stable failed: %v", err)
 		}
 	}
-	initialNavCancel()
 
 	if err := handleTermSelection(fetchCtx, page, cfg); err != nil {
 		return "", fmt.Errorf("handle term selection: %w", err)
-	}
-
-	if err := waitForTimetableDOM(fetchCtx, page, cfg); err != nil {
-		return "", fmt.Errorf("wait for timetable DOM: %w", err)
 	}
 
 	htmlStr, err := page.HTML()
@@ -97,35 +84,6 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 func debug(cfg BrowserConfig, msg string, args ...any) {
 	if cfg.Debug {
 		log.Printf("browser: "+msg, args...)
-	}
-}
-
-func waitForTimetableDOM(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
-	debug(cfg, "waiting for timetable table to render")
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		var ready bool
-		obj, err := page.Eval(`() => Array.from(document.querySelectorAll('table')).some((table) => {
-			const firstRow = table.querySelector('tr');
-			if (!firstRow) return false;
-			const cells = firstRow.querySelectorAll('td, th');
-			return cells.length >= 7 && (cells[0].textContent || '').includes('Class Nbr');
-		})`)
-		if err == nil {
-			err = obj.Value.Unmarshal(&ready)
-		}
-		if err == nil && ready {
-			debug(cfg, "timetable table rendered")
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
 	}
 }
 
@@ -175,11 +133,37 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 		return fmt.Errorf("click continue button: %w", err)
 	}
 
-	// Do not wait for PeopleSoft network idle here. Continue.Click has already
-	// performed the requested browser interaction successfully. The resulting
-	// timetable page is awaited by fetchTimetable using the actual DOM condition
-	// consumed by the parser.
-	debug(cfg, "term selection submitted successfully")
+	debug(cfg, "waiting for navigation after term selection")
+
+	// Wait for navigation after term selection with context awareness
+	navDone := make(chan struct{})
+	go func() {
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		close(navDone)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait navigation after term selection: %w", ctx.Err())
+	case <-navDone:
+	}
+
+	// Wait for stable with context awareness
+	stableDone := make(chan error)
+	go func() {
+		stableDone <- page.WaitStable(5000)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait stable after term selection: %w", ctx.Err())
+	case err := <-stableDone:
+		if err != nil {
+			debug(cfg, "wait stable after term selection failed: %v", err)
+		}
+	}
+
+	debug(cfg, "term selection handled successfully")
 	return nil
 }
 
