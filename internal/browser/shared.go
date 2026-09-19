@@ -133,19 +133,22 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 		return fmt.Errorf("click continue button: %w", err)
 	}
 
-	debug(cfg, "waiting for navigation after term selection")
+	debug(cfg, "waiting for timetable data to load after term selection")
 
-	// Wait for navigation after term selection with context awareness
-	navDone := make(chan struct{})
+	// Wait for timetable table/grid to appear (ICAJAX partial refresh, not navigation)
+	// PeopleSoft renders the timetable as a table within the page container
+	waitDone := make(chan error)
 	go func() {
-		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		close(navDone)
+		waitDone <- page.Wait(rod.Eval("() => document.querySelectorAll('table.PSLEVEL1GRID').length > 0"))
 	}()
 
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("wait navigation after term selection: %w", ctx.Err())
-	case <-navDone:
+		return fmt.Errorf("wait for timetable data: %w", ctx.Err())
+	case err := <-waitDone:
+		if err != nil {
+			return fmt.Errorf("wait for timetable data: %w", err)
+		}
 	}
 
 	// Wait for stable with context awareness
