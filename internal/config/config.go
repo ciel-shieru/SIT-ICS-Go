@@ -15,6 +15,7 @@ type Config struct {
 	TZ                                string        `env:"TZ" envDefault:"Asia/Singapore"`
 	FetchCron                         string        `env:"FETCH_CRON" envDefault:"0 1 * * *"`
 	ServerPort                        int           `env:"SERVER_PORT" envDefault:"8080"`
+	ServerAddr                        string        `env:"SERVER_ADDR" envDefault:""`
 	ICSStoragePath                    string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
 	ICSOnlinePath                     string        `env:"ICS_ONLINE_PATH" envDefault:"./timetable-online.ics"`
 	ICSCampusPath                     string        `env:"ICS_CAMPUS_PATH" envDefault:"./timetable-campus.ics"`

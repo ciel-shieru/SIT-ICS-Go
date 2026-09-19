@@ -76,7 +76,7 @@ func (a *App) Run() error {
 		a.cfg.BrightSpaceDropboxAlerts,
 		a.cfg.BrightSpaceQuizzesAlerts,
 	)
-	a.srv = server.NewServer(a.cfg.ServerPort, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts)
+	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts)
 	go func() { _ = a.srv.Start() }()
 
 	sigChan := make(chan os.Signal, 1)

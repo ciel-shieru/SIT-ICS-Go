@@ -15,6 +15,7 @@ func applyFlags(cfg *Config) error {
 	tz := fs.String("tz", "", "Timezone (IANA name)")
 	fetchCron := fs.String("fetch-cron", "", "Cron schedule for fetches")
 	serverPort := fs.Int("server-port", 0, "HTTP server port")
+	serverAddr := fs.String("server-addr", "", "HTTP server bind address (e.g. 127.0.0.1, 0.0.0.0)")
 	icsStoragePath := fs.String("ics-storage-path", "", "Path to main ICS file")
 	icsOnlinePath := fs.String("ics-online-path", "", "Path to online-only ICS file")
 	icsCampusPath := fs.String("ics-campus-path", "", "Path to campus-only ICS file")
@@ -66,6 +67,9 @@ func applyFlags(cfg *Config) error {
 	}
 	if fs.Lookup("server-port").Changed {
 		cfg.ServerPort = *serverPort
+	}
+	if fs.Lookup("server-addr").Changed {
+		cfg.ServerAddr = *serverAddr
 	}
 	if fs.Lookup("ics-storage-path").Changed {
 		cfg.ICSStoragePath = *icsStoragePath

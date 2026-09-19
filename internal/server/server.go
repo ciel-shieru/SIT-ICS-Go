@@ -6,10 +6,12 @@ import (
 	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
+	"github.com/ciel-shieru/sit-ics-go/internal/config"
 )
 
 type Server struct {
 	port            int
+	serverAddr      string
 	cache           *calendar.ICSCache
 	tz              string
 	refreshInterval time.Duration
@@ -21,9 +23,10 @@ type Server struct {
 	bsQuizzesAlerts []calendar.Alert
 }
 
-func NewServer(port int, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert) *Server {
+func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert) *Server {
 	return &Server{
 		port:            port,
+		serverAddr:      serverAddr,
 		cache:           cache,
 		tz:              tz,
 		refreshInterval: refreshInterval,
@@ -44,7 +47,11 @@ func (s *Server) Start() error {
 	http.HandleFunc("/brightspace-dropbox.ics", newBrightSpaceDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts))
 	http.HandleFunc("/quizzes.ics", newBrightSpaceQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts))
 
-	addr := fmt.Sprintf(":%d", s.port)
+	addr := s.serverAddr
+	if addr == "" {
+		addr = config.DefaultServerAddr()
+	}
+	addr = fmt.Sprintf("%s:%d", addr, s.port)
 	fmt.Printf("server: starting on %s\n", addr)
 	return http.ListenAndServe(addr, nil)
 }

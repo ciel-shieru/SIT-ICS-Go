@@ -78,6 +78,34 @@ func TestValidate_Timezone(t *testing.T) {
 	}
 }
 
+func TestValidate_ServerAddr(t *testing.T) {
+	tests := []struct {
+		name    string
+		addr    string
+		wantErr bool
+	}{
+		{"empty", "", false},
+		{"loopback", "127.0.0.1", false},
+		{"all_interfaces", "0.0.0.0", false},
+		{"ipv6_loopback", "::1", false},
+		{"ipv6_all", "::", false},
+		{"with_port", "127.0.0.1:8080", false},
+		{"ipv6_with_port", "[::1]:8080", false},
+		{"invalid_ip", "not_an_ip", true},
+		{"hostname", "localhost", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{BrowserMode: BrowserAuto, TZ: "Asia/Singapore", ServerPort: 8080, ServerAddr: tt.addr}
+			err := Validate(cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidate_ValidConfig(t *testing.T) {
 	cfg := &Config{
 		BrowserMode: BrowserAuto,

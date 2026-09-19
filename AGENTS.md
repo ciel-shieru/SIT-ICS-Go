@@ -85,6 +85,7 @@ All via env vars with CLI flag override (flags take priority):
 | `TZ` | Asia/Singapore | IANA timezone |
 | `FETCH_CRON` | `0 1 * * *` | Cron schedule for fetches |
 | `SERVER_PORT` | 8080 | HTTP listen port |
+| `SERVER_ADDR` | `127.0.0.1` (desktop) / `0.0.0.0` (container) | HTTP server bind address |
 | `ICS_STORAGE_PATH` | ./timetable.ics | Main ICS file (for disk load) |
 | `ICS_ONLINE_PATH` | ./timetable-online.ics | Online-only events ICS |
 | `ICS_CAMPUS_PATH` | ./timetable-campus.ics | Campus-only events ICS (excludes BrightSpace) |
@@ -123,6 +124,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Browser lifecycle** — browser stays open after `Authenticate()` for `FetchTimetable()` and `FetchBrightSpace()`. Always call `browser.Close()` on shutdown.
 - **5 ICS output files** — main, online, campus, brightspace-events, brightspace-dropbox. `IsCampus` excludes BrightSpace events (ADR-0013).
 - **Server endpoints** — 5 HTTP handlers match the 5 output files (ADR-0014).
+- **Server bind address**: Desktop builds (`!container`) default to `127.0.0.1` (loopback only). Container builds (`container`) default to `0.0.0.0` (all interfaces). Override via `SERVER_ADDR` env var or `--server-addr` CLI flag.
 
 ## Gotchas
 - **Rod API**: `page.Element()` returns `(*Element, error)` — not chainable. `element.Click(proto.InputMouseButtonLeft, 1)` uses proto params. `element.Input()`, `element.Visible()` return `(error)` or `(bool, error)`. Never use `page.MustQuery()` (does not exist).
