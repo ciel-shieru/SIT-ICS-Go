@@ -11,8 +11,6 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-
-
 func getPageURL(page *rod.Page) string {
 	var url string
 	page.Eval("() => window.location.href", &url)
@@ -137,18 +135,8 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 
 	// Wait for timetable table/grid to appear (ICAJAX partial refresh, not navigation)
 	// PeopleSoft renders the timetable as a table within the page container
-	waitDone := make(chan error)
-	go func() {
-		waitDone <- page.Wait(rod.Eval("() => document.querySelectorAll('table.PSLEVEL1GRID').length > 0"))
-	}()
-
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("wait for timetable data: %w", ctx.Err())
-	case err := <-waitDone:
-		if err != nil {
-			return fmt.Errorf("wait for timetable data: %w", err)
-		}
+	if err := page.Wait(rod.Eval("() => document.querySelectorAll('table.PSGROUPBOXWBO').length > 0")); err != nil {
+		return fmt.Errorf("wait for timetable data: %w", err)
 	}
 
 	// Wait for stable with context awareness
