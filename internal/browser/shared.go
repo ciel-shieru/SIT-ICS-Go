@@ -27,45 +27,52 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 		return "", fmt.Errorf("timetable fetch context already expired: %w", err)
 	}
 
-	// Keep the caller's full timetable deadline for the whole operation.
-	// Only the initial PeopleSoft navigation gets the shorter browser navigation
-	// timeout. Applying NavigationTimeout to the entire fetch also limits the
-	// subsequent term-selection/timetable rendering to 30 seconds.
-	fetchPage := page.Context(ctx)
+	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
+	defer fetchCancel()
+	page = page.Context(fetchCtx)
+	if deadline, ok := fetchCtx.Deadline(); ok {
+		debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
+	}
+
 	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
 	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
-	navCtx, navCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	defer navCancel()
-	navPage := fetchPage.Context(navCtx)
-	if deadline, ok := navCtx.Deadline(); ok {
-		debug(cfg, "initial timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
-	}
-	if err := navPage.Navigate(timetableURL); err != nil {
+	if err := page.Navigate(timetableURL); err != nil {
 		return "", fmt.Errorf("navigate to timetable: %w", err)
 	}
 
 	// Wait for navigation with context awareness
 	navDone := make(chan struct{})
 	go func() {
-		navPage.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 		close(navDone)
 	}()
 
 	select {
-	case <-navCtx.Done():
-		return "", fmt.Errorf("navigate to timetable: %w", navCtx.Err())
+	case <-fetchCtx.Done():
+		return "", fmt.Errorf("navigate to timetable: %w", fetchCtx.Err())
 	case <-navDone:
 	}
 
-	if err := handleTermSelection(ctx, fetchPage, cfg); err != nil {
+	// Wait for stable with context awareness
+	stableDone := make(chan error)
+	go func() {
+		stableDone <- page.WaitStable(5000)
+	}()
+
+	select {
+	case <-fetchCtx.Done():
+		return "", fmt.Errorf("wait for stable: %w", fetchCtx.Err())
+	case err := <-stableDone:
+		if err != nil {
+			debug(cfg, "wait stable failed: %v", err)
+		}
+	}
+
+	if err := handleTermSelection(fetchCtx, page, cfg); err != nil {
 		return "", fmt.Errorf("handle term selection: %w", err)
 	}
 
-	if err := waitForTimetableDOM(ctx, fetchPage, cfg); err != nil {
-		return "", fmt.Errorf("wait for timetable DOM: %w", err)
-	}
-
-	htmlStr, err := fetchPage.HTML()
+	htmlStr, err := page.HTML()
 	if err != nil {
 		return "", fmt.Errorf("get page HTML: %w", err)
 	}
@@ -126,39 +133,38 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 		return fmt.Errorf("click continue button: %w", err)
 	}
 
-	debug(cfg, "term selection submitted successfully")
-	return nil
-}
+	debug(cfg, "waiting for navigation after term selection")
 
-func waitForTimetableDOM(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
-	const pollInterval = 250 * time.Millisecond
-	for {
-		var ready bool
-		if _, err := page.Eval(`() => Array.from(document.querySelectorAll('table')).some(table => {
-			const row = table.querySelector('tr');
-			if (!row) return false;
-			const cells = row.querySelectorAll('td, th');
-			if (cells.length < 7) return false;
-			return (cells[0].textContent || '').includes('Class Nbr');
-		})`, &ready); err != nil {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			return fmt.Errorf("check timetable DOM: %w", err)
-		}
-		if ready {
-			debug(cfg, "timetable DOM is ready")
-			return nil
-		}
+	// Wait for navigation after term selection with context awareness
+	navDone := make(chan struct{})
+	go func() {
+		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		close(navDone)
+	}()
 
-		timer := time.NewTimer(pollInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait navigation after term selection: %w", ctx.Err())
+	case <-navDone:
+	}
+
+	// Wait for stable with context awareness
+	stableDone := make(chan error)
+	go func() {
+		stableDone <- page.WaitStable(5000)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait stable after term selection: %w", ctx.Err())
+	case err := <-stableDone:
+		if err != nil {
+			debug(cfg, "wait stable after term selection failed: %v", err)
 		}
 	}
+
+	debug(cfg, "term selection handled successfully")
+	return nil
 }
 
 func extractPageText(page *rod.Page) (result string, err error) {
