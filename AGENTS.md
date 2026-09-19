@@ -42,12 +42,12 @@ internal/peoplesoft/             # Entry struct + HTML parser
 internal/calendar/               # RFC 5545 writer + in-memory cache with disk upsert
   event.go     # Event struct: UID, DTStart, DTEnd, Summary, Location, Source, etc.
   render.go    # Render(), EventID() — custom ICS writer, deterministic UID via SHA-256
-  cache.go     # ICSCache: RWMutex, Update (non-destructive merge), SaveOutputs (5 files)
+  cache.go     # ICSCache: RWMutex, Update (non-destructive merge), SaveOutputs (7 files)
   persistence.go # writeAtomic (tmp+rename), parseICS (round-trip reader)
   projection.go  # IsOnline, IsNotOnline, IsCampus (excludes BrightSpace), filterEvents
 
-internal/server/                 # stdlib net/http, 5 ICS endpoints
-  server.go    # NewServer() — registers /timetable.ics, /timetable-online.ics, /timetable-campus.ics, /brightspace-events.ics, /brightspace-dropbox.ics
+internal/server/                 # stdlib net/http, 7 ICS endpoints
+  server.go    # NewServer() — registers /timetable.ics, /timetable-online.ics, /timetable-campus.ics, /xsite-events.ics, /xsite-dropbox.ics, /xsite-quizzes.ics, /xsite.ics
   handlers.go  # newFilteredHandler() — nil filter = all events
 
 internal/scheduler/              # robfig/cron/v3 with configured TZ
@@ -72,7 +72,7 @@ Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   5. (if BrightSpace enabled) provider.FetchBrightSpace(ctx, baseURL) → []BrightSpaceEntry → calendar.Event
   6. (if BrightSpace enabled) cache.RemoveWhere(blocklist.Matches) — delete blocked events
   7. cache.Update(icsEvents, tz) — non-destructive merge by UID
-  8. cache.SaveOutputs(5 paths) — atomic write main, online, campus, brightspace-events, brightspace-dropbox
+   8. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite
 ```
 
 ## Configuration
@@ -89,8 +89,10 @@ All via env vars with CLI flag override (flags take priority):
 | `ICS_STORAGE_PATH` | ./timetable.ics | Main ICS file (for disk load) |
 | `ICS_ONLINE_PATH` | ./timetable-online.ics | Online-only events ICS |
 | `ICS_CAMPUS_PATH` | ./timetable-campus.ics | Campus-only events ICS (excludes BrightSpace) |
-| `BRIGHTSPACE_EVENTS_PATH` | ./brightspace-events.ics | BrightSpace calendar events ICS |
-| `BRIGHTSPACE_DROPBOX_PATH` | ./brightspace-dropbox.ics | BrightSpace dropbox due dates ICS |
+| `XSITE_EVENTS_PATH` | ./xsite-events.ics | xsite calendar events ICS |
+| `XSITE_DROPBOX_PATH` | ./xsite-dropbox.ics | xsite dropbox due dates ICS |
+| `XSITE_QUIZZES_PATH` | ./xsite-quizzes.ics | xsite quizzes ICS |
+| `XSITE_PATH` | ./xsite.ics | xsite combo ICS (all brightspace sources) |
 | `BROWSER_MODE` | auto | auto/system/rod/remote |
 | `BROWSER_EXECUTABLE` | — | Explicit browser binary path |
 | `BROWSER_REMOTE_HOST` | — | Remote browser host (IP or FQDN) |
@@ -100,7 +102,6 @@ All via env vars with CLI flag override (flags take priority):
 | `PROXY_URL` | — | SOCKS5 proxy URL |
 | `ICS_REFRESH_INTERVAL` | 1h | ICS REFRESH-INTERVAL property (RFC 7986 DURATION) |
 | `BRIGHTSPACE_ENABLED` | false | Enable BrightSpace D2L extraction |
-| `BRIGHTSPACE_BASE_URL` | https://xsite.singaporetech.edu.sg | BrightSpace D2L base URL |
 | `BRIGHTSPACE_API_KEY` | — | BrightSpace API key (unused for browser fetch) |
 | `BRIGHTSPACE_API_SECRET` | — | BrightSpace API secret (unused for browser fetch) |
 | `BRIGHTSPACE_COURSE_NAME_BLOCKLIST` | — | Comma-separated course name patterns to block |
@@ -122,8 +123,8 @@ All via env vars with CLI flag override (flags take priority):
 - **Cookie extraction** — extracts cookies from `*.singaporetech.edu.sg` domains. Tries current page first, falls back to `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.
 - **Browser-based fetch** — `fetchTimetable()` navigates to `SSR_SSENRL_LIST.GBL`, waits for stable, extracts full HTML via `page.HTML()`. Returns all scheduled classes in one response (ADR-0012).
 - **Browser lifecycle** — browser stays open after `Authenticate()` for `FetchTimetable()` and `FetchBrightSpace()`. Always call `browser.Close()` on shutdown.
-- **5 ICS output files** — main, online, campus, brightspace-events, brightspace-dropbox. `IsCampus` excludes BrightSpace events (ADR-0013).
-- **Server endpoints** — 5 HTTP handlers match the 5 output files (ADR-0014).
+- **7 ICS output files** — main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite. `IsCampus` excludes BrightSpace events (ADR-0013).
+- **Server endpoints** — 7 HTTP handlers match the 7 output files (ADR-0014).
 - **Server bind address**: Desktop builds (`!container`) default to `127.0.0.1` (loopback only). Container builds (`container`) default to `0.0.0.0` (all interfaces). Override via `SERVER_ADDR` env var or `--server-addr` CLI flag.
 
 ## Gotchas
@@ -135,7 +136,7 @@ All via env vars with CLI flag override (flags take priority):
 - **peoplesoft.ExtractYear("")** returns current year — the `year` param is effectively unused.
 - **Scheduler.New(tz)** returns `(*Scheduler, error)` — validates timezone.
 - **Remote browser discovery**: For `remote` mode, WebSocket URL discovered at runtime via `http://host:port/json/version/`. Per-session UUID changes on Chromium restart — discover fresh on every `Authenticate()` call.
-- **Shutdown**: Signal handler waits for in-flight fetch (30s timeout), stops scheduler, closes browser, then calls `cache.SaveOutputs()` for all 5 paths.
+- **Shutdown**: Signal handler waits for in-flight fetch (30s timeout), stops scheduler, closes browser, then calls `cache.SaveOutputs()` for all 7 paths.
 - **ICS UID format**: `SHA-256(summary-location-date-start-end)` for PeopleSoft events; `SHA-256(source-summary-location-date-start-end)` for BrightSpace events (source prefix). Changing any component breaks idempotency.
 - **App.Fetch() is reentrant-guarded**: Uses mutex + `fetching` flag to prevent concurrent fetches.
 - **Events sorted deterministically**: Primary by DTStart, secondary by Location, tiebreaker by UID.

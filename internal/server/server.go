@@ -43,9 +43,10 @@ func (s *Server) Start() error {
 	http.HandleFunc("/timetable.ics", newTimetableHandler(s.cache, s.tz, s.refreshInterval, s.mainAlerts))
 	http.HandleFunc("/timetable-online.ics", newOnlineHandler(s.cache, s.tz, s.refreshInterval, s.onlineAlerts))
 	http.HandleFunc("/timetable-campus.ics", newCampusHandler(s.cache, s.tz, s.refreshInterval, s.campusAlerts))
-	http.HandleFunc("/brightspace-events.ics", newBrightSpaceEventsHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts))
-	http.HandleFunc("/brightspace-dropbox.ics", newBrightSpaceDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts))
-	http.HandleFunc("/quizzes.ics", newBrightSpaceQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts))
+	http.HandleFunc("/xsite-events.ics", newXsiteEventsHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts))
+	http.HandleFunc("/xsite-dropbox.ics", newXsiteDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts))
+	http.HandleFunc("/xsite-quizzes.ics", newXsiteQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts))
+	http.HandleFunc("/xsite.ics", newXsiteHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts, s.bsDropboxAlerts, s.bsQuizzesAlerts))
 
 	addr := s.serverAddr
 	if addr == "" {

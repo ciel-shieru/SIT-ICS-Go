@@ -27,10 +27,10 @@ func applyFlags(cfg *Config) error {
 	browserDebug                       := fs.Bool("browser-debug", false, "Enable debug logging for browser actions")
 	proxyURL                           := fs.String("proxy-url", "", "SOCKS5 proxy URL (e.g. socks5://localhost:1080)")
 	icsRefreshInterval                 := fs.Duration("ics-refresh-interval", 0, "ICS refresh interval (e.g. 1h, 30m)")
-	brightspaceEventsPath              := fs.String("brightspace-events-path", "", "Path to brightspace events ICS file")
-	brightspaceDropboxPath             := fs.String("brightspace-dropbox-path", "", "Path to brightspace dropbox ICS file")
-	brightspaceEnabled                 := fs.Bool("brightspace-enabled", false, "Enable BrightSpace D2L extraction")
-	brightspaceBaseURL                 := fs.String("brightspace-base-url", "", "BrightSpace D2L base URL")
+	xsiteEventsPath                    := fs.String("xsite-events-path", "", "Path to xsite events ICS file")
+	xsiteDropboxPath                   := fs.String("xsite-dropbox-path", "", "Path to xsite dropbox ICS file")
+	xsiteEnabled                       := fs.Bool("xsite-enabled", false, "Enable xSite D2L extraction")
+	xsitePath                          := fs.String("xsite-path", "", "Path to xsite combo ICS file")
 	brightspaceAPIKey                  := fs.String("brightspace-api-key", "", "BrightSpace D2L API key")
 	brightspaceAPISecret               := fs.String("brightspace-api-secret", "", "BrightSpace D2L API secret")
 	brightspaceCourseNameBlocklist     := fs.String("brightspace-course-name-blocklist", "", "Comma-separated course name patterns to block")
@@ -41,6 +41,7 @@ func applyFlags(cfg *Config) error {
 	icsCampusAlerts                    := fs.String("ics-campus-alerts", "", "Comma-separated ICS duration strings for campus VALARM")
 	brightspaceEventsAlerts            := fs.String("brightspace-events-alerts", "", "Comma-separated ICS duration strings for brightspace events VALARM")
 	brightspaceDropboxAlerts           := fs.String("brightspace-dropbox-alerts", "", "Comma-separated ICS duration strings for brightspace dropbox VALARM")
+	xsiteQuizzesPath                   := fs.String("xsite-quizzes-path", "", "Path to xsite quizzes ICS file")
 	timetableAlerts                    := fs.String("timetable-alerts", "", "Comma-separated ICS duration strings for main timetable VALARM (e.g. -P2D,-P1D)")
 
 	fs.Parse(os.Args[1:])
@@ -104,17 +105,17 @@ func applyFlags(cfg *Config) error {
 	if fs.Lookup("ics-refresh-interval").Changed {
 		cfg.ICSRefreshInterval = *icsRefreshInterval
 	}
-	if fs.Lookup("brightspace-events-path").Changed {
-		cfg.BrightSpaceEventsPath = *brightspaceEventsPath
+	if fs.Lookup("xsite-events-path").Changed {
+		cfg.XsiteEventsPath = *xsiteEventsPath
 	}
-	if fs.Lookup("brightspace-dropbox-path").Changed {
-		cfg.BrightSpaceDropboxPath = *brightspaceDropboxPath
+	if fs.Lookup("xsite-dropbox-path").Changed {
+		cfg.XsiteDropboxPath = *xsiteDropboxPath
 	}
-	if fs.Lookup("brightspace-enabled").Changed {
-		cfg.BrightSpaceEnabled = *brightspaceEnabled
+	if fs.Lookup("xsite-enabled").Changed {
+		cfg.BrightSpaceEnabled = *xsiteEnabled
 	}
-	if fs.Lookup("brightspace-base-url").Changed {
-		cfg.BrightSpaceBaseURL = *brightspaceBaseURL
+	if fs.Lookup("xsite-path").Changed {
+		cfg.XsitePath = *xsitePath
 	}
 	if fs.Lookup("brightspace-api-key").Changed {
 		cfg.BrightSpaceAPIKey = *brightspaceAPIKey
@@ -145,6 +146,9 @@ func applyFlags(cfg *Config) error {
 	}
 	if fs.Lookup("brightspace-dropbox-alerts").Changed {
 		cfg.BrightSpaceDropboxAlerts = *brightspaceDropboxAlerts
+	}
+	if fs.Lookup("xsite-quizzes-path").Changed {
+		cfg.XsiteQuizzesPath = *xsiteQuizzesPath
 	}
 	if fs.Lookup("timetable-alerts").Changed {
 		cfg.TimetableAlerts = *timetableAlerts

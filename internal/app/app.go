@@ -148,7 +148,7 @@ func (a *App) Shutdown() {
 		a.cfg.BrightSpaceDropboxAlerts,
 		a.cfg.BrightSpaceQuizzesAlerts,
 	)
-	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.BrightSpaceEventsPath, a.cfg.BrightSpaceDropboxPath, a.cfg.BrightSpaceQuizzesPath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
+	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.XsiteEventsPath, a.cfg.XsiteDropboxPath, a.cfg.XsiteQuizzesPath, a.cfg.XsitePath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
 		log.Printf("save on shutdown failed: %v", err)
 	}
 }

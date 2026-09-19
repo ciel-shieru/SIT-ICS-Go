@@ -9,7 +9,7 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 )
 
-func TestNewBrightSpaceQuizzesHandler(t *testing.T) {
+func TestNewXsiteQuizzesHandler(t *testing.T) {
 	cache := calendar.NewICSCache()
 
 	quizEvents := []calendar.Event{
@@ -45,9 +45,9 @@ func TestNewBrightSpaceQuizzesHandler(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	handler := newBrightSpaceQuizzesHandler(cache, "Asia/Singapore", time.Hour, nil)
+	handler := newXsiteQuizzesHandler(cache, "Asia/Singapore", time.Hour, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/quizzes.ics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/xsite-quizzes.ics", nil)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -65,7 +65,7 @@ func TestNewBrightSpaceQuizzesHandler(t *testing.T) {
 	}
 }
 
-func TestNewBrightSpaceQuizzesHandler_NoQuizzes(t *testing.T) {
+func TestNewXsiteQuizzesHandler_NoQuizzes(t *testing.T) {
 	cache := calendar.NewICSCache()
 
 	// Add only dropbox events (not quizzes)
@@ -86,9 +86,9 @@ func TestNewBrightSpaceQuizzesHandler_NoQuizzes(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	handler := newBrightSpaceQuizzesHandler(cache, "Asia/Singapore", time.Hour, nil)
+	handler := newXsiteQuizzesHandler(cache, "Asia/Singapore", time.Hour, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/quizzes.ics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/xsite-quizzes.ics", nil)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -103,7 +103,7 @@ func TestNewBrightSpaceQuizzesHandler_NoQuizzes(t *testing.T) {
 	}
 }
 
-func TestNewBrightSpaceQuizzesHandler_ContentHeaders(t *testing.T) {
+func TestNewXsiteQuizzesHandler_ContentHeaders(t *testing.T) {
 	cache := calendar.NewICSCache()
 
 	quizEvents := []calendar.Event{
@@ -123,9 +123,9 @@ func TestNewBrightSpaceQuizzesHandler_ContentHeaders(t *testing.T) {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	handler := newBrightSpaceQuizzesHandler(cache, "Asia/Singapore", time.Hour, nil)
+	handler := newXsiteQuizzesHandler(cache, "Asia/Singapore", time.Hour, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/quizzes.ics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/xsite-quizzes.ics", nil)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -136,8 +136,79 @@ func TestNewBrightSpaceQuizzesHandler_ContentHeaders(t *testing.T) {
 	}
 
 	contentDisposition := rr.Header().Get("Content-Disposition")
-	if contentDisposition != `attachment; filename="brightspace-quizzes.ics"` {
-		t.Errorf("Content-Disposition = %q, want %q", contentDisposition, `attachment; filename="brightspace-quizzes.ics"`)
+	if contentDisposition != `attachment; filename="xsite-quizzes.ics"` {
+		t.Errorf("Content-Disposition = %q, want %q", contentDisposition, `attachment; filename="xsite-quizzes.ics"`)
+	}
+}
+
+func TestNewXsiteHandler(t *testing.T) {
+	cache := calendar.NewICSCache()
+
+	events := []calendar.Event{
+		{
+			Summary:  "Campus Class",
+			Location: "W1-05-07",
+			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:  "[SIT2101] Assignment 1",
+			Location: "Online",
+			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			Source:   "brightspace-calendar",
+		},
+		{
+			Summary:  "[SIT3201] Lab 3 Due",
+			Location: "",
+			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
+			Source:   "brightspace-dropbox",
+		},
+		{
+			Summary:     "[SIT1001] Quiz 1",
+			Title:       "Quiz 1",
+			OrgUnitID:   "12345",
+			OrgUnitName: "Introduction to Computer Science",
+			OrgUnitCode: "SIT1001",
+			Source:      "brightspace-quizzes",
+			DTStart:     time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC),
+			DTEnd:       time.Date(2026, 9, 15, 11, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newXsiteHandler(cache, "Asia/Singapore", time.Hour, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/xsite.ics", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !contains(body, "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("Response should contain brightspace-calendar event")
+	}
+	if !contains(body, "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("Response should contain brightspace-dropbox event")
+	}
+	if !contains(body, "SUMMARY:[SIT1001] Quiz 1") {
+		t.Error("Response should contain brightspace-quizzes event")
+	}
+	if contains(body, "SUMMARY:Campus Class") {
+		t.Error("Response should not contain non-brightspace event")
+	}
+
+	contentDisposition := rr.Header().Get("Content-Disposition")
+	if contentDisposition != `attachment; filename="xsite.ics"` {
+		t.Errorf("Content-Disposition = %q, want %q", contentDisposition, `attachment; filename="xsite.ics"`)
 	}
 }
 

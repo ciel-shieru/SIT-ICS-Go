@@ -270,9 +270,10 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	mainPath := filepath.Join(tmpDir, "timetable.ics")
 	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
 	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
-	bsEventsPath := filepath.Join(tmpDir, "brightspace-events.ics")
-	bsDropboxPath := filepath.Join(tmpDir, "brightspace-dropbox.ics")
-	bsQuizzesPath := filepath.Join(tmpDir, "brightspace-quizzes.ics")
+	xsiteEventsPath := filepath.Join(tmpDir, "xsite-events.ics")
+	xsiteDropboxPath := filepath.Join(tmpDir, "xsite-dropbox.ics")
+	xsiteQuizzesPath := filepath.Join(tmpDir, "xsite-quizzes.ics")
+	xsitePath := filepath.Join(tmpDir, "xsite.ics")
 
 	cache := NewICSCache()
 	events := []Event{
@@ -303,12 +304,13 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	}
 
 	if err := cache.SaveOutputs(Outputs{
-		Main:      mainPath,
-		Online:    onlinePath,
-		Campus:    campusPath,
-		BSEvents:  bsEventsPath,
-		BSDropbox: bsDropboxPath,
-		BSQuizzes: bsQuizzesPath,
+		Main:         mainPath,
+		Online:       onlinePath,
+		Campus:       campusPath,
+		XsiteEvents:  xsiteEventsPath,
+		XsiteDropbox: xsiteDropboxPath,
+		XsiteQuizzes: xsiteQuizzesPath,
+		Xsite:        xsitePath,
 	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
@@ -335,20 +337,31 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 		t.Error("Campus ICS should not contain brightspace-dropbox event")
 	}
 
-	bsEventsData, _ := os.ReadFile(bsEventsPath)
-	if !contains(string(bsEventsData), "SUMMARY:[SIT2101] Assignment 1") {
-		t.Error("BrightSpace events ICS missing brightspace-calendar event")
+	xsiteEventsData, _ := os.ReadFile(xsiteEventsPath)
+	if !contains(string(xsiteEventsData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("xsite events ICS missing brightspace-calendar event")
 	}
-	if contains(string(bsEventsData), "SUMMARY:[SIT3201] Lab 3 Due") {
-		t.Error("BrightSpace events ICS should not contain brightspace-dropbox event")
+	if contains(string(xsiteEventsData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("xsite events ICS should not contain brightspace-dropbox event")
 	}
 
-	bsDropboxData, _ := os.ReadFile(bsDropboxPath)
-	if !contains(string(bsDropboxData), "SUMMARY:[SIT3201] Lab 3 Due") {
-		t.Error("BrightSpace dropbox ICS missing brightspace-dropbox event")
+	xsiteDropboxData, _ := os.ReadFile(xsiteDropboxPath)
+	if !contains(string(xsiteDropboxData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("xsite dropbox ICS missing brightspace-dropbox event")
 	}
-	if contains(string(bsDropboxData), "SUMMARY:[SIT2101] Assignment 1") {
-		t.Error("BrightSpace dropbox ICS should not contain brightspace-calendar event")
+	if contains(string(xsiteDropboxData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("xsite dropbox ICS should not contain brightspace-calendar event")
+	}
+
+	xsiteComboData, _ := os.ReadFile(xsitePath)
+	if !contains(string(xsiteComboData), "SUMMARY:[SIT2101] Assignment 1") {
+		t.Error("xsite combo ICS missing brightspace-calendar event")
+	}
+	if !contains(string(xsiteComboData), "SUMMARY:[SIT3201] Lab 3 Due") {
+		t.Error("xsite combo ICS missing brightspace-dropbox event")
+	}
+	if contains(string(xsiteComboData), "SUMMARY:Campus Class") {
+		t.Error("xsite combo ICS should not contain non-brightspace event")
 	}
 }
 
@@ -357,9 +370,10 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	mainPath := filepath.Join(tmpDir, "timetable.ics")
 	onlinePath := filepath.Join(tmpDir, "timetable-online.ics")
 	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
-	bsEventsPath := filepath.Join(tmpDir, "brightspace-events.ics")
-	bsDropboxPath := filepath.Join(tmpDir, "brightspace-dropbox.ics")
-	bsQuizzesPath := filepath.Join(tmpDir, "brightspace-quizzes.ics")
+	xsiteEventsPath := filepath.Join(tmpDir, "xsite-events.ics")
+	xsiteDropboxPath := filepath.Join(tmpDir, "xsite-dropbox.ics")
+	xsiteQuizzesPath := filepath.Join(tmpDir, "xsite-quizzes.ics")
+	xsitePath := filepath.Join(tmpDir, "xsite.ics")
 
 	cache := NewICSCache()
 	events := []Event{
@@ -383,12 +397,13 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	}
 
 	if err := cache.SaveOutputs(Outputs{
-		Main:      mainPath,
-		Online:    onlinePath,
-		Campus:    campusPath,
-		BSEvents:  bsEventsPath,
-		BSDropbox: bsDropboxPath,
-		BSQuizzes: bsQuizzesPath,
+		Main:         mainPath,
+		Online:       onlinePath,
+		Campus:       campusPath,
+		XsiteEvents:  xsiteEventsPath,
+		XsiteDropbox: xsiteDropboxPath,
+		XsiteQuizzes: xsiteQuizzesPath,
+		Xsite:        xsitePath,
 	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
@@ -425,12 +440,13 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	}
 
 	if err := cache2.SaveOutputs(Outputs{
-		Main:      mainPath,
-		Online:    onlinePath,
-		Campus:    campusPath,
-		BSEvents:  bsEventsPath,
-		BSDropbox: bsDropboxPath,
-		BSQuizzes: bsQuizzesPath,
+		Main:         mainPath,
+		Online:       onlinePath,
+		Campus:       campusPath,
+		XsiteEvents:  xsiteEventsPath,
+		XsiteDropbox: xsiteDropboxPath,
+		XsiteQuizzes: xsiteQuizzesPath,
+		Xsite:        xsitePath,
 	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}

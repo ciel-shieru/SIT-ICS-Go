@@ -82,7 +82,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		}
 
 		brightSpaceCtx, brightSpaceCancel := context.WithTimeout(context.Background(), BrightSpaceFetchTimeout)
-		bsEntries, err := provider.FetchBrightSpace(brightSpaceCtx, cfg.BrightSpaceBaseURL)
+		bsEntries, err := provider.FetchBrightSpace(brightSpaceCtx, "https://xsite.singaporetech.edu.sg")
 		brightSpaceCancel()
 		if err != nil {
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
@@ -93,7 +93,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		}
 
 		brightSpaceQuizzesCtx, brightSpaceQuizzesCancel := context.WithTimeout(context.Background(), BrightSpaceFetchTimeout)
-		bsQuizzesEntries, err := provider.FetchBrightSpaceQuizzes(brightSpaceQuizzesCtx, cfg.BrightSpaceBaseURL)
+		bsQuizzesEntries, err := provider.FetchBrightSpaceQuizzes(brightSpaceQuizzesCtx, "https://xsite.singaporetech.edu.sg")
 		brightSpaceQuizzesCancel()
 		if err != nil {
 			log.Printf("scheduler: brightspace quizzes fetch failed: %v", err)
@@ -118,7 +118,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		cfg.BrightSpaceQuizzesAlerts,
 	)
 
-	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.BrightSpaceEventsPath, cfg.BrightSpaceDropboxPath, cfg.BrightSpaceQuizzesPath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
+	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.XsiteEventsPath, cfg.XsiteDropboxPath, cfg.XsiteQuizzesPath, cfg.XsitePath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
 		log.Printf("scheduler: save failed: %v", err)
 		return
 	}

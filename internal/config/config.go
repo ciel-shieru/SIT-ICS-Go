@@ -19,8 +19,8 @@ type Config struct {
 	ICSStoragePath                    string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
 	ICSOnlinePath                     string        `env:"ICS_ONLINE_PATH" envDefault:"./timetable-online.ics"`
 	ICSCampusPath                     string        `env:"ICS_CAMPUS_PATH" envDefault:"./timetable-campus.ics"`
-	BrightSpaceEventsPath             string        `env:"BRIGHTSPACE_EVENTS_PATH" envDefault:"./brightspace-events.ics"`
-	BrightSpaceDropboxPath            string        `env:"BRIGHTSPACE_DROPBOX_PATH" envDefault:"./brightspace-dropbox.ics"`
+	XsiteEventsPath                   string        `env:"XSITE_EVENTS_PATH" envDefault:"./xsite-events.ics"`
+	XsiteDropboxPath                  string        `env:"XSITE_DROPBOX_PATH" envDefault:"./xsite-dropbox.ics"`
 	BrowserMode                       BrowserMode   `env:"BROWSER_MODE" envDefault:"auto"`
 	BrowserExecutable                 string        `env:"BROWSER_EXECUTABLE" envDefault:""`
 	BrowserRemoteHost                 string        `env:"BROWSER_REMOTE_HOST" envDefault:""`
@@ -30,14 +30,14 @@ type Config struct {
 	ProxyURL                          string        `env:"PROXY_URL" envDefault:""`
 	ICSRefreshInterval                time.Duration `env:"ICS_REFRESH_INTERVAL" envDefault:"1h"`
 	BrightSpaceEnabled                bool          `env:"BRIGHTSPACE_ENABLED" envDefault:"false"`
-	BrightSpaceBaseURL                string        `env:"BRIGHTSPACE_BASE_URL" envDefault:"https://xsite.singaporetech.edu.sg"`
+	XsitePath                         string        `env:"XSITE_PATH" envDefault:"./xsite.ics"`
 	BrightSpaceAPIKey                 string        `env:"BRIGHTSPACE_API_KEY" envDefault:""`
 	BrightSpaceAPISecret              string        `env:"BRIGHTSPACE_API_SECRET" envDefault:""`
 	BrightSpaceCourseNameBlocklist    string        `env:"BRIGHTSPACE_COURSE_NAME_BLOCKLIST" envDefault:""`
 	BrightSpaceCourseIDBlocklist      string        `env:"BRIGHTSPACE_COURSE_ID_BLOCKLIST" envDefault:""`
 	BrightSpaceEventTitleBlocklist    string        `env:"BRIGHTSPACE_EVENT_TITLE_BLOCKLIST" envDefault:""`
 	BrightSpaceEventLocationBlocklist string        `env:"BRIGHTSPACE_EVENT_LOCATION_BLOCKLIST" envDefault:""`
-	BrightSpaceQuizzesPath            string        `env:"BRIGHTSPACE_QUIZZES_PATH" envDefault:"./brightspace-quizzes.ics"`
+	XsiteQuizzesPath                  string        `env:"XSITE_QUIZZES_PATH" envDefault:"./xsite-quizzes.ics"`
 	BrightSpaceQuizTitleBlocklist     string        `env:"BRIGHTSPACE_QUIZ_TITLE_BLOCKLIST" envDefault:""`
 	BrightSpaceQuizzesAlerts          string        `env:"BRIGHTSPACE_QUIZZES_ALERTS" envDefault:""`
 	TimetableAlerts                   string        `env:"TIMETABLE_ALERTS" envDefault:""`
