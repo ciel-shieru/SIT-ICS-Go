@@ -19,6 +19,7 @@ This directory contains Architecture Decision Records (ADRs) for the SIT ICS Go 
 | [0013](0013-brightspace-d2l-event-integration.md) | BrightSpace D2L Event Integration via Reused Browser Session | Accepted | 2026-09-08 |
 | [0014](0014-xsite-ics-http-endpoints.md) | Xsite ICS HTTP Endpoints for BrightSpace Event Distribution | Accepted | 2026-09-08 |
 | [0015](0015-codebase-restructuring-for-production-readiness.md) | Codebase Restructuring for Production Readiness | Accepted | 2026-09-08 |
+| [0016](0016-secure-domain-validation-for-cookie-and-redirect-filtering.md) | Secure Domain Validation for Cookie and Redirect Filtering | Accepted | 2026-09-20 |
 
 ## Superseded ADRs
 
