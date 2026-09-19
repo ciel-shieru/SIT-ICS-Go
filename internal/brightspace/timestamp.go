@@ -58,6 +58,49 @@ func FolderToStringEntry(folder DropboxFolderAPI) BrightSpaceStringEntry {
 
 
 
+// QuizToStringEntry converts a QuizAPI to a BrightSpaceStringEntry for event conversion.
+func QuizToStringEntry(quiz QuizAPI) BrightSpaceStringEntry {
+	descParts := []string{}
+	if quiz.Description.Text.Text != "" {
+		plainDesc := htmlToPlainText(quiz.Description.Text.Html)
+		if plainDesc != "" {
+			descParts = append(descParts, plainDesc)
+		}
+	}
+
+	var infoParts []string
+	if quiz.SubmissionTimeLimit.IsEnforced && quiz.SubmissionTimeLimit.TimeLimitValue > 0 {
+		infoParts = append(infoParts, fmt.Sprintf("Duration: %d minutes", quiz.SubmissionTimeLimit.TimeLimitValue))
+	}
+	if quiz.AttemptsAllowed.IsUnlimited {
+		infoParts = append(infoParts, "Unlimited attempts")
+	} else if quiz.AttemptsAllowed.NumberOfAttemptsAllowed > 0 {
+		infoParts = append(infoParts, fmt.Sprintf("%d attempts allowed", quiz.AttemptsAllowed.NumberOfAttemptsAllowed))
+	}
+
+	if len(infoParts) > 0 {
+		descParts = append(descParts, strings.Join(infoParts, ", "))
+	}
+
+	dtEnd := quiz.DueDate
+	if quiz.EndDate != "" {
+		dtEnd = quiz.EndDate
+	}
+
+	return BrightSpaceStringEntry{
+		Title:       quiz.Name,
+		OrgUnitId:   quiz.OrgUnitId,
+		OrgUnitName: quiz.OrgUnitName,
+		OrgUnitCode: quiz.OrgUnitCode,
+		Location:    "",
+		Description: strings.Join(descParts, "\n"),
+		DTStart:     quiz.StartDate,
+		DTEnd:       dtEnd,
+		IsAllDay:    false,
+		Source:      "brightspace-quizzes",
+	}
+}
+
 // htmlToPlainText strips HTML tags and common entities from an HTML string.
 func htmlToPlainText(html string) string {
 	html = strings.ReplaceAll(html, "<br>", "\n")
@@ -141,6 +184,10 @@ func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc
 			log.Printf("brightspace: blocked event %q in %s (location %q)", entry.Title, entry.OrgUnitName, entry.Location)
 			continue
 		}
+		if blocklist.IsQuizBlocked(entry.Title) {
+			log.Printf("brightspace: blocked quiz %q in %s", entry.Title, entry.OrgUnitName)
+			continue
+		}
 
 		dtStart, err := ParseTimestamp(entry.DTStart, loc)
 		if err != nil {
@@ -186,4 +233,11 @@ func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc
 		})
 	}
 	return events
+}
+
+// QuizEntriesToEvents converts BrightSpace quiz string entries to calendar.Event values,
+// applying blocklist filtering. This is an alias for EntriesToEvents that makes
+// the quiz source explicit at the call site.
+func QuizEntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc *time.Location) []calendar.Event {
+	return EntriesToEvents(entries, blocklist, loc)
 }

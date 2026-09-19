@@ -272,6 +272,7 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
 	bsEventsPath := filepath.Join(tmpDir, "brightspace-events.ics")
 	bsDropboxPath := filepath.Join(tmpDir, "brightspace-dropbox.ics")
+	bsQuizzesPath := filepath.Join(tmpDir, "brightspace-quizzes.ics")
 
 	cache := NewICSCache()
 	events := []Event{
@@ -307,7 +308,8 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 		Campus:    campusPath,
 		BSEvents:  bsEventsPath,
 		BSDropbox: bsDropboxPath,
-	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil); err != nil {
+		BSQuizzes: bsQuizzesPath,
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
@@ -357,6 +359,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	campusPath := filepath.Join(tmpDir, "timetable-campus.ics")
 	bsEventsPath := filepath.Join(tmpDir, "brightspace-events.ics")
 	bsDropboxPath := filepath.Join(tmpDir, "brightspace-dropbox.ics")
+	bsQuizzesPath := filepath.Join(tmpDir, "brightspace-quizzes.ics")
 
 	cache := NewICSCache()
 	events := []Event{
@@ -385,7 +388,8 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 		Campus:    campusPath,
 		BSEvents:  bsEventsPath,
 		BSDropbox: bsDropboxPath,
-	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil); err != nil {
+		BSQuizzes: bsQuizzesPath,
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
@@ -426,7 +430,8 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 		Campus:    campusPath,
 		BSEvents:  bsEventsPath,
 		BSDropbox: bsDropboxPath,
-	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil); err != nil {
+		BSQuizzes: bsQuizzesPath,
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 

@@ -198,6 +198,13 @@ func (b *RemoteBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([
 	return FetchBrightSpace(ctx, b.page, baseURL, b.cfg)
 }
 
+func (b *RemoteBrowser) FetchBrightSpaceQuizzes(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+	if b.browser == nil {
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	return FetchBrightSpaceQuizzes(ctx, b.page, baseURL, b.cfg)
+}
+
 func (b *RemoteBrowser) Close() {
 	if b.incognito != nil && b.incognito != b.browser {
 		var pageIDs rod.Pages

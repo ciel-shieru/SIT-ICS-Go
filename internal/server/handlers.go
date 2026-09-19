@@ -28,6 +28,10 @@ func newBrightSpaceDropboxHandler(cache *calendar.ICSCache, tz string, refreshIn
 	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-dropbox" }, "brightspace-dropbox.ics", alerts)
 }
 
+func newBrightSpaceQuizzesHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, alerts []calendar.Alert) http.HandlerFunc {
+	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-quizzes" }, "brightspace-quizzes.ics", alerts)
+}
+
 func newFilteredHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, filterFn func(calendar.Event) bool, filename string, alerts []calendar.Alert) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var data []byte

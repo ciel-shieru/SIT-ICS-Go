@@ -68,14 +68,15 @@ func (a *App) Run() error {
 
 	go func() { a.Fetch() }()
 
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts := calendar.AlertsFromConfig(
+	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
 		a.cfg.ICSCampusAlerts,
 		a.cfg.BrightSpaceEventsAlerts,
 		a.cfg.BrightSpaceDropboxAlerts,
+		a.cfg.BrightSpaceQuizzesAlerts,
 	)
-	a.srv = server.NewServer(a.cfg.ServerPort, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts)
+	a.srv = server.NewServer(a.cfg.ServerPort, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts)
 	go func() { _ = a.srv.Start() }()
 
 	sigChan := make(chan os.Signal, 1)
@@ -139,14 +140,15 @@ func (a *App) Shutdown() {
 		a.browser.Close()
 	}
 
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts := calendar.AlertsFromConfig(
+	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
 		a.cfg.ICSCampusAlerts,
 		a.cfg.BrightSpaceEventsAlerts,
 		a.cfg.BrightSpaceDropboxAlerts,
+		a.cfg.BrightSpaceQuizzesAlerts,
 	)
-	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.BrightSpaceEventsPath, a.cfg.BrightSpaceDropboxPath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts); err != nil {
+	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.BrightSpaceEventsPath, a.cfg.BrightSpaceDropboxPath, a.cfg.BrightSpaceQuizzesPath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
 		log.Printf("save on shutdown failed: %v", err)
 	}
 }

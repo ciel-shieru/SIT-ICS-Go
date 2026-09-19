@@ -71,6 +71,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 			CourseIDs:             brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseIDBlocklist),
 			EventTitlePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceEventTitleBlocklist),
 			EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceEventLocationBlocklist),
+			QuizTitlePatterns:     brightspace.ParseCommaSeparated(cfg.BrightSpaceQuizTitleBlocklist),
 		}
 
 		deleted := cache.RemoveWhere(func(e calendar.Event) bool {
@@ -90,6 +91,17 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 			icsEvents = append(icsEvents, bsEvents...)
 			log.Printf("scheduler: added %d brightspace events", len(bsEvents))
 		}
+
+		brightSpaceQuizzesCtx, brightSpaceQuizzesCancel := context.WithTimeout(context.Background(), BrightSpaceFetchTimeout)
+		bsQuizzesEntries, err := provider.FetchBrightSpaceQuizzes(brightSpaceQuizzesCtx, cfg.BrightSpaceBaseURL)
+		brightSpaceQuizzesCancel()
+		if err != nil {
+			log.Printf("scheduler: brightspace quizzes fetch failed: %v", err)
+		} else {
+			bsQuizzes := brightspace.QuizEntriesToEvents(bsQuizzesEntries, blocklist, loc)
+			icsEvents = append(icsEvents, bsQuizzes...)
+			log.Printf("scheduler: added %d brightspace quiz events", len(bsQuizzes))
+		}
 	}
 
 	if err := cache.Update(icsEvents, cfg.TZ); err != nil {
@@ -97,15 +109,16 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		return
 	}
 
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts := calendar.AlertsFromConfig(
+	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		cfg.TimetableAlerts,
 		cfg.TimetableOnlineAlerts,
 		cfg.ICSCampusAlerts,
 		cfg.BrightSpaceEventsAlerts,
 		cfg.BrightSpaceDropboxAlerts,
+		cfg.BrightSpaceQuizzesAlerts,
 	)
 
-	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.BrightSpaceEventsPath, cfg.BrightSpaceDropboxPath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts); err != nil {
+	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.BrightSpaceEventsPath, cfg.BrightSpaceDropboxPath, cfg.BrightSpaceQuizzesPath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
 		log.Printf("scheduler: save failed: %v", err)
 		return
 	}

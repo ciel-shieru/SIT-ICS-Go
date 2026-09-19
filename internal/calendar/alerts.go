@@ -7,14 +7,15 @@ import (
 	"time"
 )
 
-func AlertsFromConfig(main, online, campus, bsEvents, bsDropbox string) (
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts []Alert,
+func AlertsFromConfig(main, online, campus, bsEvents, bsDropbox, bsQuizzes string) (
+	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []Alert,
 ) {
 	mainAlerts = parseAlerts(main)
 	onlineAlerts = parseAlerts(online)
 	campusAlerts = parseAlerts(campus)
 	bsEventsAlerts = parseAlerts(bsEvents)
 	bsDropboxAlerts = parseAlerts(bsDropbox)
+	bsQuizzesAlerts = parseAlerts(bsQuizzes)
 	return
 }
 

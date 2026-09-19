@@ -18,9 +18,10 @@ type Server struct {
 	campusAlerts    []calendar.Alert
 	bsEventsAlerts  []calendar.Alert
 	bsDropboxAlerts []calendar.Alert
+	bsQuizzesAlerts []calendar.Alert
 }
 
-func NewServer(port int, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts []calendar.Alert) *Server {
+func NewServer(port int, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert) *Server {
 	return &Server{
 		port:            port,
 		cache:           cache,
@@ -31,6 +32,7 @@ func NewServer(port int, cache *calendar.ICSCache, tz string, refreshInterval ti
 		campusAlerts:    campusAlerts,
 		bsEventsAlerts:  bsEventsAlerts,
 		bsDropboxAlerts: bsDropboxAlerts,
+		bsQuizzesAlerts: bsQuizzesAlerts,
 	}
 }
 
@@ -40,6 +42,7 @@ func (s *Server) Start() error {
 	http.HandleFunc("/timetable-campus.ics", newCampusHandler(s.cache, s.tz, s.refreshInterval, s.campusAlerts))
 	http.HandleFunc("/brightspace-events.ics", newBrightSpaceEventsHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts))
 	http.HandleFunc("/brightspace-dropbox.ics", newBrightSpaceDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts))
+	http.HandleFunc("/quizzes.ics", newBrightSpaceQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts))
 
 	addr := fmt.Sprintf(":%d", s.port)
 	fmt.Printf("server: starting on %s\n", addr)

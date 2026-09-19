@@ -20,6 +20,7 @@ type Outputs struct {
 	Campus     string
 	BSEvents   string
 	BSDropbox  string
+	BSQuizzes  string
 }
 
 type outputErrors []outputError
@@ -276,7 +277,7 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 // SaveOutputs atomically writes all configured ICS output files if dirty.
 // Uses writeAtomic for individual file persistence.
 // If any output fails, the cache dirty flag is preserved and all errors are returned.
-func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts []Alert) error {
+func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []Alert) error {
 	c.mu.RLock()
 	dirty := c.dirty
 	events := make([]Event, len(c.events))
@@ -332,6 +333,14 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	if err != nil {
 		return fmt.Errorf("render brightspace-dropbox ICS: %w", err)
 	}
+	bsQuizzesData, err := Render(filterEventsBySource(events, "brightspace-quizzes"), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+		Alerts:          bsQuizzesAlerts,
+	})
+	if err != nil {
+		return fmt.Errorf("render brightspace-quizzes ICS: %w", err)
+	}
 
 	type fileOutput struct {
 		path string
@@ -344,6 +353,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 		{out.Campus, campusData},
 		{out.BSEvents, bsEventsData},
 		{out.BSDropbox, bsDropboxData},
+		{out.BSQuizzes, bsQuizzesData},
 	}
 
 	var errs outputErrors

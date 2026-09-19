@@ -67,3 +67,12 @@ func (a *ADFSProvider) FetchBrightSpace(ctx context.Context, baseURL string) ([]
 	}
 	return entries, nil
 }
+
+// FetchBrightSpaceQuizzes fetches BrightSpace quiz entries using the existing authenticated session.
+func (a *ADFSProvider) FetchBrightSpaceQuizzes(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+	entries, err := a.browser.FetchBrightSpaceQuizzes(ctx, baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("browser fetch brightspace quizzes: %w", err)
+	}
+	return entries, nil
+}

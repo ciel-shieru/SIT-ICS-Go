@@ -67,6 +67,16 @@ func (c *Client) FetchDropboxFolders(ctx context.Context, version, orgUnitID str
 	return folders, nil
 }
 
+// FetchQuizzes returns quizzes for a course.
+func (c *Client) FetchQuizzes(ctx context.Context, version, orgUnitID string) ([]QuizAPI, error) {
+	var quizzes []QuizAPI
+	url := fmt.Sprintf("%s/d2l/api/le/%s/%s/quizzes/", c.baseURL, version, orgUnitID)
+	if err := c.fetcher.DecodeJSON(url, &quizzes); err != nil {
+		return nil, fmt.Errorf("fetch quizzes: %w", err)
+	}
+	return quizzes, nil
+}
+
 // Fetch extracts BrightSpace D2L calendar events and dropbox due dates.
 // Returns raw API objects; callers should use EntriesToEvents() for conversion
 // and blocklist filtering to avoid duplication.
@@ -113,4 +123,35 @@ func Fetch(ctx context.Context, client *Client) ([]CalendarEventAPI, []DropboxFo
 
 	log.Printf("brightspace: extracted %d events, %d dropbox folders", len(allEvents), len(allFolders))
 	return allEvents, allFolders, nil
+}
+
+// FetchQuizzes fetches quizzes for all courses accessible to the authenticated user.
+func FetchQuizzes(ctx context.Context, client *Client) ([]QuizAPI, error) {
+	version, err := client.CheckVersion(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("check version: %w", err)
+	}
+
+	courses, err := client.FetchCourses(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetch courses: %w", err)
+	}
+
+	var allQuizzes []QuizAPI
+	for _, course := range courses {
+		quizzes, err := client.FetchQuizzes(ctx, version, course.OrgUnitId)
+		if err != nil {
+			log.Printf("brightspace: failed to fetch quizzes for %s: %v", course.Name, err)
+			continue
+		}
+		for _, quiz := range quizzes {
+			quiz.OrgUnitId = course.OrgUnitId
+			quiz.OrgUnitName = course.Name
+			quiz.OrgUnitCode = course.Code
+			allQuizzes = append(allQuizzes, quiz)
+		}
+	}
+
+	log.Printf("brightspace: extracted %d quizzes", len(allQuizzes))
+	return allQuizzes, nil
 }

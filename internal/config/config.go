@@ -36,6 +36,9 @@ type Config struct {
 	BrightSpaceCourseIDBlocklist      string        `env:"BRIGHTSPACE_COURSE_ID_BLOCKLIST" envDefault:""`
 	BrightSpaceEventTitleBlocklist    string        `env:"BRIGHTSPACE_EVENT_TITLE_BLOCKLIST" envDefault:""`
 	BrightSpaceEventLocationBlocklist string        `env:"BRIGHTSPACE_EVENT_LOCATION_BLOCKLIST" envDefault:""`
+	BrightSpaceQuizzesPath            string        `env:"BRIGHTSPACE_QUIZZES_PATH" envDefault:"./brightspace-quizzes.ics"`
+	BrightSpaceQuizTitleBlocklist     string        `env:"BRIGHTSPACE_QUIZ_TITLE_BLOCKLIST" envDefault:""`
+	BrightSpaceQuizzesAlerts          string        `env:"BRIGHTSPACE_QUIZZES_ALERTS" envDefault:""`
 	TimetableAlerts                   string        `env:"TIMETABLE_ALERTS" envDefault:""`
 	TimetableOnlineAlerts             string        `env:"TIMETABLE_ONLINE_ALERTS" envDefault:""`
 	ICSCampusAlerts                   string        `env:"ICS_CAMPUS_ALERTS" envDefault:""`

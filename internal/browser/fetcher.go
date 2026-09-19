@@ -127,3 +127,27 @@ func authBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg Br
 	debug(cfg, "brightspace: SAML auth complete")
 	return nil
 }
+
+// FetchBrightSpaceQuizzes fetches BrightSpace quiz entries using the authenticated browser session.
+func FetchBrightSpaceQuizzes(ctx context.Context, page *rod.Page, baseURL string, cfg BrowserConfig) ([]brightspace.BrightSpaceStringEntry, error) {
+	if page == nil {
+		return nil, fmt.Errorf("%w: no active page: authenticate first", ErrAuthentication)
+	}
+
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	fetcher := NewRodFetcher(page, cfg)
+	client := brightspace.NewClient(baseURL, fetcher)
+
+	quizzes, err := brightspace.FetchQuizzes(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("brightspace quizzes fetch: %w", err)
+	}
+
+	entries := make([]brightspace.BrightSpaceStringEntry, 0, len(quizzes))
+	for _, quiz := range quizzes {
+		entries = append(entries, brightspace.QuizToStringEntry(quiz))
+	}
+
+	return entries, nil
+}

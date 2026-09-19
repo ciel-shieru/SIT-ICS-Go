@@ -51,6 +51,43 @@ type DropboxFolderAPI struct {
 	OrgUnitCode string `json:"-"`
 }
 
+// QuizAPI mirrors the BrightSpace quizzes API JSON structure.
+type QuizAPI struct {
+	QuizId              int       `json:"QuizId"`
+	Name                string    `json:"Name"`
+	IsActive            bool      `json:"IsActive"`
+	StartDate           string    `json:"StartDate"`
+	EndDate             string    `json:"EndDate"`
+	DueDate             string    `json:"DueDate"`
+	Description         DescField `json:"Description"`
+	SubmissionTimeLimit TimeLimit `json:"SubmissionTimeLimit"`
+	AttemptsAllowed     Attempts  `json:"AttemptsAllowed"`
+	ActivityId          string    `json:"ActivityId"`
+	OrgUnitId           string    `json:"-"`
+	OrgUnitName         string    `json:"-"`
+	OrgUnitCode         string    `json:"-"`
+}
+
+type DescField struct {
+	Text        DescText `json:"Text"`
+	IsDisplayed bool     `json:"IsDisplayed"`
+}
+
+type DescText struct {
+	Text string `json:"Text"`
+	Html string `json:"Html"`
+}
+
+type TimeLimit struct {
+	IsEnforced      bool `json:"IsEnforced"`
+	TimeLimitValue  int  `json:"TimeLimitValue"`
+}
+
+type Attempts struct {
+	IsUnlimited             bool `json:"IsUnlimited"`
+	NumberOfAttemptsAllowed int  `json:"NumberOfAttemptsAllowed"`
+}
+
 // BrightSpaceEntry is the internal representation of a BrightSpace event/due date.
 type BrightSpaceEntry struct {
 	// Source identifies whether this came from calendar events or dropbox folders.
