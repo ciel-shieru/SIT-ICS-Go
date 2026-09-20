@@ -71,7 +71,7 @@ func (a *App) Run() error {
 	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
-		a.cfg.ICSCampusAlerts,
+		a.cfg.TimetableCampusAlerts,
 		a.cfg.XsiteEventsAlerts,
 		a.cfg.XsiteDropboxAlerts,
 		a.cfg.XsiteQuizzesAlerts,
@@ -143,7 +143,7 @@ func (a *App) Shutdown() {
 	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
-		a.cfg.ICSCampusAlerts,
+		a.cfg.TimetableCampusAlerts,
 		a.cfg.XsiteEventsAlerts,
 		a.cfg.XsiteDropboxAlerts,
 		a.cfg.XsiteQuizzesAlerts,

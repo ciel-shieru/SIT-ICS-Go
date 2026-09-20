@@ -36,7 +36,7 @@ func applyFlags(cfg *Config) error {
 	xsiteEventTitleBlocklist           := fs.String("xsite-event-title-blocklist", "", "Comma-separated event title patterns to block (env: XSITE_EVENT_TITLE_BLOCKLIST)")
 	xsiteEventLocationBlocklist        := fs.String("xsite-event-location-blocklist", "", "Comma-separated event location patterns to block (env: XSITE_EVENT_LOCATION_BLOCKLIST)")
 	timetableOnlineAlerts              := fs.String("timetable-online-alerts", "", "Comma-separated ICS duration strings for timetable online VALARM (e.g. -P2D,-P1D) (env: TIMETABLE_ONLINE_ALERTS)")
-	icsCampusAlerts                    := fs.String("ics-campus-alerts", "", "Comma-separated ICS duration strings for timetable in-campus VALARM (env: TIMETABLE_CAMPUS_ALERTS)")
+	timetableCampusAlerts              := fs.String("timetable-campus-alerts", "", "Comma-separated ICS duration strings for timetable in-campus VALARM (env: TIMETABLE_CAMPUS_ALERTS)")
 	xsiteEventsAlerts                  := fs.String("xsite-events-alerts", "", "Comma-separated ICS duration strings for xsite events VALARM (env: XSITE_EVENTS_ALERTS)")
 	xsiteDropboxAlerts                 := fs.String("xsite-dropbox-alerts", "", "Comma-separated ICS duration strings for xsite dropbox VALARM (env: XSITE_DROPBOX_ALERTS)")
 	xsiteQuizzesPath                   := fs.String("xsite-quizzes-path", "", "Path to xsite quizzes ICS file (env: XSITE_QUIZZES_PATH)")
@@ -130,8 +130,8 @@ func applyFlags(cfg *Config) error {
 	if fs.Lookup("timetable-online-alerts").Changed {
 		cfg.TimetableOnlineAlerts = *timetableOnlineAlerts
 	}
-	if fs.Lookup("ics-campus-alerts").Changed {
-		cfg.ICSCampusAlerts = *icsCampusAlerts
+	if fs.Lookup("timetable-campus-alerts").Changed {
+		cfg.TimetableCampusAlerts = *timetableCampusAlerts
 	}
 	if fs.Lookup("xsite-events-alerts").Changed {
 		cfg.XsiteEventsAlerts = *xsiteEventsAlerts
