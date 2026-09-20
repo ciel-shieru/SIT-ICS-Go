@@ -101,7 +101,7 @@ All via env vars with CLI flag override (flags take priority):
 | `BROWSER_DEBUG` | false | Enable debug logging for browser actions |
 | `PROXY_URL` | — | SOCKS5 proxy URL |
 | `ICS_REFRESH_INTERVAL` | 1h | ICS REFRESH-INTERVAL property (RFC 7986 DURATION) |
-| `XSITE_ENABLED` | false | Enable xsite D2L extraction |
+| `XSITE_ENABLED` | true | Enable xsite D2L extraction (opt-out) |
 | `XSITE_COURSE_NAME_BLOCKLIST` | — | Comma-separated course name patterns to block |
 | `XSITE_COURSE_ID_BLOCKLIST` | — | Comma-separated OrgUnitIds to block |
 | `XSITE_EVENT_TITLE_BLOCKLIST` | — | Comma-separated event title patterns to block |
