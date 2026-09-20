@@ -1,6 +1,9 @@
 package brightspace
 
 import (
+	"fmt"
+	"log"
+	"regexp"
 	"strings"
 )
 
@@ -24,6 +27,15 @@ type Blocklist struct {
 	// QuizTitlePatterns are case-insensitive substring patterns to match against quiz titles.
 	// A quiz is blocked if any pattern is a substring of its title.
 	QuizTitlePatterns []string
+
+	CourseNameRegexes    []*regexp.Regexp
+	EventTitleRegexes    []*regexp.Regexp
+	EventLocationRegexes []*regexp.Regexp
+	QuizTitleRegexes     []*regexp.Regexp
+
+	// Each regex corresponds to the pattern at the same index in the
+	// matching Patterns field. A nil entry means that pattern has no
+	// wildcard and uses substring matching instead.
 }
 
 // IsCourseBlocked checks whether a course should be filtered out.
@@ -33,9 +45,15 @@ func (b *Blocklist) IsCourseBlocked(orgUnitID string, name string) bool {
 			return true
 		}
 	}
-	for _, pattern := range b.CourseNamePatterns {
-		if strings.Contains(strings.ToLower(name), strings.ToLower(strings.TrimSpace(pattern))) {
+	for i, pattern := range b.CourseNamePatterns {
+		trimmed := strings.ToLower(strings.TrimSpace(pattern))
+		if strings.Contains(strings.ToLower(name), trimmed) {
 			return true
+		}
+		if i < len(b.CourseNameRegexes) {
+			if re := b.CourseNameRegexes[i]; re != nil && re.MatchString(name) {
+				return true
+			}
 		}
 	}
 	return false
@@ -43,9 +61,15 @@ func (b *Blocklist) IsCourseBlocked(orgUnitID string, name string) bool {
 
 // IsEventBlocked checks whether an event should be filtered out.
 func (b *Blocklist) IsEventBlocked(title string) bool {
-	for _, pattern := range b.EventTitlePatterns {
-		if strings.Contains(strings.ToLower(title), strings.ToLower(strings.TrimSpace(pattern))) {
+	for i, pattern := range b.EventTitlePatterns {
+		trimmed := strings.ToLower(strings.TrimSpace(pattern))
+		if strings.Contains(strings.ToLower(title), trimmed) {
 			return true
+		}
+		if i < len(b.EventTitleRegexes) {
+			if re := b.EventTitleRegexes[i]; re != nil && re.MatchString(title) {
+				return true
+			}
 		}
 	}
 	return false
@@ -53,9 +77,15 @@ func (b *Blocklist) IsEventBlocked(title string) bool {
 
 // IsLocationBlocked checks whether an event should be filtered out based on its location.
 func (b *Blocklist) IsLocationBlocked(location string) bool {
-	for _, pattern := range b.EventLocationPatterns {
-		if strings.Contains(strings.ToLower(location), strings.ToLower(strings.TrimSpace(pattern))) {
+	for i, pattern := range b.EventLocationPatterns {
+		trimmed := strings.ToLower(strings.TrimSpace(pattern))
+		if strings.Contains(strings.ToLower(location), trimmed) {
 			return true
+		}
+		if i < len(b.EventLocationRegexes) {
+			if re := b.EventLocationRegexes[i]; re != nil && re.MatchString(location) {
+				return true
+			}
 		}
 	}
 	return false
@@ -63,9 +93,15 @@ func (b *Blocklist) IsLocationBlocked(location string) bool {
 
 // IsQuizBlocked checks whether a quiz should be filtered out.
 func (b *Blocklist) IsQuizBlocked(title string) bool {
-	for _, pattern := range b.QuizTitlePatterns {
-		if strings.Contains(strings.ToLower(title), strings.ToLower(strings.TrimSpace(pattern))) {
+	for i, pattern := range b.QuizTitlePatterns {
+		trimmed := strings.ToLower(strings.TrimSpace(pattern))
+		if strings.Contains(strings.ToLower(title), trimmed) {
 			return true
+		}
+		if i < len(b.QuizTitleRegexes) {
+			if re := b.QuizTitleRegexes[i]; re != nil && re.MatchString(title) {
+				return true
+			}
 		}
 	}
 	return false
@@ -99,4 +135,91 @@ func ParseCommaSeparated(s string) []string {
 		}
 	}
 	return result
+}
+
+// PatternToRegex converts a wildcard pattern to a *regexp.Regexp.
+// A literal asterisk '*' matches zero or more of any character.
+// Consecutive asterisks are collapsed into a single wildcard.
+// Spaces immediately adjacent to '*' (on either side) are omitted from the
+// resulting regex, allowing natural-language patterns like "MOD0001 * quiz"
+// to match "MOD0001week2quiz", "MOD0001 quiz", or "MOD0001 week 2 quiz".
+// All other regex special characters (. + ? ^ $ ( ) [ ] { } | \) are escaped.
+// The resulting regex is anchored with ^...$ and is case-insensitive.
+// Returns nil if the pattern contains no asterisk.
+func PatternToRegex(pattern string) (*regexp.Regexp, error) {
+	if !strings.Contains(pattern, "*") {
+		return nil, nil
+	}
+
+	var b strings.Builder
+	runes := []rune(pattern)
+	for i, ch := range runes {
+		switch ch {
+		case ' ':
+			prevIsStar := i > 0 && runes[i-1] == '*'
+			nextIsStar := i+1 < len(runes) && runes[i+1] == '*'
+			if prevIsStar || nextIsStar {
+				continue
+			}
+			b.WriteRune(ch)
+		case '*':
+			if i > 0 && b.Len() >= 2 && b.String()[b.Len()-2:] == ".*" {
+				continue
+			}
+			b.WriteString(".*")
+		case '.', '+', '?', '^', '$', '(', ')', '[', ']', '{', '}', '|', '\\':
+			b.WriteString(`\`)
+			b.WriteRune(ch)
+		default:
+			b.WriteRune(ch)
+		}
+	}
+
+	re, err := regexp.Compile("(?i)^" + b.String() + "$")
+	if err != nil {
+		return nil, fmt.Errorf("invalid wildcard pattern %q: %w", pattern, err)
+	}
+	return re, nil
+}
+
+// CompilePatterns separates wildcard patterns from non-wildcard patterns,
+// compiles all wildcard patterns into regexes, and stores them in the
+// corresponding regex slice fields. This should be called once after
+// the Blocklist is initialized.
+func (b *Blocklist) CompilePatterns() {
+	b.CourseNameRegexes = make([]*regexp.Regexp, len(b.CourseNamePatterns))
+	for i, p := range b.CourseNamePatterns {
+		re, err := PatternToRegex(p)
+		if err != nil {
+			log.Printf("brightspace: failed to compile course name pattern %q: %v", p, err)
+		}
+		b.CourseNameRegexes[i] = re
+	}
+
+	b.EventTitleRegexes = make([]*regexp.Regexp, len(b.EventTitlePatterns))
+	for i, p := range b.EventTitlePatterns {
+		re, err := PatternToRegex(p)
+		if err != nil {
+			log.Printf("brightspace: failed to compile event title pattern %q: %v", p, err)
+		}
+		b.EventTitleRegexes[i] = re
+	}
+
+	b.EventLocationRegexes = make([]*regexp.Regexp, len(b.EventLocationPatterns))
+	for i, p := range b.EventLocationPatterns {
+		re, err := PatternToRegex(p)
+		if err != nil {
+			log.Printf("brightspace: failed to compile event location pattern %q: %v", p, err)
+		}
+		b.EventLocationRegexes[i] = re
+	}
+
+	b.QuizTitleRegexes = make([]*regexp.Regexp, len(b.QuizTitlePatterns))
+	for i, p := range b.QuizTitlePatterns {
+		re, err := PatternToRegex(p)
+		if err != nil {
+			log.Printf("brightspace: failed to compile quiz title pattern %q: %v", p, err)
+		}
+		b.QuizTitleRegexes[i] = re
+	}
 }
