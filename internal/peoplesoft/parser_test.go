@@ -18,7 +18,7 @@ func TestParseTimetableHTML(t *testing.T) {
 <tr><td>
 <div id='win0divDERIVED_REGFRM1_DESCR20$0'>
 <table>
-<tr><td class='PAGROUPDIVIDER' align='left'>DEF 0001 - Computer Organization and Architecture</td></tr>
+<tr><td class='PAGROUPDIVIDER' align='left'>MOD1001 - Sample Module Title Two</td></tr>
 <tr><td>
 <div id='win0divCLASS_MTG_VW$0'>
 <table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$0'>
@@ -57,7 +57,7 @@ func TestParseTimetableHTML(t *testing.T) {
 <td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_COMP$2'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$2'>Lecture</span></DIV></td>
 <td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SCHED$2'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$2'>Fr 9:00AM - 11:00AM</span></DIV></td>
 <td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_LOC$2'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$2'>Online</span></DIV></td>
-<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$2'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$2'>JOHN DOE</span></DIV></td>
+<td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$2'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$2'>JANE SMITH</span></DIV></td>
 <td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_DATES$2'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$2'>18/09/2026 - 18/09/2026</span></DIV></td>
 </tr>
 </table>
@@ -68,7 +68,7 @@ func TestParseTimetableHTML(t *testing.T) {
 </div>
 <div id='win0divDERIVED_REGFRM1_DESCR20$1'>
 <table>
-<tr><td class='PAGROUPDIVIDER' align='left'>ABC 0002 - Introduction to Computer Systems</td></tr>
+<tr><td class='PAGROUPDIVIDER' align='left'>COR2001 - Sample Module Title</td></tr>
 <tr><td>
 <div id='win0divCLASS_MTG_VW$1'>
 <table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$1'>
@@ -100,7 +100,7 @@ func TestParseTimetableHTML(t *testing.T) {
 </div>
 <div id='win0divDERIVED_REGFRM1_DESCR20$2'>
 <table>
-<tr><td class='PAGROUPDIVIDER' align='left'>GHI 1111 - Digital Competency Essentials</td></tr>
+<tr><td class='PAGROUPDIVIDER' align='left'>COR2002 - Sample Module Title Three</td></tr>
 <tr><td>
 <div id='win0divCLASS_MTG_VW$2'>
 <table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$2'>
@@ -157,11 +157,11 @@ func TestParseTimetableHTML(t *testing.T) {
 	}
 
 	expected := []expectedEntry{
-		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "P1", classType: "Laboratory", day: "17/09/2026", startTime: "09:00", endTime: "11:00", location: "W1-06-18"},
-		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "P1", classType: "Laboratory", day: "24/09/2026", startTime: "09:00", endTime: "11:00", location: "W1-06-18"},
-		{courseCode: "DEF 0001", className: "Computer Organization and Architecture", section: "ALL", classType: "Lecture", day: "18/09/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
-		{courseCode: "ABC 0002", className: "Introduction to Computer Systems", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
-		{courseCode: "GHI 1111", className: "Digital Competency Essentials", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "14:00", endTime: "16:00", location: "Online"},
+		{courseCode: "MOD1001", className: "Sample Module Title Two", section: "P1", classType: "Laboratory", day: "17/09/2026", startTime: "09:00", endTime: "11:00", location: "W1-06-18"},
+		{courseCode: "MOD1001", className: "Sample Module Title Two", section: "P1", classType: "Laboratory", day: "24/09/2026", startTime: "09:00", endTime: "11:00", location: "W1-06-18"},
+		{courseCode: "MOD1001", className: "Sample Module Title Two", section: "ALL", classType: "Lecture", day: "18/09/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
+		{courseCode: "COR2001", className: "Sample Module Title", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "09:00", endTime: "11:00", location: "Online"},
+		{courseCode: "COR2002", className: "Sample Module Title Three", section: "ALL", classType: "Lecture", day: "31/08/2026", startTime: "14:00", endTime: "16:00", location: "Online"},
 	}
 
 	for i, exp := range expected {

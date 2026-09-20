@@ -15,8 +15,8 @@ func TestQuizToStringEntry(t *testing.T) {
 		SubmissionTimeLimit: TimeLimit{IsEnforced: true, TimeLimitValue: 30},
 		AttemptsAllowed:     Attempts{IsUnlimited: false, NumberOfAttemptsAllowed: 3},
 		OrgUnitId:   "12345",
-		OrgUnitName: "Introduction to Computer Science",
-		OrgUnitCode: "SIT1001",
+		OrgUnitName: "Sample Module Title Four",
+		OrgUnitCode: "MOD1002",
 	}
 
 	entry := QuizToStringEntry(quiz)
@@ -30,11 +30,11 @@ func TestQuizToStringEntry(t *testing.T) {
 	if entry.OrgUnitId != "12345" {
 		t.Errorf("OrgUnitId = %q, want %q", entry.OrgUnitId, "12345")
 	}
-	if entry.OrgUnitName != "Introduction to Computer Science" {
-		t.Errorf("OrgUnitName = %q, want %q", entry.OrgUnitName, "Introduction to Computer Science")
+	if entry.OrgUnitName != "Sample Module Title Four" {
+		t.Errorf("OrgUnitName = %q, want %q", entry.OrgUnitName, "Sample Module Title Four")
 	}
-	if entry.OrgUnitCode != "SIT1001" {
-		t.Errorf("OrgUnitCode = %q, want %q", entry.OrgUnitCode, "SIT1001")
+	if entry.OrgUnitCode != "MOD1002" {
+		t.Errorf("OrgUnitCode = %q, want %q", entry.OrgUnitCode, "MOD1002")
 	}
 	if entry.DTStart != "2026-09-15T10:00:00Z" {
 		t.Errorf("DTStart = %q, want %q", entry.DTStart, "2026-09-15T10:00:00Z")
@@ -101,8 +101,8 @@ func TestQuizEntriesToEvents(t *testing.T) {
 		{
 			Title:       "Quiz 1",
 			OrgUnitId:   "12345",
-			OrgUnitName: "SIT1001",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "MOD1002",
+			OrgUnitCode: "MOD1002",
 			DTStart:     "2026-09-15T10:00:00Z",
 			DTEnd:       "2026-09-15T11:00:00Z",
 			Source:      "brightspace-quizzes",
@@ -134,8 +134,8 @@ func TestQuizEntriesToEvents_Blocked(t *testing.T) {
 		{
 			Title:       "Quiz 1",
 			OrgUnitId:   "12345",
-			OrgUnitName: "SIT1001",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "MOD1002",
+			OrgUnitCode: "MOD1002",
 			DTStart:     "2026-09-15T10:00:00Z",
 			DTEnd:       "2026-09-15T11:00:00Z",
 			Source:      "brightspace-quizzes",
@@ -143,8 +143,8 @@ func TestQuizEntriesToEvents_Blocked(t *testing.T) {
 		{
 			Title:       "Quiz 2",
 			OrgUnitId:   "12345",
-			OrgUnitName: "SIT1001",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "MOD1002",
+			OrgUnitCode: "MOD1002",
 			DTStart:     "2026-09-16T10:00:00Z",
 			DTEnd:       "2026-09-16T11:00:00Z",
 			Source:      "brightspace-quizzes",
@@ -194,8 +194,8 @@ func TestBlocklist_Matches_Quiz(t *testing.T) {
 		orgUnitID, orgUnitName, title, location string
 		want                                   bool
 	}{
-		{"12345", "SIT1001", "Practice Quiz 1", "", true},
-		{"12345", "SIT1001", "Quiz 1", "", false},
+		{"12345", "MOD1002", "Practice Quiz 1", "", true},
+		{"12345", "MOD1002", "Quiz 1", "", false},
 	}
 
 	for _, tt := range tests {

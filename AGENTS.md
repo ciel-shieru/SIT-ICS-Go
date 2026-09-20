@@ -106,6 +106,7 @@ All via env vars with CLI flag override (flags take priority):
 | `XSITE_COURSE_ID_BLOCKLIST` | — | Comma-separated OrgUnitIds to block |
 | `XSITE_EVENT_TITLE_BLOCKLIST` | — | Comma-separated event title patterns to block |
 | `XSITE_EVENT_LOCATION_BLOCKLIST` | — | Comma-separated event location patterns to block |
+| `XSITE_SMART_MERGE_ENABLED` | `true` | Enable smart merge of BrightSpace events into PeopleSoft timetable events |
 
 `START_DATE` and `END_DATE` are parsed by config but no longer drive the fetch loop.
 

@@ -11,6 +11,7 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
+	"github.com/ciel-shieru/sit-ics-go/internal/smartmerge"
 )
 
 func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.ICSCache, loc *time.Location) {
@@ -88,7 +89,16 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
 			bsEvents := brightspace.EntriesToEvents(bsEntries, blocklist, loc)
-			icsEvents = append(icsEvents, bsEvents...)
+			if cfg.XsiteSmartMergeEnabled {
+				psEvents, mergedCount := smartmerge.MergeEvents(icsEvents, bsEvents)
+				if mergedCount > 0 {
+					log.Printf("smartmerge: merged %d brightspace events into timetable events", mergedCount)
+				}
+				icsEvents = psEvents
+			} else {
+				icsEvents = append(icsEvents, bsEvents...)
+				log.Printf("scheduler: smart merge disabled, added %d brightspace events", len(bsEvents))
+			}
 			log.Printf("scheduler: added %d brightspace events", len(bsEvents))
 		}
 

@@ -1,0 +1,469 @@
+package smartmerge
+
+import (
+	"testing"
+	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
+)
+
+func TestNormalizeModuleCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"already normalized", "MOD1001", "MOD1001"},
+		{"with space", "MOD 1001", "MOD1001"},
+		{"lowercase", "mod1001", "MOD1001"},
+		{"mixed case with space", "MOD 1001", "MOD1001"},
+		{"extra whitespace", "  MOD 1001  ", "MOD1001"},
+		{"multiple spaces", "MOD   1001", "MOD1001"},
+		{"empty string", "", ""},
+		{"single letter", "A", "A"},
+		{"alphanumeric", "COR2003", "COR2003"},
+		{"with dashes", "MOD-1001", "MOD-1001"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizeModuleCode(tt.input)
+			if got != tt.expected {
+				t.Errorf("NormalizeModuleCode(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractModuleCodeFromOrgUnitName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"standard format", "MOD1001-Sample Module Title [2026/27 T1]", "MOD1001"},
+		{"lowercase", "mod1001-intro [2026]", "MOD1001"},
+		{"with spaces after code", "MOD1001 - Intro [2026]", "MOD1001"},
+		{"alphanumeric code", "COR2003ABC-something", "COR2003ABC"},
+		{"no alphanumeric prefix", "-intro something", ""},
+		{"empty string", "", ""},
+		{"only brackets", "[2026/27 T1]", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractModuleCodeFromOrgUnitName(tt.input)
+			if got != tt.expected {
+				t.Errorf("ExtractModuleCodeFromOrgUnitName(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestModulesMatch(t *testing.T) {
+	tests := []struct {
+		name          string
+		psCode        string
+		bsOrgUnitName string
+		want          bool
+	}{
+		{"exact match", "MOD1001", "MOD1001-Sample Module Title [2026/27 T1]", true},
+		{"case insensitive", "mod1001", "MOD1001-Sample Module Title [2026/27 T1]", true},
+		{"ps with space", "MOD 1001", "MOD1001-Sample Module Title [2026/27 T1]", true},
+		{"no match different module", "COR2003", "MOD1001-Sample Module Title [2026/27 T1]", false},
+		{"empty ps code", "", "MOD1001-Sample Module Title [2026/27 T1]", false},
+		{"empty bs name", "MOD1001", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ModulesMatch(tt.psCode, tt.bsOrgUnitName)
+			if got != tt.want {
+				t.Errorf("ModulesMatch(%q, %q) = %v, want %v", tt.psCode, tt.bsOrgUnitName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTimesOverlap(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 8, 31, 9, 0, 0, 0, loc)
+
+	tests := []struct {
+		name     string
+		psStart  time.Time
+		psEnd    time.Time
+		bsStart  time.Time
+		bsEnd    time.Time
+		want     bool
+	}{
+		{"identical ranges", base, base.Add(2 * time.Hour), base, base.Add(2 * time.Hour), true},
+		{"partial overlap start", base, base.Add(2 * time.Hour), base.Add(-1 * time.Hour), base.Add(1 * time.Hour), true},
+		{"partial overlap end", base, base.Add(2 * time.Hour), base.Add(1 * time.Hour), base.Add(3 * time.Hour), true},
+		{"contained", base, base.Add(4 * time.Hour), base.Add(1 * time.Hour), base.Add(2 * time.Hour), true},
+		{"adjacent no overlap", base, base.Add(2 * time.Hour), base.Add(2 * time.Hour), base.Add(4 * time.Hour), false},
+		{"gap", base, base.Add(2 * time.Hour), base.Add(3 * time.Hour), base.Add(5 * time.Hour), false},
+		{"bs before ps", base.Add(3 * time.Hour), base.Add(5 * time.Hour), base, base.Add(1 * time.Hour), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TimesOverlap(tt.psStart, tt.psEnd, tt.bsStart, tt.bsEnd)
+			if got != tt.want {
+				t.Errorf("TimesOverlap(%v, %v, %v, %v) = %v, want %v",
+					tt.psStart, tt.psEnd, tt.bsStart, tt.bsEnd, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMatchesLocationConditions(t *testing.T) {
+	tests := []struct {
+		name          string
+		psLocation    string
+		bsLocation    string
+		want          bool
+	}{
+		{"online + zoom", "Online", "Zoom Online Meeting", true},
+		{"online lowercase + zoom", "online", "ZOOM ONLINE MEETING", true},
+		{"campus location", "TBA - To Be Advised", "Zoom Online Meeting", false},
+		{"online + non-zoom", "Online", "SIS Building Room 101", false},
+		{"empty locations", "", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			psEvent := calendar.Event{Location: tt.psLocation}
+			bsEvent := calendar.Event{Location: tt.bsLocation}
+			got := MatchesLocationConditions(psEvent, bsEvent)
+			if got != tt.want {
+				t.Errorf("MatchesLocationConditions(%q, %q) = %v, want %v",
+					tt.psLocation, tt.bsLocation, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractZoomDetails(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		wantLink    string
+		wantID      string
+		wantPass    string
+	}{
+		{
+			"full zoom link with meeting ID and passcode",
+			`<p>Join Zoom Meeting<br>http://zoom.us/j/0000000000?pwd=000000</p>`,
+			"http://zoom.us/j/0000000000?pwd=000000",
+			"0000000000",
+			"000000",
+		},
+		{
+			"meeting ID in link text",
+			`<p><a href="http://zoom.us/j/0000000000?pwd=000000">Meeting 0000000000</a></p>`,
+			"http://zoom.us/j/0000000000?pwd=000000",
+			"0000000000",
+			"000000",
+		},
+		{
+			"no zoom link",
+			`<p>No meeting scheduled</p>`,
+			"",
+			"",
+			"",
+		},
+		{
+			"empty description",
+			"",
+			"",
+			"",
+			"",
+		},
+		{
+			"zoom link without passcode",
+			`<p><a href="http://zoom.us/j/1111111111">Join Meeting</a></p>`,
+			"http://zoom.us/j/1111111111",
+			"1111111111",
+			"",
+		},
+		{
+			"multiple zoom links - takes first",
+			`<p><a href="http://zoom.us/j/2222222222?pwd=000000">First</a> <a href="http://zoom.us/j/3333333333?pwd=000000">Second</a></p>`,
+			"http://zoom.us/j/2222222222?pwd=000000",
+			"2222222222",
+			"000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExtractZoomDetails(tt.description)
+			if got.Link != tt.wantLink {
+				t.Errorf("ExtractZoomDetails() Link = %q, want %q", got.Link, tt.wantLink)
+			}
+			if got.MeetingID != tt.wantID {
+				t.Errorf("ExtractZoomDetails() MeetingID = %q, want %q", got.MeetingID, tt.wantID)
+			}
+			if got.Passcode != tt.wantPass {
+				t.Errorf("ExtractZoomDetails() Passcode = %q, want %q", got.Passcode, tt.wantPass)
+			}
+		})
+	}
+}
+
+func TestMergeEvents(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 8, 31, 9, 0, 0, 0, loc)
+
+	psEvent := calendar.Event{
+		CourseCode:  "MOD1001",
+		Summary:     "MOD1001 - L01 (Tutorial)",
+		Location:    "Online",
+		Description: "Course: MOD1001\nClass: Sample Module Title\nSection: L01\nType: Tutorial",
+		DTStart:     base,
+		DTEnd:       base.Add(2 * time.Hour),
+	}
+
+	bsEvent := calendar.Event{
+		Source:      "calendar",
+		Title:       "Tutorial 1",
+		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		Location:    "Zoom Online Meeting",
+		Description: `<p>Join Zoom Meeting<br>http://zoom.us/j/0000000000?pwd=000000</p>`,
+		DTStart:     base,
+		DTEnd:       base.Add(2 * time.Hour),
+	}
+
+	tests := []struct {
+		name              string
+		psEvents          []calendar.Event
+		bsEvents          []calendar.Event
+		wantPSCount       int
+		wantTotalCount    int
+		wantMergedCount   int
+		wantDescription   string
+	}{
+		{
+			"single match",
+			[]calendar.Event{psEvent},
+			[]calendar.Event{bsEvent},
+			1,
+			1,
+			1,
+			"Course: MOD1001\nClass: Sample Module Title\nSection: L01\nType: Tutorial\n\nZoom Meeting Details:\nLink: http://zoom.us/j/0000000000?pwd=000000\nMeeting ID: 0000000000\nPasscode: 000000",
+		},
+		{
+			"no match - different module",
+			[]calendar.Event{psEvent},
+			[]calendar.Event{{
+				Title:       "Tutorial 1",
+				OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
+				Location:    "Zoom Online Meeting",
+				DTStart:     base,
+				DTEnd:       base.Add(2 * time.Hour),
+			}},
+			1,
+			2,
+			0,
+			"",
+		},
+		{
+			"no match - different location",
+			[]calendar.Event{{
+				CourseCode: "MOD1001",
+				Location:   "SIS Building Room 101",
+				DTStart:    base,
+				DTEnd:      base.Add(2 * time.Hour),
+			}},
+			[]calendar.Event{bsEvent},
+			1,
+			2,
+			0,
+			"",
+		},
+		{
+			"no match - no time overlap",
+			[]calendar.Event{psEvent},
+			[]calendar.Event{{
+				Title:       "Tutorial 1",
+				OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+				Location:    "Zoom Online Meeting",
+				DTStart:     base.Add(5 * time.Hour),
+				DTEnd:       base.Add(7 * time.Hour),
+			}},
+			1,
+			2,
+			0,
+			"",
+		},
+		{
+			"multiple PS events, one match",
+			[]calendar.Event{
+				{CourseCode: "MOD1001", Location: "Online", Description: "Course: MOD1001\nClass: \nSection: \nType: ", DTStart: base, DTEnd: base.Add(2 * time.Hour)},
+				{CourseCode: "COR2003", Location: "Online", DTStart: base, DTEnd: base.Add(2 * time.Hour)},
+			},
+			[]calendar.Event{bsEvent},
+			2,
+			2,
+			1,
+			"Course: MOD1001\nClass: \nSection: \nType: \n\nZoom Meeting Details:\nLink: http://zoom.us/j/0000000000?pwd=000000\nMeeting ID: 0000000000\nPasscode: 000000",
+		},
+		{
+			"multiple BS events, no PS match",
+			[]calendar.Event{psEvent},
+			[]calendar.Event{
+				{
+					Title:       "Tutorial 1", OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
+					Location:    "Zoom Online Meeting",
+					DTStart:     base, DTEnd: base.Add(2 * time.Hour),
+				},
+				{
+					Title:       "Tutorial 2", OrgUnitName: "MAT1001-Applied Mathematics [2026/27 T1]",
+					Location:    "Zoom Online Meeting",
+					DTStart:     base, DTEnd: base.Add(2 * time.Hour),
+				},
+			},
+			1,
+			3,
+			0,
+			"",
+		},
+		{
+			"empty inputs",
+			[]calendar.Event{},
+			[]calendar.Event{},
+			0,
+			0,
+			0,
+			"",
+		},
+		{
+			"PS event without Zoom details in BS description",
+			[]calendar.Event{psEvent},
+			[]calendar.Event{{
+				Title:       "Tutorial 1",
+				OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+				Location:    "Zoom Online Meeting",
+				Description: "<p>No Zoom link here</p>",
+				DTStart:     base,
+				DTEnd:       base.Add(2 * time.Hour),
+			}},
+			1,
+			2,
+			0,
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, mergedCount := MergeEvents(tt.psEvents, tt.bsEvents)
+
+			if len(result) != tt.wantTotalCount {
+				t.Errorf("MergeEvents() total count = %d, want %d", len(result), tt.wantTotalCount)
+			}
+			if mergedCount != tt.wantMergedCount {
+				t.Errorf("MergeEvents() merged count = %d, want %d", mergedCount, tt.wantMergedCount)
+			}
+
+			if tt.wantDescription != "" {
+				found := false
+				for _, e := range result {
+					if e.CourseCode == "MOD1001" && e.Location == "Online" {
+						if e.Description != tt.wantDescription {
+							t.Errorf("merged event description:\ngot:\n%s\n\nwant:\n%s", e.Description, tt.wantDescription)
+						}
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Error("did not find merged MOD1001 online event")
+				}
+			}
+		})
+	}
+}
+
+func TestMergeEvents_LocationFilter(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 8, 31, 9, 0, 0, 0, loc)
+
+	// PS event on campus - should NOT match even if other conditions are met
+	campusPS := calendar.Event{
+		CourseCode: "MOD1001",
+		Location:   "SIS Building Room 101",
+		DTStart:    base,
+		DTEnd:      base.Add(2 * time.Hour),
+	}
+
+	// BS event at Zoom - should NOT merge with campus PS event
+	zoomBS := calendar.Event{
+		Title:       "Tutorial 1",
+		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/0000000000?pwd=000000">Join</a></p>`,
+		DTStart:     base,
+		DTEnd:       base.Add(2 * time.Hour),
+	}
+
+	result, mergedCount := MergeEvents([]calendar.Event{campusPS}, []calendar.Event{zoomBS})
+
+	if mergedCount != 0 {
+		t.Errorf("MergeEvents() merged %d events, expected 0 (campus PS should not match zoom BS)", mergedCount)
+	}
+	if len(result) != 2 {
+		t.Errorf("MergeEvents() returned %d events, expected 2 (both should be separate)", len(result))
+	}
+}
+
+func TestMergeEvents_OnePSMatchedOnce(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 8, 31, 9, 0, 0, 0, loc)
+
+	psEvent := calendar.Event{
+		CourseCode: "MOD1001",
+		Location:   "Online",
+		DTStart:    base,
+		DTEnd:      base.Add(2 * time.Hour),
+	}
+
+	// Two BS events matching the same PS event
+	bsEvent1 := calendar.Event{
+		Title:       "Tutorial 1",
+		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/2222222222?pwd=000000">Join</a></p>`,
+		DTStart:     base,
+		DTEnd:       base.Add(2 * time.Hour),
+	}
+	bsEvent2 := calendar.Event{
+		Title:       "Tutorial 2",
+		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/3333333333?pwd=000000">Join</a></p>`,
+		DTStart:     base.Add(30 * time.Minute),
+		DTEnd:       base.Add(4 * time.Hour),
+	}
+
+	result, mergedCount := MergeEvents([]calendar.Event{psEvent}, []calendar.Event{bsEvent1, bsEvent2})
+
+	if mergedCount != 1 {
+		t.Errorf("MergeEvents() merged %d events, expected 1 (PS event can only be matched once)", mergedCount)
+	}
+	if len(result) != 2 {
+		t.Errorf("MergeEvents() returned %d events, expected 2 (1 merged PS + 1 unmatched BS)", len(result))
+	}
+
+	// The unmatched BS event should still be in the result
+	foundUnmatched := false
+	for _, e := range result {
+		if e.Title == "Tutorial 2" {
+			foundUnmatched = true
+		}
+	}
+	if !foundUnmatched {
+		t.Error("expected Tutorial 2 to be in results as unmatched BS event")
+	}
+}

@@ -14,11 +14,11 @@ func TestNewXsiteQuizzesHandler(t *testing.T) {
 
 	quizEvents := []calendar.Event{
 		{
-			Summary:     "[SIT1001] Quiz 1",
+			Summary:     "[MOD1002] Quiz 1",
 			Title:       "Quiz 1",
 			OrgUnitID:   "12345",
-			OrgUnitName: "Introduction to Computer Science",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "Sample Module Title Four",
+			OrgUnitCode: "MOD1002",
 			Source:      "brightspace-quizzes",
 			DTStart:     time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC),
 			DTEnd:       time.Date(2026, 9, 15, 11, 0, 0, 0, time.UTC),
@@ -27,11 +27,11 @@ func TestNewXsiteQuizzesHandler(t *testing.T) {
 
 	dropboxEvents := []calendar.Event{
 		{
-			Summary:     "[SIT1001] Assignment 1",
+			Summary:     "[MOD1002] Assignment 1",
 			Title:       "Assignment 1",
 			OrgUnitID:   "12345",
-			OrgUnitName: "Introduction to Computer Science",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "Sample Module Title Four",
+			OrgUnitCode: "MOD1002",
 			Source:      "brightspace-dropbox",
 			DTStart:     time.Date(2026, 9, 16, 23, 59, 0, 0, time.UTC),
 			DTEnd:       time.Date(2026, 9, 17, 23, 59, 0, 0, time.UTC),
@@ -57,10 +57,10 @@ func TestNewXsiteQuizzesHandler(t *testing.T) {
 	}
 
 	body := rr.Body.String()
-	if !contains(body, "SUMMARY:[SIT1001] Quiz 1") {
+	if !contains(body, "SUMMARY:[MOD1002] Quiz 1") {
 		t.Error("Response should contain quiz event")
 	}
-	if contains(body, "SUMMARY:[SIT1001] Assignment 1") {
+	if contains(body, "SUMMARY:[MOD1002] Assignment 1") {
 		t.Error("Response should not contain dropbox event")
 	}
 }
@@ -71,11 +71,11 @@ func TestNewXsiteQuizzesHandler_NoQuizzes(t *testing.T) {
 	// Add only dropbox events (not quizzes)
 	dropboxEvents := []calendar.Event{
 		{
-			Summary:     "[SIT1001] Assignment 1",
+			Summary:     "[MOD1002] Assignment 1",
 			Title:       "Assignment 1",
 			OrgUnitID:   "12345",
-			OrgUnitName: "Introduction to Computer Science",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "Sample Module Title Four",
+			OrgUnitCode: "MOD1002",
 			Source:      "brightspace-dropbox",
 			DTStart:     time.Date(2026, 9, 16, 23, 59, 0, 0, time.UTC),
 			DTEnd:       time.Date(2026, 9, 17, 23, 59, 0, 0, time.UTC),
@@ -108,11 +108,11 @@ func TestNewXsiteQuizzesHandler_ContentHeaders(t *testing.T) {
 
 	quizEvents := []calendar.Event{
 		{
-			Summary:     "[SIT1001] Quiz 1",
+			Summary:     "[MOD1002] Quiz 1",
 			Title:       "Quiz 1",
 			OrgUnitID:   "12345",
-			OrgUnitName: "Introduction to Computer Science",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "Sample Module Title Four",
+			OrgUnitCode: "MOD1002",
 			Source:      "brightspace-quizzes",
 			DTStart:     time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC),
 			DTEnd:       time.Date(2026, 9, 15, 11, 0, 0, 0, time.UTC),
@@ -152,25 +152,25 @@ func TestNewXsiteHandler(t *testing.T) {
 			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:  "[SIT2101] Assignment 1",
+			Summary:  "[COR2001] Assignment 1",
 			Location: "Online",
 			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
 			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
 			Source:   "brightspace-calendar",
 		},
 		{
-			Summary:  "[SIT3201] Lab 3 Due",
+			Summary:  "[COR2002] Lab 3 Due",
 			Location: "",
 			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
 			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
 			Source:   "brightspace-dropbox",
 		},
 		{
-			Summary:     "[SIT1001] Quiz 1",
+			Summary:     "[MOD1002] Quiz 1",
 			Title:       "Quiz 1",
 			OrgUnitID:   "12345",
-			OrgUnitName: "Introduction to Computer Science",
-			OrgUnitCode: "SIT1001",
+			OrgUnitName: "Sample Module Title Four",
+			OrgUnitCode: "MOD1002",
 			Source:      "brightspace-quizzes",
 			DTStart:     time.Date(2026, 9, 15, 10, 0, 0, 0, time.UTC),
 			DTEnd:       time.Date(2026, 9, 15, 11, 0, 0, 0, time.UTC),
@@ -193,13 +193,13 @@ func TestNewXsiteHandler(t *testing.T) {
 	}
 
 	body := rr.Body.String()
-	if !contains(body, "SUMMARY:[SIT2101] Assignment 1") {
+	if !contains(body, "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("Response should contain brightspace-calendar event")
 	}
-	if !contains(body, "SUMMARY:[SIT3201] Lab 3 Due") {
+	if !contains(body, "SUMMARY:[COR2002] Lab 3 Due") {
 		t.Error("Response should contain brightspace-dropbox event")
 	}
-	if !contains(body, "SUMMARY:[SIT1001] Quiz 1") {
+	if !contains(body, "SUMMARY:[MOD1002] Quiz 1") {
 		t.Error("Response should contain brightspace-quizzes event")
 	}
 	if contains(body, "SUMMARY:Campus Class") {

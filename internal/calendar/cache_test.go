@@ -284,14 +284,14 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:  "[SIT2101] Assignment 1",
+			Summary:  "[COR2001] Assignment 1",
 			Location: "Online",
 			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
 			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
 			Source:   "brightspace-calendar",
 		},
 		{
-			Summary:  "[SIT3201] Lab 3 Due",
+			Summary:  "[COR2002] Lab 3 Due",
 			Location: "",
 			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
 			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
@@ -319,10 +319,10 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	if !contains(string(mainData), "SUMMARY:Campus Class") {
 		t.Error("Main ICS missing campus event")
 	}
-	if !contains(string(mainData), "SUMMARY:[SIT2101] Assignment 1") {
+	if !contains(string(mainData), "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("Main ICS missing brightspace-calendar event")
 	}
-	if !contains(string(mainData), "SUMMARY:[SIT3201] Lab 3 Due") {
+	if !contains(string(mainData), "SUMMARY:[COR2002] Lab 3 Due") {
 		t.Error("Main ICS missing brightspace-dropbox event")
 	}
 
@@ -330,34 +330,34 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	if !contains(string(campusData), "SUMMARY:Campus Class") {
 		t.Error("Campus ICS missing campus event")
 	}
-	if contains(string(campusData), "SUMMARY:[SIT2101] Assignment 1") {
+	if contains(string(campusData), "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("Campus ICS should not contain brightspace-calendar event")
 	}
-	if contains(string(campusData), "SUMMARY:[SIT3201] Lab 3 Due") {
+	if contains(string(campusData), "SUMMARY:[COR2002] Lab 3 Due") {
 		t.Error("Campus ICS should not contain brightspace-dropbox event")
 	}
 
 	xsiteEventsData, _ := os.ReadFile(xsiteEventsPath)
-	if !contains(string(xsiteEventsData), "SUMMARY:[SIT2101] Assignment 1") {
+	if !contains(string(xsiteEventsData), "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("xsite events ICS missing brightspace-calendar event")
 	}
-	if contains(string(xsiteEventsData), "SUMMARY:[SIT3201] Lab 3 Due") {
+	if contains(string(xsiteEventsData), "SUMMARY:[COR2002] Lab 3 Due") {
 		t.Error("xsite events ICS should not contain brightspace-dropbox event")
 	}
 
 	xsiteDropboxData, _ := os.ReadFile(xsiteDropboxPath)
-	if !contains(string(xsiteDropboxData), "SUMMARY:[SIT3201] Lab 3 Due") {
+	if !contains(string(xsiteDropboxData), "SUMMARY:[COR2002] Lab 3 Due") {
 		t.Error("xsite dropbox ICS missing brightspace-dropbox event")
 	}
-	if contains(string(xsiteDropboxData), "SUMMARY:[SIT2101] Assignment 1") {
+	if contains(string(xsiteDropboxData), "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("xsite dropbox ICS should not contain brightspace-calendar event")
 	}
 
 	xsiteComboData, _ := os.ReadFile(xsitePath)
-	if !contains(string(xsiteComboData), "SUMMARY:[SIT2101] Assignment 1") {
+	if !contains(string(xsiteComboData), "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("xsite combo ICS missing brightspace-calendar event")
 	}
-	if !contains(string(xsiteComboData), "SUMMARY:[SIT3201] Lab 3 Due") {
+	if !contains(string(xsiteComboData), "SUMMARY:[COR2002] Lab 3 Due") {
 		t.Error("xsite combo ICS missing brightspace-dropbox event")
 	}
 	if contains(string(xsiteComboData), "SUMMARY:Campus Class") {
@@ -384,7 +384,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:  "[SIT2101] Assignment 1",
+			Summary:  "[COR2001] Assignment 1",
 			Location: "Online",
 			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
 			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
@@ -409,7 +409,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	}
 
 	campusData1, _ := os.ReadFile(campusPath)
-	if contains(string(campusData1), "SUMMARY:[SIT2101] Assignment 1") {
+	if contains(string(campusData1), "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("First run: Campus ICS should not contain brightspace-calendar event")
 	}
 
@@ -419,7 +419,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	}
 
 	filtered := cache2.GetFiltered("Asia/Singapore", func(e Event) bool {
-		return e.Summary == "[SIT2101] Assignment 1"
+		return e.Summary == "[COR2001] Assignment 1"
 	}, time.Hour)
 	content := string(filtered)
 	if !contains(content, "X-SOURCE:brightspace-calendar") {
@@ -458,7 +458,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	if !contains(string(campusData2), "SUMMARY:New Campus Class") {
 		t.Error("Second run: Campus ICS missing new campus event")
 	}
-	if contains(string(campusData2), "SUMMARY:[SIT2101] Assignment 1") {
+	if contains(string(campusData2), "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("Second run: Campus ICS should not contain brightspace-calendar event")
 	}
 }
@@ -643,14 +643,14 @@ func TestICSCacheDeleteByPredicate_BrightSpaceBlocklist(t *testing.T) {
 			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:  "[SIT2101] Assignment 1",
+			Summary:  "[COR2001] Assignment 1",
 			Location: "Online",
 			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
 			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
 			Source:   "brightspace-calendar",
 		},
 		{
-			Summary:  "[SIT3201] Lab 3 Due",
+			Summary:  "[COR2002] Lab 3 Due",
 			Location: "",
 			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
 			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
@@ -684,10 +684,10 @@ func TestICSCacheDeleteByPredicate_BrightSpaceBlocklist(t *testing.T) {
 	if !contains(content, "SUMMARY:Campus Class") {
 		t.Error("Non-BrightSpace event should still be in cache")
 	}
-	if contains(content, "SUMMARY:[SIT2101] Assignment 1") {
+	if contains(content, "SUMMARY:[COR2001] Assignment 1") {
 		t.Error("BrightSpace-calendar event should be deleted")
 	}
-	if contains(content, "SUMMARY:[SIT3201] Lab 3 Due") {
+	if contains(content, "SUMMARY:[COR2002] Lab 3 Due") {
 		t.Error("BrightSpace-dropbox event should be deleted")
 	}
 }
