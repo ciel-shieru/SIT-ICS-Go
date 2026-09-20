@@ -122,7 +122,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		cfg.TimetableAlerts,
 		cfg.TimetableOnlineAlerts,
-		cfg.ICSCampusAlerts,
+		cfg.TimetableCampusAlerts,
 		cfg.XsiteEventsAlerts,
 		cfg.XsiteDropboxAlerts,
 		cfg.XsiteQuizzesAlerts,
