@@ -219,3 +219,107 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+func TestEntriesToEvents_EmptyStartUsesEnd(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	blocklist := &Blocklist{}
+
+	entries := []BrightSpaceStringEntry{
+		{
+			Title:       "Quiz with null start",
+			OrgUnitId:   "12345",
+			OrgUnitName: "MOD1002",
+			OrgUnitCode: "MOD1002",
+			DTStart:     "",
+			DTEnd:       "2026-09-15T10:30:00Z",
+			Source:      "brightspace-quizzes",
+		},
+	}
+
+	events := EntriesToEvents(entries, blocklist, loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	event := events[0]
+	expectedStart, _ := time.Parse(time.RFC3339, "2026-09-15T10:30:00Z")
+	expectedStart = expectedStart.In(loc)
+	if !event.DTStart.Equal(expectedStart) {
+		t.Errorf("DTStart = %v, want %v", event.DTStart, expectedStart)
+	}
+	expectedEnd, _ := time.Parse(time.RFC3339, "2026-09-15T10:30:00Z")
+	expectedEnd = expectedEnd.In(loc)
+	if !event.DTEnd.Equal(expectedEnd) {
+		t.Errorf("DTEnd = %v, want %v", event.DTEnd, expectedEnd)
+	}
+}
+
+func TestEntriesToEvents_CalendarEmptyStart(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	blocklist := &Blocklist{}
+
+	entries := []BrightSpaceStringEntry{
+		{
+			Title:       "Calendar Event with empty start",
+			OrgUnitId:   "67890",
+			OrgUnitName: "MOD1003",
+			OrgUnitCode: "MOD1003",
+			DTStart:     "",
+			DTEnd:       "2026-10-01T14:00:00Z",
+			Source:      "brightspace-calendar",
+		},
+	}
+
+	events := EntriesToEvents(entries, blocklist, loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	event := events[0]
+	expectedStart, _ := time.Parse(time.RFC3339, "2026-10-01T14:00:00Z")
+	expectedStart = expectedStart.In(loc)
+	if !event.DTStart.Equal(expectedStart) {
+		t.Errorf("DTStart = %v, want %v", event.DTStart, expectedStart)
+	}
+	if event.Source != "brightspace-calendar" {
+		t.Errorf("Source = %q, want %q", event.Source, "brightspace-calendar")
+	}
+}
+
+func TestEntriesToEvents_BothEmptySkipped(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	blocklist := &Blocklist{}
+
+	entries := []BrightSpaceStringEntry{
+		{
+			Title:       "Entry with both empty",
+			OrgUnitId:   "11111",
+			OrgUnitName: "MOD1004",
+			OrgUnitCode: "MOD1004",
+			DTStart:     "",
+			DTEnd:       "",
+			Source:      "brightspace-quizzes",
+		},
+		{
+			Title:       "Valid Entry",
+			OrgUnitId:   "22222",
+			OrgUnitName: "MOD1005",
+			OrgUnitCode: "MOD1005",
+			DTStart:     "2026-09-20T09:00:00Z",
+			DTEnd:       "2026-09-20T10:00:00Z",
+			Source:      "brightspace-quizzes",
+		},
+	}
+
+	events := EntriesToEvents(entries, blocklist, loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event (both-empty entry skipped), got %d", len(events))
+	}
+
+	if events[0].Title != "Valid Entry" {
+		t.Errorf("Expected 'Valid Entry', got %q", events[0].Title)
+	}
+}

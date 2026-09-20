@@ -189,6 +189,12 @@ func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc
 			continue
 		}
 
+		// If start time is empty but end time exists, use end time as start time.
+		// This handles quizzes where StartDate is null but EndDate/DueDate is set.
+		if entry.DTStart == "" && entry.DTEnd != "" {
+			entry.DTStart = entry.DTEnd
+		}
+
 		dtStart, err := ParseTimestamp(entry.DTStart, loc)
 		if err != nil {
 			log.Printf("brightspace: skipping entry %q: invalid start time %q: %v", entry.Title, entry.DTStart, err)
