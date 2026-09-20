@@ -141,6 +141,24 @@ All via env vars with CLI flag override (flags take priority):
 - **App.Fetch() is reentrant-guarded**: Uses mutex + `fetching` flag to prevent concurrent fetches.
 - **Events sorted deterministically**: Primary by DTStart, secondary by Location, tiebreaker by UID.
 
+## Data privacy — no sensitive data in the repo
+
+All data committed to the git repo MUST NOT contain any identifiable, sensitive, revealing, personal, organizational, or company information. Examples include but are not limited to:
+
+- Module names and module codes
+- Person names (students, staff, faculty)
+- Student information (matriculation numbers, student IDs)
+- Staff information (employee IDs, staff numbers)
+- Location details (building names, room numbers, physical addresses)
+- Zoom tenant identifiers
+- Zoom meeting names, meeting IDs, meeting passcodes (including in encoded or encrypted forms)
+- Zoom meeting PINs (including in encoded or encrypted forms)
+- Any similar personally identifiable or organizationally sensitive information
+
+**Exception**: Domain names (e.g. `singaporetech.edu.sg`) are permitted since they are public-facing and required for the core functionality of this application, which is purpose-built for this specific institution.
+
+When data is needed for tests, configuration examples, or documentation, use **fake data** or well-known sample data only (e.g. `JOHN DOE` for names, fictional module codes like `ALT2501`, fabricated IDs, dummy meeting IDs). Never copy real data from production systems, live exports, screenshots, or actual user records.
+
 ## Testing
 - `go test -v -count=1 -race ./...` — runs all unit tests, no browser or Chromium required.
 - `internal/browser/browser_test.go` — sentinel errors, wrapping, `MockAuthBrowser`, `ErrAuthenticationTimeout`.
