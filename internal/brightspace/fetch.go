@@ -49,32 +49,32 @@ func (c *Client) FetchCourses(ctx context.Context) ([]Course, error) {
 
 // FetchCalendarEvents returns calendar events for a course.
 func (c *Client) FetchCalendarEvents(ctx context.Context, version, orgUnitID string) ([]CalendarEventAPI, error) {
-	var events []CalendarEventAPI
+	var resp CalendarEventsResponse
 	url := fmt.Sprintf("%s/d2l/api/le/%s/%s/calendar/events/", c.baseURL, version, orgUnitID)
-	if err := c.fetcher.DecodeJSON(url, &events); err != nil {
+	if err := c.fetcher.DecodeJSON(url, &resp); err != nil {
 		return nil, fmt.Errorf("fetch calendar events: %w", err)
 	}
-	return events, nil
+	return resp.Objects, nil
 }
 
 // FetchDropboxFolders returns dropbox folders for a course.
 func (c *Client) FetchDropboxFolders(ctx context.Context, version, orgUnitID string) ([]DropboxFolderAPI, error) {
-	var folders []DropboxFolderAPI
+	var resp DropboxFoldersResponse
 	url := fmt.Sprintf("%s/d2l/api/le/%s/%s/dropbox/folders/", c.baseURL, version, orgUnitID)
-	if err := c.fetcher.DecodeJSON(url, &folders); err != nil {
+	if err := c.fetcher.DecodeJSON(url, &resp); err != nil {
 		return nil, fmt.Errorf("fetch dropbox folders: %w", err)
 	}
-	return folders, nil
+	return resp.Objects, nil
 }
 
 // FetchQuizzes returns quizzes for a course.
 func (c *Client) FetchQuizzes(ctx context.Context, version, orgUnitID string) ([]QuizAPI, error) {
-	var quizzes []QuizAPI
+	var resp QuizzesResponse
 	url := fmt.Sprintf("%s/d2l/api/le/%s/%s/quizzes/", c.baseURL, version, orgUnitID)
-	if err := c.fetcher.DecodeJSON(url, &quizzes); err != nil {
+	if err := c.fetcher.DecodeJSON(url, &resp); err != nil {
 		return nil, fmt.Errorf("fetch quizzes: %w", err)
 	}
-	return quizzes, nil
+	return resp.Objects, nil
 }
 
 // Fetch extracts BrightSpace D2L calendar events and dropbox due dates.

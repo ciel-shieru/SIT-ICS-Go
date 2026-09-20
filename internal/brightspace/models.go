@@ -88,6 +88,24 @@ type Attempts struct {
 	NumberOfAttemptsAllowed int  `json:"NumberOfAttemptsAllowed"`
 }
 
+// QuizzesResponse mirrors the BrightSpace quizzes API JSON structure.
+type QuizzesResponse struct {
+	Objects []QuizAPI `json:"Objects"`
+	Next    *string   `json:"Next"`
+}
+
+// CalendarEventsResponse mirrors the BrightSpace calendar events API JSON structure.
+type CalendarEventsResponse struct {
+	Objects []CalendarEventAPI `json:"Objects"`
+	Next    *string            `json:"Next"`
+}
+
+// DropboxFoldersResponse mirrors the BrightSpace dropbox folders API JSON structure.
+type DropboxFoldersResponse struct {
+	Objects []DropboxFolderAPI `json:"Objects"`
+	Next    *string            `json:"Next"`
+}
+
 // BrightSpaceEntry is the internal representation of a BrightSpace event/due date.
 type BrightSpaceEntry struct {
 	// Source identifies whether this came from calendar events or dropbox folders.
