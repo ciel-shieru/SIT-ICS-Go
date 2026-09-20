@@ -732,6 +732,104 @@ func TestICSCacheDeterministicOutput(t *testing.T) {
 	}
 }
 
+func TestICSCacheLastModifiedInitialZero(t *testing.T) {
+	cache := NewICSCache()
+	if !cache.GetLastModified().IsZero() {
+		t.Errorf("Expected zero lastModified for new cache, got %v", cache.GetLastModified())
+	}
+}
+
+func TestICSCacheLastModifiedSetOnUpdate(t *testing.T) {
+	cache := NewICSCache()
+
+	if !cache.GetLastModified().IsZero() {
+		t.Fatal("Expected zero lastModified before update")
+	}
+
+	events := []Event{
+		{Summary: "Test", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	lastMod := cache.GetLastModified()
+	if lastMod.IsZero() {
+		t.Fatal("Expected non-zero lastModified after Update()")
+	}
+	if lastMod.After(time.Now().UTC()) {
+		t.Error("lastModified should not be in the future")
+	}
+}
+
+func TestICSCacheLastModifiedSetOnLoad(t *testing.T) {
+	tmpDir := t.TempDir()
+	icsPath := filepath.Join(tmpDir, "test.ics")
+
+	initialData := []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:test-uid\r\nSUMMARY:Loaded Event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	if err := os.WriteFile(icsPath, initialData, 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	fi, err := os.Stat(icsPath)
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	fileModTime := fi.ModTime()
+
+	cache := NewICSCache()
+	if err := cache.LoadFromFile(icsPath, time.UTC); err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+
+	lastMod := cache.GetLastModified()
+	if lastMod.IsZero() {
+		t.Fatal("Expected non-zero lastModified after LoadFromFile()")
+	}
+	if lastMod.Sub(fileModTime).Abs() > time.Second {
+		t.Errorf("lastModified = %v, want ~%v (file mod time)", lastMod, fileModTime)
+	}
+}
+
+func TestICSCacheComputeETagDeterministic(t *testing.T) {
+	data := []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n")
+
+	etag1 := ComputeETag(data)
+	etag2 := ComputeETag(data)
+
+	if etag1 != etag2 {
+		t.Errorf("Same data produced different ETags: %q vs %q", etag1, etag2)
+	}
+	if etag1 == "" {
+		t.Error("ETag should not be empty")
+	}
+}
+
+func TestICSCacheComputeETagDifferentData(t *testing.T) {
+	data1 := []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n")
+	data2 := []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:test\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+
+	etag1 := ComputeETag(data1)
+	etag2 := ComputeETag(data2)
+
+	if etag1 == etag2 {
+		t.Errorf("Different data produced same ETag: %q", etag1)
+	}
+}
+
+func TestICSCacheComputeETagWeakFormat(t *testing.T) {
+	data := []byte("test")
+	etag := ComputeETag(data)
+
+	if !strings.HasPrefix(etag, `W/"`) {
+		t.Errorf("ETag should start with W/\", got: %q", etag)
+	}
+	if !strings.HasSuffix(etag, `"`) {
+		t.Errorf("ETag should end with \", got: %q", etag)
+	}
+}
+
 func TestICSCachePersistenceFailure(t *testing.T) {
 	cache := NewICSCache()
 

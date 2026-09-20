@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -223,4 +224,427 @@ func findSub(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestNewTimetableHandler_ETagHeader(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	etag := rr.Header().Get("ETag")
+	if etag == "" {
+		t.Error("ETag header should be present on 200 response")
+	}
+	if !strings.HasPrefix(etag, `W/"`) {
+		t.Errorf("ETag should be a weak validator, got: %q", etag)
+	}
+}
+
+func TestNewTimetableHandler_IfNoneMatchMatch(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req1 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+	etag := rr1.Header().Get("ETag")
+
+	req2 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req2.Header.Set("If-None-Match", etag)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d", rr2.Code, http.StatusNotModified)
+	}
+	if body := rr2.Body.String(); body != "" {
+		t.Errorf("304 response body should be empty, got: %q", body)
+	}
+}
+
+func TestNewTimetableHandler_IfNoneMatchNoMatch(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-None-Match", `W/"non-matching-tag"`)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Status = %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestNewTimetableHandler_IfModifiedSinceCurrent(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	lastMod := cache.GetLastModified()
+	if lastMod.IsZero() {
+		t.Fatal("Expected non-zero lastModified")
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-Modified-Since", lastMod.UTC().Format(time.RFC1123))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d", rr.Code, http.StatusNotModified)
+	}
+}
+
+func TestNewTimetableHandler_IfModifiedSincePast(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	pastTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-Modified-Since", pastTime.UTC().Format(time.RFC1123))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Status = %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestNewTimetableHandler_304IncludesHeaders(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	etag := rr.Header().Get("ETag")
+
+	req2 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req2.Header.Set("If-None-Match", etag)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Header().Get("ETag") == "" {
+		t.Error("304 response should include ETag header")
+	}
+	if rr2.Header().Get("Cache-Control") == "" {
+		t.Error("304 response should include Cache-Control header")
+	}
+}
+
+func TestNewTimetableHandler_CacheControlHeader(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	cacheControl := rr.Header().Get("Cache-Control")
+	if cacheControl == "" {
+		t.Error("Cache-Control header should be present on 200 response")
+	}
+	if !strings.Contains(cacheControl, "max-age=") {
+		t.Errorf("Cache-Control should contain max-age, got: %q", cacheControl)
+	}
+	if !strings.Contains(cacheControl, "immutable") {
+		t.Errorf("Cache-Control should contain immutable, got: %q", cacheControl)
+	}
+}
+
+func TestNewTimetableHandler_LastModifiedHeader(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	lastModified := rr.Header().Get("Last-Modified")
+	if lastModified == "" {
+		t.Error("Last-Modified header should be present on 200 response")
+	}
+	_, err := time.Parse(time.RFC1123, lastModified)
+	if err != nil {
+		t.Errorf("Last-Modified should be in RFC 1123 format, got: %q, error: %v", lastModified, err)
+	}
+}
+
+func TestNewTimetableHandler_MalformedIfNoneMatch(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-None-Match", "not-a-valid-etag")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Status = %d, want %d (malformed If-None-Match should be ignored)", rr.Code, http.StatusOK)
+	}
+}
+
+func TestNewXsiteHandler_ConditionalRequests(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{
+			Summary:  "[COR2001] Assignment 1",
+			Location: "Online",
+			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			Source:   "brightspace-calendar",
+		},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newXsiteHandler(cache, "Asia/Singapore", time.Hour, nil, nil, nil)
+
+	req1 := httptest.NewRequest(http.MethodGet, "/xsite.ics", nil)
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+
+	if rr1.Code != http.StatusOK {
+		t.Errorf("Status = %d, want %d", rr1.Code, http.StatusOK)
+	}
+	etag := rr1.Header().Get("ETag")
+	if etag == "" {
+		t.Error("ETag header should be present")
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "/xsite.ics", nil)
+	req2.Header.Set("If-None-Match", etag)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d", rr2.Code, http.StatusNotModified)
+	}
+	if body := rr2.Body.String(); body != "" {
+		t.Errorf("304 response body should be empty, got: %q", body)
+	}
+}
+
+func TestNewTimetableHandler_IfNoneMatchWildcard(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-None-Match", "*")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d (If-None-Match: * should match any existing resource)", rr.Code, http.StatusNotModified)
+	}
+	if body := rr.Body.String(); body != "" {
+		t.Errorf("304 response body should be empty, got: %q", body)
+	}
+}
+
+func TestNewTimetableHandler_IfNoneMatchWildcardWhitespace(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-None-Match", " * ")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d (whitespace around * should be tolerated)", rr.Code, http.StatusNotModified)
+	}
+}
+
+func TestNewTimetableHandler_IfNoneMatchWeakComparison(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req1 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+	etag := rr1.Header().Get("ETag")
+
+	strongETag := strings.TrimPrefix(etag, `W/"`)
+	strongETag = strings.TrimSuffix(strongETag, `"`)
+	req2 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req2.Header.Set("If-None-Match", `"`+strongETag+`"`)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d (weak comparison: W/\"...\" should match \"...\")", rr2.Code, http.StatusNotModified)
+	}
+}
+
+func TestNewXsiteHandler_IfNoneMatchWildcard(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{
+			Summary:  "[COR2001] Assignment 1",
+			Location: "Online",
+			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			Source:   "brightspace-calendar",
+		},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newXsiteHandler(cache, "Asia/Singapore", time.Hour, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/xsite.ics", nil)
+	req.Header.Set("If-None-Match", "*")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d (xsite: If-None-Match: * should match)", rr.Code, http.StatusNotModified)
+	}
+	if body := rr.Body.String(); body != "" {
+		t.Errorf("304 response body should be empty, got: %q", body)
+	}
+}
+
+func TestNewTimetableHandler_IfNoneMatchMultipleETags(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	req1 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+	etag := rr1.Header().Get("ETag")
+
+	req2 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req2.Header.Set("If-None-Match", `W/"non-matching", `+etag)
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d (multiple ETags: second ETag matches → 304)", rr2.Code, http.StatusNotModified)
+	}
+}
+
+func TestNewTimetableHandler_CombinedHeaders(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{Summary: "Test Event", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newTimetableHandler(cache, "Asia/Singapore", time.Hour, nil)
+
+	// Request with both If-None-Match (non-matching) and If-Modified-Since (current)
+	// Per RFC 7232 §6.8: If-None-Match doesn't match, but If-Modified-Since does → 304
+	lastMod := cache.GetLastModified()
+	req2 := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req2.Header.Set("If-None-Match", `W/"non-matching"`)
+	req2.Header.Set("If-Modified-Since", lastMod.UTC().Format(time.RFC1123))
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("Status = %d, want %d (non-matching If-None-Match + current If-Modified-Since → 304)", rr2.Code, http.StatusNotModified)
+	}
+	if body := rr2.Body.String(); body != "" {
+		t.Errorf("304 response body should be empty, got: %q", body)
+	}
 }
