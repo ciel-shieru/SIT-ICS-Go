@@ -74,6 +74,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 			EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.XsiteEventLocationBlocklist),
 			QuizTitlePatterns:     brightspace.ParseCommaSeparated(cfg.XsiteQuizTitleBlocklist),
 		}
+		blocklist.CompilePatterns()
 
 		deleted := cache.RemoveWhere(func(e calendar.Event) bool {
 			return blocklist.Matches(e.OrgUnitID, e.OrgUnitName, e.Title, e.Location)
