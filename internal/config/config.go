@@ -29,22 +29,20 @@ type Config struct {
 	BrowserDebug                      bool          `env:"BROWSER_DEBUG" envDefault:"false"`
 	ProxyURL                          string        `env:"PROXY_URL" envDefault:""`
 	ICSRefreshInterval                time.Duration `env:"ICS_REFRESH_INTERVAL" envDefault:"1h"`
-	BrightSpaceEnabled                bool          `env:"BRIGHTSPACE_ENABLED" envDefault:"false"`
-	XsitePath                         string        `env:"XSITE_PATH" envDefault:"./xsite.ics"`
-	BrightSpaceAPIKey                 string        `env:"BRIGHTSPACE_API_KEY" envDefault:""`
-	BrightSpaceAPISecret              string        `env:"BRIGHTSPACE_API_SECRET" envDefault:""`
-	BrightSpaceCourseNameBlocklist    string        `env:"BRIGHTSPACE_COURSE_NAME_BLOCKLIST" envDefault:""`
-	BrightSpaceCourseIDBlocklist      string        `env:"BRIGHTSPACE_COURSE_ID_BLOCKLIST" envDefault:""`
-	BrightSpaceEventTitleBlocklist    string        `env:"BRIGHTSPACE_EVENT_TITLE_BLOCKLIST" envDefault:""`
-	BrightSpaceEventLocationBlocklist string        `env:"BRIGHTSPACE_EVENT_LOCATION_BLOCKLIST" envDefault:""`
-	XsiteQuizzesPath                  string        `env:"XSITE_QUIZZES_PATH" envDefault:"./xsite-quizzes.ics"`
-	BrightSpaceQuizTitleBlocklist     string        `env:"BRIGHTSPACE_QUIZ_TITLE_BLOCKLIST" envDefault:""`
-	BrightSpaceQuizzesAlerts          string        `env:"BRIGHTSPACE_QUIZZES_ALERTS" envDefault:""`
-	TimetableAlerts                   string        `env:"TIMETABLE_ALERTS" envDefault:""`
-	TimetableOnlineAlerts             string        `env:"TIMETABLE_ONLINE_ALERTS" envDefault:""`
-	ICSCampusAlerts                   string        `env:"ICS_CAMPUS_ALERTS" envDefault:""`
-	BrightSpaceEventsAlerts           string        `env:"BRIGHTSPACE_EVENTS_ALERTS" envDefault:""`
-	BrightSpaceDropboxAlerts          string        `env:"BRIGHTSPACE_DROPBOX_ALERTS" envDefault:""`
+	XsiteEnabled                       bool          `env:"XSITE_ENABLED" envDefault:"false"`
+	XsitePath                          string        `env:"XSITE_PATH" envDefault:"./xsite.ics"`
+	XsiteCourseNameBlocklist           string        `env:"XSITE_COURSE_NAME_BLOCKLIST" envDefault:""`
+	XsiteCourseIDBlocklist             string        `env:"XSITE_COURSE_ID_BLOCKLIST" envDefault:""`
+	XsiteEventTitleBlocklist           string        `env:"XSITE_EVENT_TITLE_BLOCKLIST" envDefault:""`
+	XsiteEventLocationBlocklist        string        `env:"XSITE_EVENT_LOCATION_BLOCKLIST" envDefault:""`
+	XsiteQuizzesPath                   string        `env:"XSITE_QUIZZES_PATH" envDefault:"./xsite-quizzes.ics"`
+	XsiteQuizTitleBlocklist            string        `env:"XSITE_QUIZ_TITLE_BLOCKLIST" envDefault:""`
+	XsiteQuizzesAlerts                 string        `env:"XSITE_QUIZZES_ALERTS" envDefault:""`
+	TimetableAlerts                    string        `env:"TIMETABLE_ALERTS" envDefault:""`
+	TimetableOnlineAlerts              string        `env:"TIMETABLE_ONLINE_ALERTS" envDefault:""`
+	ICSCampusAlerts                    string        `env:"ICS_CAMPUS_ALERTS" envDefault:""`
+	XsiteEventsAlerts                  string        `env:"XSITE_EVENTS_ALERTS" envDefault:""`
+	XsiteDropboxAlerts                 string        `env:"XSITE_DROPBOX_ALERTS" envDefault:""`
 
 	credStore credentialstore.Store
 }

@@ -72,9 +72,9 @@ func (a *App) Run() error {
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
 		a.cfg.ICSCampusAlerts,
-		a.cfg.BrightSpaceEventsAlerts,
-		a.cfg.BrightSpaceDropboxAlerts,
-		a.cfg.BrightSpaceQuizzesAlerts,
+		a.cfg.XsiteEventsAlerts,
+		a.cfg.XsiteDropboxAlerts,
+		a.cfg.XsiteQuizzesAlerts,
 	)
 	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts)
 	go func() { _ = a.srv.Start() }()
@@ -144,9 +144,9 @@ func (a *App) Shutdown() {
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
 		a.cfg.ICSCampusAlerts,
-		a.cfg.BrightSpaceEventsAlerts,
-		a.cfg.BrightSpaceDropboxAlerts,
-		a.cfg.BrightSpaceQuizzesAlerts,
+		a.cfg.XsiteEventsAlerts,
+		a.cfg.XsiteDropboxAlerts,
+		a.cfg.XsiteQuizzesAlerts,
 	)
 	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.XsiteEventsPath, a.cfg.XsiteDropboxPath, a.cfg.XsiteQuizzesPath, a.cfg.XsitePath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
 		log.Printf("save on shutdown failed: %v", err)

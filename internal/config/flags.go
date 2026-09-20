@@ -31,16 +31,14 @@ func applyFlags(cfg *Config) error {
 	xsiteDropboxPath                   := fs.String("xsite-dropbox-path", "", "Path to xsite dropbox ICS file")
 	xsiteEnabled                       := fs.Bool("xsite-enabled", false, "Enable xSite D2L extraction")
 	xsitePath                          := fs.String("xsite-path", "", "Path to xsite combo ICS file")
-	brightspaceAPIKey                  := fs.String("brightspace-api-key", "", "BrightSpace D2L API key")
-	brightspaceAPISecret               := fs.String("brightspace-api-secret", "", "BrightSpace D2L API secret")
-	brightspaceCourseNameBlocklist     := fs.String("brightspace-course-name-blocklist", "", "Comma-separated course name patterns to block")
-	brightspaceCourseIDBlocklist       := fs.String("brightspace-course-id-blocklist", "", "Comma-separated course OrgUnitIds to block")
-	brightspaceEventTitleBlocklist     := fs.String("brightspace-event-title-blocklist", "", "Comma-separated event title patterns to block")
-	brightspaceEventLocationBlocklist  := fs.String("brightspace-event-location-blocklist", "", "Comma-separated event location patterns to block")
+	xsiteCourseNameBlocklist           := fs.String("xsite-course-name-blocklist", "", "Comma-separated course name patterns to block")
+	xsiteCourseIDBlocklist             := fs.String("xsite-course-id-blocklist", "", "Comma-separated course OrgUnitIds to block")
+	xsiteEventTitleBlocklist           := fs.String("xsite-event-title-blocklist", "", "Comma-separated event title patterns to block")
+	xsiteEventLocationBlocklist        := fs.String("xsite-event-location-blocklist", "", "Comma-separated event location patterns to block")
 	timetableOnlineAlerts              := fs.String("timetable-online-alerts", "", "Comma-separated ICS duration strings for timetable online VALARM (e.g. -P2D,-P1D)")
 	icsCampusAlerts                    := fs.String("ics-campus-alerts", "", "Comma-separated ICS duration strings for campus VALARM")
-	brightspaceEventsAlerts            := fs.String("brightspace-events-alerts", "", "Comma-separated ICS duration strings for brightspace events VALARM")
-	brightspaceDropboxAlerts           := fs.String("brightspace-dropbox-alerts", "", "Comma-separated ICS duration strings for brightspace dropbox VALARM")
+	xsiteEventsAlerts                  := fs.String("xsite-events-alerts", "", "Comma-separated ICS duration strings for xsite events VALARM")
+	xsiteDropboxAlerts                 := fs.String("xsite-dropbox-alerts", "", "Comma-separated ICS duration strings for xsite dropbox VALARM")
 	xsiteQuizzesPath                   := fs.String("xsite-quizzes-path", "", "Path to xsite quizzes ICS file")
 	timetableAlerts                    := fs.String("timetable-alerts", "", "Comma-separated ICS duration strings for main timetable VALARM (e.g. -P2D,-P1D)")
 
@@ -112,28 +110,22 @@ func applyFlags(cfg *Config) error {
 		cfg.XsiteDropboxPath = *xsiteDropboxPath
 	}
 	if fs.Lookup("xsite-enabled").Changed {
-		cfg.BrightSpaceEnabled = *xsiteEnabled
+		cfg.XsiteEnabled = *xsiteEnabled
 	}
 	if fs.Lookup("xsite-path").Changed {
 		cfg.XsitePath = *xsitePath
 	}
-	if fs.Lookup("brightspace-api-key").Changed {
-		cfg.BrightSpaceAPIKey = *brightspaceAPIKey
+	if fs.Lookup("xsite-course-name-blocklist").Changed {
+		cfg.XsiteCourseNameBlocklist = *xsiteCourseNameBlocklist
 	}
-	if fs.Lookup("brightspace-api-secret").Changed {
-		cfg.BrightSpaceAPISecret = *brightspaceAPISecret
+	if fs.Lookup("xsite-course-id-blocklist").Changed {
+		cfg.XsiteCourseIDBlocklist = *xsiteCourseIDBlocklist
 	}
-	if fs.Lookup("brightspace-course-name-blocklist").Changed {
-		cfg.BrightSpaceCourseNameBlocklist = *brightspaceCourseNameBlocklist
+	if fs.Lookup("xsite-event-title-blocklist").Changed {
+		cfg.XsiteEventTitleBlocklist = *xsiteEventTitleBlocklist
 	}
-	if fs.Lookup("brightspace-course-id-blocklist").Changed {
-		cfg.BrightSpaceCourseIDBlocklist = *brightspaceCourseIDBlocklist
-	}
-	if fs.Lookup("brightspace-event-title-blocklist").Changed {
-		cfg.BrightSpaceEventTitleBlocklist = *brightspaceEventTitleBlocklist
-	}
-	if fs.Lookup("brightspace-event-location-blocklist").Changed {
-		cfg.BrightSpaceEventLocationBlocklist = *brightspaceEventLocationBlocklist
+	if fs.Lookup("xsite-event-location-blocklist").Changed {
+		cfg.XsiteEventLocationBlocklist = *xsiteEventLocationBlocklist
 	}
 	if fs.Lookup("timetable-online-alerts").Changed {
 		cfg.TimetableOnlineAlerts = *timetableOnlineAlerts
@@ -141,11 +133,11 @@ func applyFlags(cfg *Config) error {
 	if fs.Lookup("ics-campus-alerts").Changed {
 		cfg.ICSCampusAlerts = *icsCampusAlerts
 	}
-	if fs.Lookup("brightspace-events-alerts").Changed {
-		cfg.BrightSpaceEventsAlerts = *brightspaceEventsAlerts
+	if fs.Lookup("xsite-events-alerts").Changed {
+		cfg.XsiteEventsAlerts = *xsiteEventsAlerts
 	}
-	if fs.Lookup("brightspace-dropbox-alerts").Changed {
-		cfg.BrightSpaceDropboxAlerts = *brightspaceDropboxAlerts
+	if fs.Lookup("xsite-dropbox-alerts").Changed {
+		cfg.XsiteDropboxAlerts = *xsiteDropboxAlerts
 	}
 	if fs.Lookup("xsite-quizzes-path").Changed {
 		cfg.XsiteQuizzesPath = *xsiteQuizzesPath

@@ -24,16 +24,36 @@ Rename all external-facing BrightSpace artifacts to use the `xsite` prefix:
 
 ### Configuration fields
 - `BrightSpaceBaseURL` — removed entirely (hardcoded to `"https://xsite.singaporetech.edu.sg"`)
+- `BrightSpaceAPIKey` — removed entirely
+- `BrightSpaceAPISecret` — removed entirely
+- `BrightSpaceEnabled` → `XsiteEnabled` (`env:"XSITE_ENABLED"`, default `"false"`)
 - `BrightSpaceEventsPath` → `XsiteEventsPath` (`env:"XSITE_EVENTS_PATH"`, default `"./xsite-events.ics"`)
 - `BrightSpaceDropboxPath` → `XsiteDropboxPath` (`env:"XSITE_DROPBOX_PATH"`, default `"./xsite-dropbox.ics"`)
 - `BrightSpaceQuizzesPath` → renamed but env tag unchanged (`env:"BRIGHTSPACE_QUIZZES_PATH"`, default updated to `"./xsite-quizzes.ics"`)
 - `XsitePath` — new field (`env:"XSITE_PATH"`, default `"./xsite.ics"`)
+- `BrightSpaceCourseNameBlocklist` → `XsiteCourseNameBlocklist` (`env:"XSITE_COURSE_NAME_BLOCKLIST"`)
+- `BrightSpaceCourseIDBlocklist` → `XsiteCourseIDBlocklist` (`env:"XSITE_COURSE_ID_BLOCKLIST"`)
+- `BrightSpaceEventTitleBlocklist` → `XsiteEventTitleBlocklist` (`env:"XSITE_EVENT_TITLE_BLOCKLIST"`)
+- `BrightSpaceEventLocationBlocklist` → `XsiteEventLocationBlocklist` (`env:"XSITE_EVENT_LOCATION_BLOCKLIST"`)
+- `BrightSpaceQuizTitleBlocklist` → `XsiteQuizTitleBlocklist` (`env:"XSITE_QUIZ_TITLE_BLOCKLIST"`)
+- `BrightSpaceEventsAlerts` → `XsiteEventsAlerts` (`env:"XSITE_EVENTS_ALERTS"`)
+- `BrightSpaceDropboxAlerts` → `XsiteDropboxAlerts` (`env:"XSITE_DROPBOX_ALERTS"`)
+- `BrightSpaceQuizzesAlerts` → `XsiteQuizzesAlerts` (`env:"XSITE_QUIZZES_ALERTS"`)
 
 ### CLI flags
 - `brightspace-events-path` → `xsite-events-path`
 - `brightspace-dropbox-path` → `xsite-dropbox-path`
 - `brightspace-quizzes-path` → `xsite-quizzes-path` (new flag for the renamed field)
 - `brightspace-base-url` — removed
+- `brightspace-api-key` — removed
+- `brightspace-api-secret` — removed
+- `brightspace-course-name-blocklist` → `xsite-course-name-blocklist`
+- `brightspace-course-id-blocklist` → `xsite-course-id-blocklist`
+- `brightspace-event-title-blocklist` → `xsite-event-title-blocklist`
+- `brightspace-event-location-blocklist` → `xsite-event-location-blocklist`
+- `brightspace-events-alerts` → `xsite-events-alerts`
+- `brightspace-dropbox-alerts` → `xsite-dropbox-alerts`
+- `xsite-enabled` — flag already existed (config field renamed from `BrightSpaceEnabled`)
 - `xsite-path` — new flag
 
 ### Cache Outputs struct
@@ -51,7 +71,6 @@ Rename all external-facing BrightSpace artifacts to use the `xsite` prefix:
 ### What was NOT changed
 - Internal package name (`brightspace`)
 - Event source values (`"brightspace-calendar"`, `"brightspace-dropbox"`, `"brightspace-quizzes"`)
-- Internal config fields that are not external-facing (e.g., `BrightSpaceEnabled`, `BrightSpaceAPIKey`, `BrightSpaceAPISecret`, blocklist fields, alert fields)
 - Filter predicates in the cache layer (`filterEventsBySource(events, "brightspace-calendar")`)
 
 ## Consequences
@@ -66,7 +85,13 @@ Rename all external-facing BrightSpace artifacts to use the `xsite` prefix:
 ### Negative
 
 - **Breaking change for env vars**: Users relying on `BRIGHTSPACE_EVENTS_PATH`, `BRIGHTSPACE_DROPBOX_PATH` environment variables will need to switch to `XSITE_EVENTS_PATH`, `XSITE_DROPBOX_PATH`
+- **Breaking change for env vars**: Users relying on `BRIGHTSPACE_ENABLED` will need to switch to `XSITE_ENABLED`
+- **Breaking change for env vars**: Users relying on `BRIGHTSPACE_COURSE_NAME_BLOCKLIST`, `BRIGHTSPACE_COURSE_ID_BLOCKLIST`, `BRIGHTSPACE_EVENT_TITLE_BLOCKLIST`, `BRIGHTSPACE_EVENT_LOCATION_BLOCKLIST` will need to switch to `XSITE_COURSE_NAME_BLOCKLIST`, `XSITE_COURSE_ID_BLOCKLIST`, `XSITE_EVENT_TITLE_BLOCKLIST`, `XSITE_EVENT_LOCATION_BLOCKLIST`
+- **Breaking change for env vars**: Users relying on `BRIGHTSPACE_EVENTS_ALERTS`, `BRIGHTSPACE_DROPBOX_ALERTS`, `BRIGHTSPACE_QUIZZES_ALERTS` will need to switch to `XSITE_EVENTS_ALERTS`, `XSITE_DROPBOX_ALERTS`, `XSITE_QUIZZES_ALERTS`
+- **Breaking change for env vars**: `BRIGHTSPACE_API_KEY` and `BRIGHTSPACE_API_SECRET` are no longer accepted (API key auth removed)
 - **Breaking change for CLI flags**: Users relying on `--brightspace-events-path`, `--brightspace-dropbox-path` CLI flags will need to switch to `--xsite-events-path`, `--xsite-dropbox-path`
+- **Breaking change for CLI flags**: Users relying on `--brightspace-course-name-blocklist`, `--brightspace-course-id-blocklist`, `--brightspace-event-title-blocklist`, `--brightspace-event-location-blocklist` will need to switch to `--xsite-course-name-blocklist`, `--xsite-course-id-blocklist`, `--xsite-event-title-blocklist`, `--xsite-event-location-blocklist`
+- **Breaking change for CLI flags**: Users relying on `--brightspace-api-key`, `--brightspace-api-secret` will need to remove these flags (API key auth removed)
 - **Breaking change for HTTP endpoints**: Existing `/brightspace-events.ics`, `/brightspace-dropbox.ics`, and `/quizzes.ics` endpoints are replaced with `/xsite-events.ics`, `/xsite-dropbox.ics`, and `/xsite-quizzes.ics`
 - **Quizzes env var unchanged**: `BrightSpaceQuizzesPath` retains its `BRIGHTSPACE_QUIZZES_PATH` env tag to minimize breaking changes for the quizzes path specifically (the default file name changed from `brightspace-quizzes.ics` to `xsite-quizzes.ics`)
 

@@ -101,13 +101,11 @@ All via env vars with CLI flag override (flags take priority):
 | `BROWSER_DEBUG` | false | Enable debug logging for browser actions |
 | `PROXY_URL` | — | SOCKS5 proxy URL |
 | `ICS_REFRESH_INTERVAL` | 1h | ICS REFRESH-INTERVAL property (RFC 7986 DURATION) |
-| `BRIGHTSPACE_ENABLED` | false | Enable BrightSpace D2L extraction |
-| `BRIGHTSPACE_API_KEY` | — | BrightSpace API key (unused for browser fetch) |
-| `BRIGHTSPACE_API_SECRET` | — | BrightSpace API secret (unused for browser fetch) |
-| `BRIGHTSPACE_COURSE_NAME_BLOCKLIST` | — | Comma-separated course name patterns to block |
-| `BRIGHTSPACE_COURSE_ID_BLOCKLIST` | — | Comma-separated OrgUnitIds to block |
-| `BRIGHTSPACE_EVENT_TITLE_BLOCKLIST` | — | Comma-separated event title patterns to block |
-| `BRIGHTSPACE_EVENT_LOCATION_BLOCKLIST` | — | Comma-separated event location patterns to block |
+| `XSITE_ENABLED` | false | Enable xsite D2L extraction |
+| `XSITE_COURSE_NAME_BLOCKLIST` | — | Comma-separated course name patterns to block |
+| `XSITE_COURSE_ID_BLOCKLIST` | — | Comma-separated OrgUnitIds to block |
+| `XSITE_EVENT_TITLE_BLOCKLIST` | — | Comma-separated event title patterns to block |
+| `XSITE_EVENT_LOCATION_BLOCKLIST` | — | Comma-separated event location patterns to block |
 
 `START_DATE` and `END_DATE` are parsed by config but no longer drive the fetch loop.
 
@@ -128,6 +126,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Server bind address**: Desktop builds (`!container`) default to `127.0.0.1` (loopback only). Container builds (`container`) default to `0.0.0.0` (all interfaces). Override via `SERVER_ADDR` env var or `--server-addr` CLI flag.
 
 ## Gotchas
+- **"BrightSpace" == "Xsite"** — Codebase internals (package names, config keys, function names like `FetchBrightSpace`) use "BrightSpace". User-facing names (env var prefixes like `XSITE_*`, HTTP endpoints like `/xsite-events.ics`, file names like `xsite.ics`) use "Xsite". They refer to the same thing: BrightSpace D2L content extraction.
 - **Rod API**: `page.Element()` returns `(*Element, error)` — not chainable. `element.Click(proto.InputMouseButtonLeft, 1)` uses proto params. `element.Input()`, `element.Visible()` return `(error)` or `(bool, error)`. Never use `page.MustQuery()` (does not exist).
 - **Rod navigation**: Uses `page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()` followed by `page.WaitStable(5000)`. Stable wait failure is logged but not fatal.
 - **Rod cookies**: Extracted via `page.Cookies([]string{})` with fallback to explicit domain queries for `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.

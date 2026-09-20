@@ -65,13 +65,13 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		})
 	}
 
-	if cfg.BrightSpaceEnabled {
+	if cfg.XsiteEnabled {
 		blocklist := &brightspace.Blocklist{
-			CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseNameBlocklist),
-			CourseIDs:             brightspace.ParseCommaSeparated(cfg.BrightSpaceCourseIDBlocklist),
-			EventTitlePatterns:    brightspace.ParseCommaSeparated(cfg.BrightSpaceEventTitleBlocklist),
-			EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.BrightSpaceEventLocationBlocklist),
-			QuizTitlePatterns:     brightspace.ParseCommaSeparated(cfg.BrightSpaceQuizTitleBlocklist),
+			CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteCourseNameBlocklist),
+			CourseIDs:             brightspace.ParseCommaSeparated(cfg.XsiteCourseIDBlocklist),
+			EventTitlePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteEventTitleBlocklist),
+			EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.XsiteEventLocationBlocklist),
+			QuizTitlePatterns:     brightspace.ParseCommaSeparated(cfg.XsiteQuizTitleBlocklist),
 		}
 
 		deleted := cache.RemoveWhere(func(e calendar.Event) bool {
@@ -113,9 +113,9 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 		cfg.TimetableAlerts,
 		cfg.TimetableOnlineAlerts,
 		cfg.ICSCampusAlerts,
-		cfg.BrightSpaceEventsAlerts,
-		cfg.BrightSpaceDropboxAlerts,
-		cfg.BrightSpaceQuizzesAlerts,
+		cfg.XsiteEventsAlerts,
+		cfg.XsiteDropboxAlerts,
+		cfg.XsiteQuizzesAlerts,
 	)
 
 	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.XsiteEventsPath, cfg.XsiteDropboxPath, cfg.XsiteQuizzesPath, cfg.XsitePath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
