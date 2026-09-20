@@ -1,6 +1,8 @@
 package calendar
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"sort"
@@ -10,9 +12,10 @@ import (
 )
 
 type ICSCache struct {
-	mu     sync.RWMutex
-	events []Event
-	dirty  bool
+	mu           sync.RWMutex
+	events       []Event
+	dirty        bool
+	lastModified time.Time
 }
 
 type Outputs struct {
@@ -44,6 +47,17 @@ func NewICSCache() *ICSCache {
 	return &ICSCache{}
 }
 
+func ComputeETag(data []byte) string {
+	hash := sha256.Sum256(data)
+	return `W/"` + hex.EncodeToString(hash[:]) + `"`
+}
+
+func (c *ICSCache) GetLastModified() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.lastModified
+}
+
 // sortEvents sorts events deterministically in-place:
 // primary by DTStart (ascending), secondary by Location (ascending),
 // tiebreaker by UID (ascending).
@@ -63,15 +77,23 @@ func (c *ICSCache) LoadFromFile(path string, loc *time.Location) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	data, err := os.ReadFile(path)
+	fi, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
+		return fmt.Errorf("stat ICS file: %w", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
 		return fmt.Errorf("read ICS file: %w", err)
 	}
 
 	c.events = parseICS(data, loc)
+	if fi != nil {
+		c.lastModified = fi.ModTime()
+	}
 	c.dirty = false
 	return nil
 }
@@ -184,6 +206,7 @@ func (c *ICSCache) Update(events []Event, tz string) error {
 	}
 
 	c.events = merged
+	c.lastModified = time.Now().UTC()
 	c.dirty = true
 	return nil
 }
