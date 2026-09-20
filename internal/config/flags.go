@@ -29,7 +29,7 @@ func applyFlags(cfg *Config) error {
 	icsRefreshInterval                 := fs.Duration("ics-refresh-interval", 0, "ICS refresh interval (e.g. 1h, 30m) (env: ICS_REFRESH_INTERVAL)")
 	xsiteEventsPath                    := fs.String("xsite-events-path", "", "Path to xsite events ICS file (env: XSITE_EVENTS_PATH)")
 	xsiteDropboxPath                   := fs.String("xsite-dropbox-path", "", "Path to xsite dropbox ICS file (env: XSITE_DROPBOX_PATH)")
-	xsiteEnabled                       := fs.Bool("xsite-enabled", false, "Enable xSite D2L extraction (env: XSITE_ENABLED)")
+	xsiteEnabled                       := fs.Bool("xsite-enabled", true, "Enable xSite D2L extraction (env: XSITE_ENABLED)")
 	xsitePath                          := fs.String("xsite-path", "", "Path to xsite combo ICS file (env: XSITE_PATH)")
 	xsiteCourseNameBlocklist           := fs.String("xsite-course-name-blocklist", "", "Comma-separated course name patterns to block (env: XSITE_COURSE_NAME_BLOCKLIST)")
 	xsiteCourseIDBlocklist             := fs.String("xsite-course-id-blocklist", "", "Comma-separated course OrgUnitIds to block (env: XSITE_COURSE_ID_BLOCKLIST)")

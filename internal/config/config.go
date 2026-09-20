@@ -29,7 +29,7 @@ type Config struct {
 	BrowserDebug                      bool          `env:"BROWSER_DEBUG" envDefault:"false"`
 	ProxyURL                          string        `env:"PROXY_URL" envDefault:""`
 	ICSRefreshInterval                time.Duration `env:"ICS_REFRESH_INTERVAL" envDefault:"1h"`
-	XsiteEnabled                       bool          `env:"XSITE_ENABLED" envDefault:"false"`
+	XsiteEnabled                       bool          `env:"XSITE_ENABLED" envDefault:"true"`
 	XsitePath                          string        `env:"XSITE_PATH" envDefault:"./xsite.ics"`
 	XsiteCourseNameBlocklist           string        `env:"XSITE_COURSE_NAME_BLOCKLIST" envDefault:""`
 	XsiteCourseIDBlocklist             string        `env:"XSITE_COURSE_ID_BLOCKLIST" envDefault:""`
