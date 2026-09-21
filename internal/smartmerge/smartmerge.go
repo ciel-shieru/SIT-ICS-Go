@@ -46,7 +46,7 @@ func ExtractModuleCodeFromOrgUnitName(orgUnitName string) string {
 func ModulesMatch(psCode string, bsEvent calendar.Event) bool {
 	normalizedPS := NormalizeModuleCode(psCode)
 	normalizedBS := NormalizeModuleCode(bsEvent.OrgUnitCode)
-	return normalizedPS != "" && normalizedBS != "" && normalizedPS == normalizedBS
+	return normalizedPS != "" && normalizedBS != "" && strings.Contains(normalizedBS, normalizedPS)
 }
 
 // TimesOverlap checks whether two time ranges overlap.
