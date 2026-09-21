@@ -35,6 +35,37 @@ func TestNormalizeModuleCode(t *testing.T) {
 	}
 }
 
+func TestIsValidModuleCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"valid: 3 letters + 4 digits", "MOD1002", true},
+		{"valid: with suffix letter", "MOD1001T1", true},
+		{"valid: with suffix dash+alphanumeric", "COR2001-SEC01", true},
+		{"valid: minimal valid", "ABC1234", true},
+		{"invalid: only 3 digits", "MOD100", false},
+		{"invalid: 5 digits", "MOD10023", false},
+		{"invalid: 2 letters", "MO1002", false},
+		{"invalid: 6 letters", "MODULE1234", false},
+		{"invalid: only letters", "ABCDEF", false},
+		{"invalid: only digits", "12345", false},
+		{"invalid: empty string", "", false},
+		{"invalid: special chars only", "!@#$%", false},
+		{"valid: suffix with numbers after non-digit", "ABC1234T1", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsValidModuleCode(tt.input)
+			if got != tt.expected {
+				t.Errorf("IsValidModuleCode(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestExtractModuleCodeFromOrgUnitName(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -76,6 +107,12 @@ func TestModulesMatch(t *testing.T) {
 		{"no match different module", "COR2003", "MOD1001", false},
 		{"empty ps code", "", "MOD1001", false},
 		{"empty bs code", "MOD1001", "", false},
+		{"valid: base format", "MOD1002", "MOD1002", true},
+		{"valid: with suffix letter", "MOD1001T1", "SIT-2610-MOD1001T1", true},
+		{"invalid: only 3 digits", "MOD100", "MOD100", false},
+		{"invalid: 5 digits", "MOD10023", "MOD10023", false},
+		{"invalid: only 2 letters", "MO1002", "MO1002", false},
+		{"invalid: 6 letters", "MODULE1234", "MODULE1234", false},
 	}
 
 	for _, tt := range tests {

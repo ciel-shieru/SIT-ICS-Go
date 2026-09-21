@@ -2,6 +2,7 @@ package smartmerge
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -30,6 +31,16 @@ func NormalizeModuleCode(code string) string {
 	return strings.ToUpper(code)
 }
 
+// moduleCodeRe validates the PeopleSoft module code format: exactly 3 uppercase
+// letters followed by exactly 4 digits, optionally followed by any suffix.
+var moduleCodeRe = regexp.MustCompile(`^[A-Z]{3}[0-9]{4}([^0-9]|$)`)
+
+// IsValidModuleCode returns true if the code matches the expected PeopleSoft
+// module code format (3 letters + 4 digits, optional suffix).
+func IsValidModuleCode(code string) bool {
+	return moduleCodeRe.MatchString(code)
+}
+
 // ExtractModuleCodeFromOrgUnitName extracts the leading alphanumeric module code
 // from a BrightSpace OrgUnitName.
 func ExtractModuleCodeFromOrgUnitName(orgUnitName string) string {
@@ -46,7 +57,14 @@ func ExtractModuleCodeFromOrgUnitName(orgUnitName string) string {
 func ModulesMatch(psCode string, bsEvent calendar.Event) bool {
 	normalizedPS := NormalizeModuleCode(psCode)
 	normalizedBS := NormalizeModuleCode(bsEvent.OrgUnitCode)
-	return normalizedPS != "" && normalizedBS != "" && strings.Contains(normalizedBS, normalizedPS)
+	if normalizedPS == "" || normalizedBS == "" {
+		return false
+	}
+	if !IsValidModuleCode(normalizedPS) {
+		log.Printf("smartmerge: invalid module code format: %q", normalizedPS)
+		return false
+	}
+	return strings.Contains(normalizedBS, normalizedPS)
 }
 
 // TimesOverlap checks whether two time ranges overlap.
