@@ -42,10 +42,10 @@ func ExtractModuleCodeFromOrgUnitName(orgUnitName string) string {
 }
 
 // ModulesMatch checks whether a PeopleSoft module code and a BrightSpace
-// OrgUnitName refer to the same module.
-func ModulesMatch(psCode string, bsOrgUnitName string) bool {
+// event refer to the same module by comparing their OrgUnitCode fields.
+func ModulesMatch(psCode string, bsEvent calendar.Event) bool {
 	normalizedPS := NormalizeModuleCode(psCode)
-	normalizedBS := ExtractModuleCodeFromOrgUnitName(bsOrgUnitName)
+	normalizedBS := NormalizeModuleCode(bsEvent.OrgUnitCode)
 	return normalizedPS != "" && normalizedBS != "" && normalizedPS == normalizedBS
 }
 
@@ -56,10 +56,11 @@ func TimesOverlap(psStart, psEnd, bsStart, bsEnd time.Time) bool {
 }
 
 // MatchesLocationConditions checks whether the location conditions for smart
-// merge are satisfied: PeopleSoft location is "Online" and BrightSpace
-// location contains "Zoom Online Meeting".
+// merge are satisfied: PeopleSoft location is "Online", "TBD", "To Be Advised",
+// or "TBA" and BrightSpace location contains "Zoom Online Meeting".
 func MatchesLocationConditions(psEvent, bsEvent calendar.Event) bool {
-	if !strings.EqualFold(strings.TrimSpace(psEvent.Location), "Online") {
+	psLocation := strings.ToLower(strings.TrimSpace(psEvent.Location))
+	if psLocation != "online" && psLocation != "tbd" && psLocation != "to be advised" && psLocation != "tba" {
 		return false
 	}
 	return strings.Contains(strings.ToLower(bsEvent.Location), "zoom online meeting")
@@ -195,7 +196,7 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 			if matchedPS[i] {
 				continue
 			}
-			if !ModulesMatch(psEvent.CourseCode, bsEvent.OrgUnitName) {
+			if !ModulesMatch(psEvent.CourseCode, bsEvent) {
 				continue
 			}
 			if !TimesOverlap(psEvent.DTStart, psEvent.DTEnd, bsEvent.DTStart, bsEvent.DTEnd) {

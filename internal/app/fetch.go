@@ -94,6 +94,8 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 				psEvents, mergedCount := smartmerge.MergeEvents(icsEvents, bsEvents)
 				if mergedCount > 0 {
 					log.Printf("smartmerge: merged %d brightspace events into timetable events", mergedCount)
+				} else {
+					log.Printf("smartmerge: no matching events found (checked %d brightspace events)", len(bsEvents))
 				}
 				icsEvents = psEvents
 			} else {

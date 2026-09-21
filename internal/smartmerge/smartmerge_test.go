@@ -64,22 +64,22 @@ func TestModulesMatch(t *testing.T) {
 	tests := []struct {
 		name          string
 		psCode        string
-		bsOrgUnitName string
+		bsOrgUnitCode string
 		want          bool
 	}{
-		{"exact match", "MOD1001", "MOD1001-Sample Module Title [2026/27 T1]", true},
-		{"case insensitive", "mod1001", "MOD1001-Sample Module Title [2026/27 T1]", true},
-		{"ps with space", "MOD 1001", "MOD1001-Sample Module Title [2026/27 T1]", true},
-		{"no match different module", "COR2003", "MOD1001-Sample Module Title [2026/27 T1]", false},
-		{"empty ps code", "", "MOD1001-Sample Module Title [2026/27 T1]", false},
-		{"empty bs name", "MOD1001", "", false},
+		{"exact match", "MOD1001", "MOD1001", true},
+		{"case insensitive", "mod1001", "MOD1001", true},
+		{"ps with space", "MOD 1001", "MOD1001", true},
+		{"no match different module", "COR2003", "MOD1001", false},
+		{"empty ps code", "", "MOD1001", false},
+		{"empty bs code", "MOD1001", "", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ModulesMatch(tt.psCode, tt.bsOrgUnitName)
+			got := ModulesMatch(tt.psCode, calendar.Event{OrgUnitCode: tt.bsOrgUnitCode})
 			if got != tt.want {
-				t.Errorf("ModulesMatch(%q, %q) = %v, want %v", tt.psCode, tt.bsOrgUnitName, got, tt.want)
+				t.Errorf("ModulesMatch(%q, calendar.Event{OrgUnitCode: %q}) = %v, want %v", tt.psCode, tt.bsOrgUnitCode, got, tt.want)
 			}
 		})
 	}
@@ -126,7 +126,13 @@ func TestMatchesLocationConditions(t *testing.T) {
 	}{
 		{"online + zoom", "Online", "Zoom Online Meeting", true},
 		{"online lowercase + zoom", "online", "ZOOM ONLINE MEETING", true},
-		{"campus location", "TBA - To Be Advised", "Zoom Online Meeting", false},
+		{"tbd + zoom", "TBD", "Zoom Online Meeting", true},
+		{"tbd lowercase + zoom", "tbd", "ZOOM ONLINE MEETING", true},
+		{"to be advised + zoom", "To Be Advised", "Zoom Online Meeting", true},
+		{"to be advised lowercase + zoom", "to be advised", "ZOOM ONLINE MEETING", true},
+		{"tba + zoom", "TBA", "Zoom Online Meeting", true},
+		{"campus location", "SIS Building Room 101", "Zoom Online Meeting", false},
+		{"tba prefix not exact match", "TBA - To Be Advised", "Zoom Online Meeting", false},
 		{"online + non-zoom", "Online", "SIS Building Room 101", false},
 		{"empty locations", "", "", false},
 	}
@@ -229,6 +235,7 @@ func TestMergeEvents(t *testing.T) {
 		Source:      "calendar",
 		Title:       "Tutorial 1",
 		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		OrgUnitCode: "MOD1001",
 		Location:    "Zoom Online Meeting",
 		Description: `<p>Join Zoom Meeting<br>http://zoom.us/j/0000000000?pwd=000000</p>`,
 		DTStart:     base,
@@ -259,6 +266,7 @@ func TestMergeEvents(t *testing.T) {
 			[]calendar.Event{{
 				Title:       "Tutorial 1",
 				OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
+				OrgUnitCode: "COR2003",
 				Location:    "Zoom Online Meeting",
 				DTStart:     base,
 				DTEnd:       base.Add(2 * time.Hour),
@@ -288,6 +296,7 @@ func TestMergeEvents(t *testing.T) {
 			[]calendar.Event{{
 				Title:       "Tutorial 1",
 				OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+				OrgUnitCode: "MOD1001",
 				Location:    "Zoom Online Meeting",
 				DTStart:     base.Add(5 * time.Hour),
 				DTEnd:       base.Add(7 * time.Hour),
@@ -315,11 +324,13 @@ func TestMergeEvents(t *testing.T) {
 			[]calendar.Event{
 				{
 					Title:       "Tutorial 1", OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
+					OrgUnitCode: "COR2003",
 					Location:    "Zoom Online Meeting",
 					DTStart:     base, DTEnd: base.Add(2 * time.Hour),
 				},
 				{
 					Title:       "Tutorial 2", OrgUnitName: "MAT1001-Applied Mathematics [2026/27 T1]",
+					OrgUnitCode: "MAT1001",
 					Location:    "Zoom Online Meeting",
 					DTStart:     base, DTEnd: base.Add(2 * time.Hour),
 				},
@@ -344,6 +355,7 @@ func TestMergeEvents(t *testing.T) {
 			[]calendar.Event{{
 				Title:       "Tutorial 1",
 				OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+				OrgUnitCode: "MOD1001",
 				Location:    "Zoom Online Meeting",
 				Description: "<p>No Zoom link here</p>",
 				DTStart:     base,
@@ -402,6 +414,7 @@ func TestMergeEvents_LocationFilter(t *testing.T) {
 	zoomBS := calendar.Event{
 		Title:       "Tutorial 1",
 		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		OrgUnitCode: "MOD1001",
 		Location:    "Zoom Online Meeting",
 		Description: `<p><a href="http://zoom.us/j/0000000000?pwd=000000">Join</a></p>`,
 		DTStart:     base,
@@ -433,6 +446,7 @@ func TestMergeEvents_OnePSMatchedOnce(t *testing.T) {
 	bsEvent1 := calendar.Event{
 		Title:       "Tutorial 1",
 		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		OrgUnitCode: "MOD1001",
 		Location:    "Zoom Online Meeting",
 		Description: `<p><a href="http://zoom.us/j/2222222222?pwd=000000">Join</a></p>`,
 		DTStart:     base,
@@ -441,6 +455,7 @@ func TestMergeEvents_OnePSMatchedOnce(t *testing.T) {
 	bsEvent2 := calendar.Event{
 		Title:       "Tutorial 2",
 		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		OrgUnitCode: "MOD1001",
 		Location:    "Zoom Online Meeting",
 		Description: `<p><a href="http://zoom.us/j/3333333333?pwd=000000">Join</a></p>`,
 		DTStart:     base.Add(30 * time.Minute),
