@@ -70,6 +70,9 @@ func TestModulesMatch(t *testing.T) {
 		{"exact match", "MOD1001", "MOD1001", true},
 		{"case insensitive", "mod1001", "MOD1001", true},
 		{"ps with space", "MOD 1001", "MOD1001", true},
+		{"bs code has prefix", "MOD1001", "SIT-2610-MOD1001", true},
+		{"ps code is substring of bs code", "MOD1002", "SIT-2610-MOD1002", true},
+		{"ps code not in bs code", "MOD1001", "SIT-2610-MOD1002", false},
 		{"no match different module", "COR2003", "MOD1001", false},
 		{"empty ps code", "", "MOD1001", false},
 		{"empty bs code", "MOD1001", "", false},
@@ -90,12 +93,12 @@ func TestTimesOverlap(t *testing.T) {
 	base := time.Date(2026, 8, 31, 9, 0, 0, 0, loc)
 
 	tests := []struct {
-		name     string
-		psStart  time.Time
-		psEnd    time.Time
-		bsStart  time.Time
-		bsEnd    time.Time
-		want     bool
+		name    string
+		psStart time.Time
+		psEnd   time.Time
+		bsStart time.Time
+		bsEnd   time.Time
+		want    bool
 	}{
 		{"identical ranges", base, base.Add(2 * time.Hour), base, base.Add(2 * time.Hour), true},
 		{"partial overlap start", base, base.Add(2 * time.Hour), base.Add(-1 * time.Hour), base.Add(1 * time.Hour), true},
@@ -119,10 +122,10 @@ func TestTimesOverlap(t *testing.T) {
 
 func TestMatchesLocationConditions(t *testing.T) {
 	tests := []struct {
-		name          string
-		psLocation    string
-		bsLocation    string
-		want          bool
+		name       string
+		psLocation string
+		bsLocation string
+		want       bool
 	}{
 		{"online + zoom", "Online", "Zoom Online Meeting", true},
 		{"online lowercase + zoom", "online", "ZOOM ONLINE MEETING", true},
@@ -243,13 +246,13 @@ func TestMergeEvents(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		psEvents          []calendar.Event
-		bsEvents          []calendar.Event
-		wantPSCount       int
-		wantTotalCount    int
-		wantMergedCount   int
-		wantDescription   string
+		name            string
+		psEvents        []calendar.Event
+		bsEvents        []calendar.Event
+		wantPSCount     int
+		wantTotalCount  int
+		wantMergedCount int
+		wantDescription string
 	}{
 		{
 			"single match",
@@ -323,13 +326,13 @@ func TestMergeEvents(t *testing.T) {
 			[]calendar.Event{psEvent},
 			[]calendar.Event{
 				{
-					Title:       "Tutorial 1", OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
+					Title: "Tutorial 1", OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
 					OrgUnitCode: "COR2003",
 					Location:    "Zoom Online Meeting",
 					DTStart:     base, DTEnd: base.Add(2 * time.Hour),
 				},
 				{
-					Title:       "Tutorial 2", OrgUnitName: "MAT1001-Applied Mathematics [2026/27 T1]",
+					Title: "Tutorial 2", OrgUnitName: "MAT1001-Applied Mathematics [2026/27 T1]",
 					OrgUnitCode: "MAT1001",
 					Location:    "Zoom Online Meeting",
 					DTStart:     base, DTEnd: base.Add(2 * time.Hour),
