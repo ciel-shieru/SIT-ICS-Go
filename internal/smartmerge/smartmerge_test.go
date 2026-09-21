@@ -390,7 +390,24 @@ func TestMergeEvents(t *testing.T) {
 			"",
 		},
 		{
-			"PS event without Zoom details in BS description",
+			"merge with Zoom link in href attribute",
+			[]calendar.Event{{CourseCode: "MOD1001", Location: "Online", Description: "Course: MOD1001\nClass: \nSection: \nType: ", DTStart: base, DTEnd: base.Add(2 * time.Hour)}},
+			[]calendar.Event{{
+				Title:       "Tutorial 1",
+				OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+				OrgUnitCode: "MOD1001",
+				Location:    "Zoom Online Meeting",
+				Description: `<p><a href="http://example.zoom.us/j/9102329792?pwd=abc123xyz">Click here to join Zoom Meeting: 910 2329 7921</a></p>`,
+				DTStart:     base,
+				DTEnd:       base.Add(2 * time.Hour),
+			}},
+			1,
+			1,
+			1,
+			"Course: MOD1001\nClass: \nSection: \nType: \n\nZoom Meeting Details:\nLink: http://example.zoom.us/j/9102329792?pwd=abc123xyz\nMeeting ID: 9102329792\nPasscode: abc123xyz",
+		},
+		{
+			"no merge when BS description has no Zoom link",
 			[]calendar.Event{psEvent},
 			[]calendar.Event{{
 				Title:       "Tutorial 1",
