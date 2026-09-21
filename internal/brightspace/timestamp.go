@@ -226,6 +226,7 @@ func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc
 		}
 
 		events = append(events, calendar.Event{
+			CourseCode:  entry.OrgUnitCode,
 			DTStart:     dtStart,
 			DTEnd:       dtEnd,
 			Summary:     summary,
