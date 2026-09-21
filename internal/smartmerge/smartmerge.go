@@ -1,5 +1,8 @@
 package smartmerge
 
+// TEMPORARY: Debug logging added for smart merge troubleshooting.
+// Will be removed once smart merge matching is fixed.
+
 import (
 	"fmt"
 	"log"
@@ -11,6 +14,12 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"golang.org/x/net/html"
 )
+
+// logDebug is a temporary debug logger for smart merge troubleshooting.
+// Will be removed once smart merge is fixed.
+var logDebug = func(format string, args ...interface{}) {
+	log.Printf("[smartmerge-debug] "+format, args...)
+}
 
 // ZoomDetails extracted from a BrightSpace event description.
 type ZoomDetails struct {
@@ -58,19 +67,25 @@ func ModulesMatch(psCode string, bsEvent calendar.Event) bool {
 	normalizedPS := NormalizeModuleCode(psCode)
 	normalizedBS := NormalizeModuleCode(bsEvent.OrgUnitCode)
 	if normalizedPS == "" || normalizedBS == "" {
+		logDebug("ModulesMatch: empty code - PS=%q BS=%q", psCode, bsEvent.OrgUnitCode)
 		return false
 	}
 	if !IsValidModuleCode(normalizedPS) {
 		log.Printf("smartmerge: invalid module code format: %q", normalizedPS)
+		logDebug("ModulesMatch: invalid PS format - PS=%q (normalized: %q)", psCode, normalizedPS)
 		return false
 	}
-	return strings.Contains(normalizedBS, normalizedPS)
+	match := strings.Contains(normalizedBS, normalizedPS)
+	logDebug("ModulesMatch: PS=%q (norm: %q) in BS=%q (norm: %q) ? %v", psCode, normalizedPS, bsEvent.OrgUnitCode, normalizedBS, match)
+	return match
 }
 
 // TimesOverlap checks whether two time ranges overlap.
 // Uses strict "before" to avoid matching adjacent events.
 func TimesOverlap(psStart, psEnd, bsStart, bsEnd time.Time) bool {
-	return psStart.Before(bsEnd) && bsStart.Before(psEnd)
+	overlap := psStart.Before(bsEnd) && bsStart.Before(psEnd)
+	logDebug("TimesOverlap: PS[%s-%s] vs BS[%s-%s] ? %v", psStart.Format(time.RFC3339), psEnd.Format(time.RFC3339), bsStart.Format(time.RFC3339), bsEnd.Format(time.RFC3339), overlap)
+	return overlap
 }
 
 // MatchesLocationConditions checks whether the location conditions for smart
@@ -78,10 +93,17 @@ func TimesOverlap(psStart, psEnd, bsStart, bsEnd time.Time) bool {
 // or "TBA" and BrightSpace location contains "Zoom Online Meeting".
 func MatchesLocationConditions(psEvent, bsEvent calendar.Event) bool {
 	psLocation := strings.ToLower(strings.TrimSpace(psEvent.Location))
-	if psLocation != "online" && psLocation != "tbd" && psLocation != "to be advised" && psLocation != "tba" {
-		return false
-	}
-	return strings.Contains(strings.ToLower(bsEvent.Location), "zoom online meeting")
+	bsLocation := strings.ToLower(bsEvent.Location)
+	
+	psValid := psLocation == "online" || psLocation == "tbd" || psLocation == "to be advised" || psLocation == "tba"
+	logDebug("MatchesLocationConditions: PS location=%q (normalized: %q, valid: %v)", psEvent.Location, psLocation, psValid)
+	
+	bsValid := strings.Contains(bsLocation, "zoom online meeting")
+	logDebug("MatchesLocationConditions: BS location=%q (contains zoom online meeting: %v)", bsEvent.Location, bsValid)
+	
+	match := psValid && bsValid
+	logDebug("MatchesLocationConditions: %v", match)
+	return match
 }
 
 // parseZoomURL extracts meeting ID and passcode from a Zoom URL.
@@ -209,23 +231,40 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 	unmatchedBS := make([]calendar.Event, 0, len(bsEvents))
 
 	for _, bsEvent := range bsEvents {
+		logDebug("Checking BrightSpace event: OrgUnitCode=%q, Title=%q, Location=%q, Start=%s, End=%s",
+			bsEvent.OrgUnitCode, bsEvent.Title, bsEvent.Location,
+			bsEvent.DTStart.Format(time.RFC3339), bsEvent.DTEnd.Format(time.RFC3339))
+		
 		found := false
 		for i, psEvent := range mergedPS {
 			if matchedPS[i] {
 				continue
 			}
+			logDebug("  Comparing with PeopleSoft event[%d]: CourseCode=%q, Location=%q, Start=%s, End=%s",
+				i, psEvent.CourseCode, psEvent.Location,
+				psEvent.DTStart.Format(time.RFC3339), psEvent.DTEnd.Format(time.RFC3339))
+			
 			if !ModulesMatch(psEvent.CourseCode, bsEvent) {
+				logDebug("    -> Module match failed")
 				continue
 			}
+			logDebug("    -> Module match passed")
+			
 			if !TimesOverlap(psEvent.DTStart, psEvent.DTEnd, bsEvent.DTStart, bsEvent.DTEnd) {
+				logDebug("    -> Time overlap failed")
 				continue
 			}
+			logDebug("    -> Time overlap passed")
+			
 			if !MatchesLocationConditions(psEvent, bsEvent) {
+				logDebug("    -> Location match failed")
 				continue
 			}
+			logDebug("    -> Location match passed")
 
 			zoomDetails := ExtractZoomDetails(bsEvent.Description)
 			if zoomDetails.Link == "" {
+				logDebug("    -> Zoom link not found")
 				continue
 			}
 
@@ -239,9 +278,11 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 			matchedPS[i] = true
 			merged++
 			found = true
+			logDebug("    -> MERGED BrightSpace event into PeopleSoft event[%d]", i)
 			break
 		}
 		if !found {
+			logDebug("  -> No PeopleSoft event matched this BrightSpace event")
 			unmatchedBS = append(unmatchedBS, bsEvent)
 		}
 	}
