@@ -18,9 +18,13 @@ func APIToStringEntry(ev CalendarEventAPI, source string) BrightSpaceStringEntry
 
 	descParts := []string{}
 	if ev.Description != "" {
-		plainDesc := htmlToPlainText(ev.Description)
-		if plainDesc != "" {
-			descParts = append(descParts, plainDesc)
+		if strings.Contains(strings.ToLower(ev.Description), "zoom.us") {
+			descParts = append(descParts, ev.Description)
+		} else {
+			plainDesc := htmlToPlainText(ev.Description)
+			if plainDesc != "" {
+				descParts = append(descParts, plainDesc)
+			}
 		}
 	}
 	if ev.LocationName != "" {
