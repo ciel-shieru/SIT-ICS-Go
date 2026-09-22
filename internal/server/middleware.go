@@ -190,6 +190,8 @@ func (m *loggingMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.handler.ServeHTTP(lrw, r)
 
 	userAgent := r.Header.Get("User-Agent")
+	ifNoneMatch := r.Header.Get("If-None-Match")
+	ifModifiedSince := r.Header.Get("If-Modified-Since")
 
 	var etag *string
 	etagVal := lrw.Header().Get("ETag")
@@ -203,17 +205,19 @@ func (m *loggingMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logEntry := map[string]any{
-		"ts":           time.Now().UTC().Format(time.RFC3339Nano),
-		"remote_ip":    l4IP,
-		"xff_ip":       xffIP,
-		"path":         r.URL.Path,
-		"method":       r.Method,
-		"user_agent":   userAgentValue(userAgent),
-		"etag":         etag,
-		"last_modified": lastModified,
-		"status":       lrw.Status(),
-		"xff_modified": xffModified,
-		"resp_bytes":   int(lrw.BytesWritten()),
+		"ts":                time.Now().UTC().Format(time.RFC3339Nano),
+		"remote_ip":         l4IP,
+		"xff_ip":            xffIP,
+		"path":              r.URL.Path,
+		"method":            r.Method,
+		"if_none_match":     userAgentValue(ifNoneMatch),
+		"if_modified_since": userAgentValue(ifModifiedSince),
+		"user_agent":        userAgentValue(userAgent),
+		"etag":              etag,
+		"last_modified":     lastModified,
+		"status":            lrw.Status(),
+		"xff_modified":      xffModified,
+		"resp_bytes":        int(lrw.BytesWritten()),
 	}
 
 	data, err := json.Marshal(logEntry)
