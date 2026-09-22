@@ -14,13 +14,18 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/smartmerge"
 )
 
-func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.ICSCache, loc *time.Location) {
+func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.ICSCache, loc *time.Location) {
 	log.Printf("scheduler: starting timetable fetch")
+
+	if ctx.Err() != nil {
+		log.Printf("scheduler: fetch cancelled: %v", ctx.Err())
+		return
+	}
 
 	// Authentication is its own operation. Do not reuse its context for the
 	// subsequent PeopleSoft timetable fetch: a slow MFA/SAML flow can consume
 	// most or all of the deadline before the timetable page is even opened.
-	authCtx, authCancel := context.WithTimeout(context.Background(), FetchTimeout)
+	authCtx, authCancel := context.WithTimeout(ctx, FetchTimeout)
 	started := time.Now()
 	_, err := provider.Authenticate(authCtx, auth.AuthRequest{
 		Username:      cfg.Username,
@@ -40,7 +45,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 	// Start a fresh deadline for timetable fetching. This is the critical fix:
 	// the PeopleSoft page must not inherit an authentication deadline that may
 	// already be expired or nearly expired.
-	timetableCtx, timetableCancel := context.WithTimeout(context.Background(), TimetableFetchTimeout)
+	timetableCtx, timetableCancel := context.WithTimeout(ctx, TimetableFetchTimeout)
 	entries, err := provider.FetchTimetable(timetableCtx, "", loc)
 	timetableCancel()
 	if err != nil {
@@ -83,7 +88,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 			log.Printf("scheduler: deleted %d blocked brightspace events from cache", deleted)
 		}
 
-		brightSpaceCtx, brightSpaceCancel := context.WithTimeout(context.Background(), BrightSpaceFetchTimeout)
+		brightSpaceCtx, brightSpaceCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
 		bsEntries, err := provider.FetchBrightSpace(brightSpaceCtx, "https://xsite.singaporetech.edu.sg")
 		brightSpaceCancel()
 		if err != nil {
@@ -105,7 +110,7 @@ func runFetch(cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.I
 			log.Printf("scheduler: added %d brightspace events", len(bsEvents))
 		}
 
-		brightSpaceQuizzesCtx, brightSpaceQuizzesCancel := context.WithTimeout(context.Background(), BrightSpaceFetchTimeout)
+		brightSpaceQuizzesCtx, brightSpaceQuizzesCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
 		bsQuizzesEntries, err := provider.FetchBrightSpaceQuizzes(brightSpaceQuizzesCtx, "https://xsite.singaporetech.edu.sg")
 		brightSpaceQuizzesCancel()
 		if err != nil {
