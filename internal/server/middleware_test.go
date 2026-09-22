@@ -173,7 +173,7 @@ func TestServeHTTP_LogLine(t *testing.T) {
 		t.Fatalf("invalid JSON: %v\nline: %s", err, logged)
 	}
 
-	expectedKeys := []string{"ts", "remote_ip", "xff_ip", "path", "method", "user_agent", "etag", "last_modified", "status", "xff_modified", "resp_bytes"}
+	expectedKeys := []string{"ts", "remote_ip", "xff_ip", "path", "method", "if_none_match", "if_modified_since", "user_agent", "etag", "last_modified", "status", "xff_modified", "resp_bytes"}
 	for _, key := range expectedKeys {
 		if _, ok := entry[key]; !ok {
 			t.Errorf("missing key %q in log entry", key)
@@ -502,7 +502,7 @@ func TestServeHTTP_JSONValidity_AllKeys(t *testing.T) {
 		t.Fatalf("invalid JSON: %v\nline: %s", err, logged)
 	}
 
-	keys := []string{"ts", "remote_ip", "xff_ip", "path", "method", "user_agent", "etag", "last_modified", "status", "xff_modified", "resp_bytes"}
+	keys := []string{"ts", "remote_ip", "xff_ip", "path", "method", "if_none_match", "if_modified_since", "user_agent", "etag", "last_modified", "status", "xff_modified", "resp_bytes"}
 	for _, k := range keys {
 		if _, ok := entry[k]; !ok {
 			t.Errorf("missing key %q", k)
@@ -510,6 +510,110 @@ func TestServeHTTP_JSONValidity_AllKeys(t *testing.T) {
 	}
 	if len(entry) != len(keys) {
 		t.Errorf("expected %d keys, got %d", len(keys), len(entry))
+	}
+	if entry["if_none_match"] != `"old"` {
+		t.Errorf("if_none_match = %v, want \"old\"", entry["if_none_match"])
+	}
+	if entry["if_modified_since"] != "Sun, 31 Dec 2023 00:00:00 GMT" {
+		t.Errorf("if_modified_since = %v, want Sun, 31 Dec 2023 00:00:00 GMT", entry["if_modified_since"])
+	}
+}
+
+func TestServeHTTP_CacheControlHeaders_Present(t *testing.T) {
+	var logged string
+	oldWriter := requestLogWriter
+	requestLogWriter = &singleLineWriter{f: func(line string) { logged = line }}
+	defer func() { requestLogWriter = oldWriter }()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mw, err := NewLoggingMiddleware(handler, "")
+	if err != nil {
+		t.Fatalf("NewLoggingMiddleware() error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-None-Match", `"abc123"`)
+	req.Header.Set("If-Modified-Since", "Mon, 01 Jan 2024 00:00:00 GMT")
+	rec := httptest.NewRecorder()
+
+	mw.ServeHTTP(rec, req)
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(logged), &entry); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if entry["if_none_match"] != `"abc123"` {
+		t.Errorf("if_none_match = %v, want \"abc123\"", entry["if_none_match"])
+	}
+	if entry["if_modified_since"] != "Mon, 01 Jan 2024 00:00:00 GMT" {
+		t.Errorf("if_modified_since = %v, want Mon, 01 Jan 2024 00:00:00 GMT", entry["if_modified_since"])
+	}
+}
+
+func TestServeHTTP_CacheControlHeaders_Absent(t *testing.T) {
+	var logged string
+	oldWriter := requestLogWriter
+	requestLogWriter = &singleLineWriter{f: func(line string) { logged = line }}
+	defer func() { requestLogWriter = oldWriter }()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mw, err := NewLoggingMiddleware(handler, "")
+	if err != nil {
+		t.Fatalf("NewLoggingMiddleware() error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	rec := httptest.NewRecorder()
+
+	mw.ServeHTTP(rec, req)
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(logged), &entry); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if entry["if_none_match"] != nil {
+		t.Errorf("if_none_match = %v, want nil", entry["if_none_match"])
+	}
+	if entry["if_modified_since"] != nil {
+		t.Errorf("if_modified_since = %v, want nil", entry["if_modified_since"])
+	}
+}
+
+func TestServeHTTP_CacheControlHeaders_LogInjection(t *testing.T) {
+	var logged string
+	oldWriter := requestLogWriter
+	requestLogWriter = &singleLineWriter{f: func(line string) { logged = line }}
+	defer func() { requestLogWriter = oldWriter }()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mw, err := NewLoggingMiddleware(handler, "")
+	if err != nil {
+		t.Fatalf("NewLoggingMiddleware() error: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/timetable.ics", nil)
+	req.Header.Set("If-None-Match", "Inject\r\nFAKE: header")
+	req.Header.Set("If-Modified-Since", "Inject\r\nFAKE: header")
+	rec := httptest.NewRecorder()
+
+	mw.ServeHTTP(rec, req)
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(logged), &entry); err != nil {
+		t.Fatalf("invalid JSON from injected headers: %v", err)
+	}
+	lines := strings.Split(logged, "\n")
+	if len(lines) != 1 {
+		t.Fatalf("log line split into %d lines (log injection possible), want 1", len(lines))
 	}
 }
 
