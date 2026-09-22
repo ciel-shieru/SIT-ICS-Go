@@ -21,6 +21,7 @@ This directory contains Architecture Decision Records (ADRs) for the SIT ICS Go 
 | [0015](0015-codebase-restructuring-for-production-readiness.md) | Codebase Restructuring for Production Readiness | Accepted | 2026-09-08 |
 | [0016](0016-secure-domain-validation-for-cookie-and-redirect-filtering.md) | Secure Domain Validation for Cookie and Redirect Filtering | Accepted | 2026-09-20 |
 | [0017](0017-xsite-rebranding.md) | xsite Rebranding of External-Facing BrightSpace Artifacts | Accepted | 2026-09-20 |
+| [0018](0018-json-request-logging-and-trusted-proxy-support.md) | JSON Request Logging and Trusted Proxy Support | Accepted | 2026-09-21 |
 
 ## Superseded ADRs
 

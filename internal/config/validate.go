@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -24,6 +25,9 @@ func Validate(cfg *Config) error {
 		return err
 	}
 	if err := validateTimezone(cfg.TZ); err != nil {
+		return err
+	}
+	if err := validateServerTrustedProxies(cfg.ServerTrustedProxies); err != nil {
 		return err
 	}
 	return nil
@@ -63,6 +67,28 @@ func validateServerAddr(addr string) error {
 	} else {
 		if net.ParseIP(host) == nil {
 			return fmt.Errorf("invalid server address %q: host part is not a valid IP address", addr)
+		}
+	}
+	return nil
+}
+
+func validateServerTrustedProxies(s string) error {
+	if s == "" {
+		return nil
+	}
+	for _, entry := range strings.Split(s, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			if _, _, err := net.ParseCIDR(entry); err != nil {
+				return fmt.Errorf("invalid trusted proxy %q: %w", entry, err)
+			}
+		} else {
+			if net.ParseIP(entry) == nil {
+				return fmt.Errorf("invalid trusted proxy %q: not a valid IP address", entry)
+			}
 		}
 	}
 	return nil
