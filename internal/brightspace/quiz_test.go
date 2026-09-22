@@ -191,18 +191,18 @@ func TestBlocklist_Matches_Quiz(t *testing.T) {
 	}
 
 	tests := []struct {
-		orgUnitID, orgUnitName, title, location string
-		want                                   bool
+		orgUnitID, orgUnitName, orgUnitCode, title, location string
+		want                                                   bool
 	}{
-		{"12345", "MOD1002", "Practice Quiz 1", "", true},
-		{"12345", "MOD1002", "Quiz 1", "", false},
+		{"12345", "MOD1002", "", "Practice Quiz 1", "", true},
+		{"12345", "MOD1002", "", "Quiz 1", "", false},
 	}
 
 	for _, tt := range tests {
-		result := blocklist.Matches(tt.orgUnitID, tt.orgUnitName, tt.title, tt.location)
+		result := blocklist.Matches(tt.orgUnitID, tt.orgUnitName, tt.orgUnitCode, tt.title, tt.location)
 		if result != tt.want {
-			t.Errorf("Matches(%q, %q, %q, %q) = %v, want %v",
-				tt.orgUnitID, tt.orgUnitName, tt.title, tt.location, result, tt.want)
+			t.Errorf("Matches(%q, %q, %q, %q, %q) = %v, want %v",
+				tt.orgUnitID, tt.orgUnitName, tt.orgUnitCode, tt.title, tt.location, result, tt.want)
 		}
 	}
 }

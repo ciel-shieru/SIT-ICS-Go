@@ -34,6 +34,7 @@ func applyFlags(cfg *Config) error {
 	xsiteEnabled                       := fs.Bool("xsite-enabled", true, "Enable xSite D2L extraction (env: XSITE_ENABLED)")
 	xsitePath                          := fs.String("xsite-path", "", "Path to xsite combo ICS file (env: XSITE_PATH)")
 	xsiteCourseNameBlocklist           := fs.String("xsite-course-name-blocklist", "", "Comma-separated course name patterns to block (env: XSITE_COURSE_NAME_BLOCKLIST)")
+	xsiteCourseCodeBlocklist           := fs.String("xsite-course-code-blocklist", "", "Comma-separated module code patterns to block (env: XSITE_COURSE_CODE_BLOCKLIST)")
 	xsiteCourseIDBlocklist             := fs.String("xsite-course-id-blocklist", "", "Comma-separated course OrgUnitIds to block (env: XSITE_COURSE_ID_BLOCKLIST)")
 	xsiteEventTitleBlocklist           := fs.String("xsite-event-title-blocklist", "", "Comma-separated event title patterns to block (env: XSITE_EVENT_TITLE_BLOCKLIST)")
 	xsiteEventLocationBlocklist        := fs.String("xsite-event-location-blocklist", "", "Comma-separated event location patterns to block (env: XSITE_EVENT_LOCATION_BLOCKLIST)")
@@ -131,6 +132,9 @@ func applyFlags(cfg *Config) error {
 	}
 	if fs.Lookup("xsite-course-id-blocklist").Changed {
 		cfg.XsiteCourseIDBlocklist = *xsiteCourseIDBlocklist
+	}
+	if fs.Lookup("xsite-course-code-blocklist").Changed {
+		cfg.XsiteCourseCodeBlocklist = *xsiteCourseCodeBlocklist
 	}
 	if fs.Lookup("xsite-event-title-blocklist").Changed {
 		cfg.XsiteEventTitleBlocklist = *xsiteEventTitleBlocklist

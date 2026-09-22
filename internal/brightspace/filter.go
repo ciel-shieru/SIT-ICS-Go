@@ -16,6 +16,9 @@ type Blocklist struct {
 	// CourseIDs are exact OrgUnitId values to block.
 	CourseIDs []string
 
+	// CourseCodePatterns are case-insensitive patterns to match against course module codes.
+	CourseCodePatterns []string
+
 	// EventTitlePatterns are case-insensitive substring patterns to match against event titles.
 	// An event is blocked if any pattern is a substring of its title.
 	EventTitlePatterns []string
@@ -29,6 +32,7 @@ type Blocklist struct {
 	QuizTitlePatterns []string
 
 	CourseNameRegexes    []*regexp.Regexp
+	CourseCodeRegexes    []*regexp.Regexp
 	EventTitleRegexes    []*regexp.Regexp
 	EventLocationRegexes []*regexp.Regexp
 	QuizTitleRegexes     []*regexp.Regexp
@@ -39,7 +43,7 @@ type Blocklist struct {
 }
 
 // IsCourseBlocked checks whether a course should be filtered out.
-func (b *Blocklist) IsCourseBlocked(orgUnitID string, name string) bool {
+func (b *Blocklist) IsCourseBlocked(orgUnitID string, name string, code string) bool {
 	for _, id := range b.CourseIDs {
 		if strings.EqualFold(strings.TrimSpace(id), strings.TrimSpace(orgUnitID)) {
 			return true
@@ -52,6 +56,28 @@ func (b *Blocklist) IsCourseBlocked(orgUnitID string, name string) bool {
 		}
 		if i < len(b.CourseNameRegexes) {
 			if re := b.CourseNameRegexes[i]; re != nil && re.MatchString(name) {
+				return true
+			}
+		}
+	}
+	if b.IsCourseCodeBlocked(code) {
+		return true
+	}
+	return false
+}
+
+// IsCourseCodeBlocked checks whether a course code should be filtered out.
+func (b *Blocklist) IsCourseCodeBlocked(code string) bool {
+	for i, pattern := range b.CourseCodePatterns {
+		trimmed := strings.ToLower(strings.TrimSpace(pattern))
+		if strings.Contains(trimmed, "*") {
+			if i < len(b.CourseCodeRegexes) {
+				if re := b.CourseCodeRegexes[i]; re != nil && re.MatchString(code) {
+					return true
+				}
+			}
+		} else {
+			if strings.Contains(strings.ToLower(code), trimmed) {
 				return true
 			}
 		}
@@ -108,8 +134,8 @@ func (b *Blocklist) IsQuizBlocked(title string) bool {
 }
 
 // Matches checks whether an event should be blocked based on all blocklist criteria.
-func (b *Blocklist) Matches(orgUnitID, orgUnitName, title, location string) bool {
-	if b.IsCourseBlocked(orgUnitID, orgUnitName) {
+func (b *Blocklist) Matches(orgUnitID, orgUnitName, orgUnitCode, title, location string) bool {
+	if b.IsCourseBlocked(orgUnitID, orgUnitName, orgUnitCode) {
 		return true
 	}
 	if b.IsEventBlocked(title) {
@@ -194,6 +220,15 @@ func (b *Blocklist) CompilePatterns() {
 			log.Printf("brightspace: failed to compile course name pattern %q: %v", p, err)
 		}
 		b.CourseNameRegexes[i] = re
+	}
+
+	b.CourseCodeRegexes = make([]*regexp.Regexp, len(b.CourseCodePatterns))
+	for i, p := range b.CourseCodePatterns {
+		re, err := PatternToRegex(p)
+		if err != nil {
+			log.Printf("brightspace: failed to compile course code pattern %q: %v", p, err)
+		}
+		b.CourseCodeRegexes[i] = re
 	}
 
 	b.EventTitleRegexes = make([]*regexp.Regexp, len(b.EventTitlePatterns))

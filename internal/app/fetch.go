@@ -75,6 +75,7 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		blocklist := &brightspace.Blocklist{
 			CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteCourseNameBlocklist),
 			CourseIDs:             brightspace.ParseCommaSeparated(cfg.XsiteCourseIDBlocklist),
+			CourseCodePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteCourseCodeBlocklist),
 			EventTitlePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteEventTitleBlocklist),
 			EventLocationPatterns: brightspace.ParseCommaSeparated(cfg.XsiteEventLocationBlocklist),
 			QuizTitlePatterns:     brightspace.ParseCommaSeparated(cfg.XsiteQuizTitleBlocklist),
@@ -82,7 +83,7 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		blocklist.CompilePatterns()
 
 		deleted := cache.RemoveWhere(func(e calendar.Event) bool {
-			return blocklist.Matches(e.OrgUnitID, e.OrgUnitName, e.Title, e.Location)
+			return blocklist.Matches(e.OrgUnitID, e.OrgUnitName, e.OrgUnitCode, e.Title, e.Location)
 		})
 		if deleted > 0 {
 			log.Printf("scheduler: deleted %d blocked brightspace events from cache", deleted)
