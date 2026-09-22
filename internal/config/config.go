@@ -44,6 +44,7 @@ type Config struct {
 	TimetableCampusAlerts              string        `env:"TIMETABLE_CAMPUS_ALERTS" envDefault:""`
 	XsiteEventsAlerts                  string        `env:"XSITE_EVENTS_ALERTS" envDefault:""`
 	XsiteDropboxAlerts                 string        `env:"XSITE_DROPBOX_ALERTS" envDefault:""`
+	ServerTrustedProxies               string        `env:"SERVER_TRUSTED_PROXIES" envDefault:""`
 
 	credStore credentialstore.Store
 }

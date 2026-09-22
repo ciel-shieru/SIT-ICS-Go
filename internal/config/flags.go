@@ -16,6 +16,7 @@ func applyFlags(cfg *Config) error {
 	fetchCron := fs.String("fetch-cron", "", "Cron schedule for fetches (env: FETCH_CRON)")
 	serverPort := fs.Int("server-port", 0, "HTTP server port (env: SERVER_PORT)")
 	serverAddr := fs.String("server-addr", "", "HTTP server bind address (e.g. 127.0.0.1, 0.0.0.0) (env: SERVER_ADDR)")
+	serverTrustedProxies := fs.String("server-trusted-proxies", "", "Comma-separated list of CIDRs or IPs trusted as reverse proxies (env: SERVER_TRUSTED_PROXIES)")
 	icsStoragePath := fs.String("ics-storage-path", "", "Path to main ICS file (env: ICS_STORAGE_PATH)")
 	icsOnlinePath := fs.String("ics-online-path", "", "Path to online-only ICS file (env: ICS_ONLINE_PATH)")
 	icsCampusPath := fs.String("ics-campus-path", "", "Path to campus-only ICS file (env: ICS_CAMPUS_PATH)")
@@ -69,6 +70,9 @@ func applyFlags(cfg *Config) error {
 	}
 	if fs.Lookup("server-addr").Changed {
 		cfg.ServerAddr = *serverAddr
+	}
+	if fs.Lookup("server-trusted-proxies").Changed {
+		cfg.ServerTrustedProxies = *serverTrustedProxies
 	}
 	if fs.Lookup("ics-storage-path").Changed {
 		cfg.ICSStoragePath = *icsStoragePath

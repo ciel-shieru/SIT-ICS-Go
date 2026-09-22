@@ -76,7 +76,7 @@ func (a *App) Run() error {
 		a.cfg.XsiteDropboxAlerts,
 		a.cfg.XsiteQuizzesAlerts,
 	)
-	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts)
+	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts, a.cfg.ServerTrustedProxies)
 	go func() { _ = a.srv.Start() }()
 
 	sigChan := make(chan os.Signal, 1)
