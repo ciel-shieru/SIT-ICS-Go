@@ -176,7 +176,7 @@ func ParseTimestamp(s string, loc *time.Location) (time.Time, error) {
 func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc *time.Location) []calendar.Event {
 	events := make([]calendar.Event, 0, len(entries))
 	for _, entry := range entries {
-		if blocklist.IsCourseBlocked(entry.OrgUnitId, entry.OrgUnitName) {
+		if blocklist.IsCourseBlocked(entry.OrgUnitId, entry.OrgUnitName, entry.OrgUnitCode) {
 			log.Printf("brightspace: blocked course %s (%s)", entry.OrgUnitName, entry.OrgUnitId)
 			continue
 		}

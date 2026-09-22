@@ -103,6 +103,7 @@ All via env vars with CLI flag override (flags take priority):
 | `ICS_REFRESH_INTERVAL` | 1h | ICS REFRESH-INTERVAL property (RFC 7986 DURATION) |
 | `XSITE_ENABLED` | true | Enable xsite D2L extraction (opt-out) |
 | `XSITE_COURSE_NAME_BLOCKLIST` | — | Comma-separated course name patterns to block |
+| `XSITE_COURSE_CODE_BLOCKLIST` | — | Comma-separated module code patterns to block |
 | `XSITE_COURSE_ID_BLOCKLIST` | — | Comma-separated OrgUnitIds to block |
 | `XSITE_EVENT_TITLE_BLOCKLIST` | — | Comma-separated event title patterns to block |
 | `XSITE_EVENT_LOCATION_BLOCKLIST` | — | Comma-separated event location patterns to block |

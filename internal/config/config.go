@@ -33,6 +33,7 @@ type Config struct {
 	XsitePath                          string        `env:"XSITE_PATH" envDefault:"./xsite.ics"`
 	XsiteCourseNameBlocklist           string        `env:"XSITE_COURSE_NAME_BLOCKLIST" envDefault:""`
 	XsiteCourseIDBlocklist             string        `env:"XSITE_COURSE_ID_BLOCKLIST" envDefault:""`
+	XsiteCourseCodeBlocklist           string        `env:"XSITE_COURSE_CODE_BLOCKLIST" envDefault:""`
 	XsiteEventTitleBlocklist           string        `env:"XSITE_EVENT_TITLE_BLOCKLIST" envDefault:""`
 	XsiteEventLocationBlocklist        string        `env:"XSITE_EVENT_LOCATION_BLOCKLIST" envDefault:""`
 	XsiteQuizzesPath                   string        `env:"XSITE_QUIZZES_PATH" envDefault:"./xsite-quizzes.ics"`

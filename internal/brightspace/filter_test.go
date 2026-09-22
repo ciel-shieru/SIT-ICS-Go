@@ -185,6 +185,7 @@ func TestPatternToRegex(t *testing.T) {
 func TestBlocklist_CompilePatterns_NoPanicOnEmpty(t *testing.T) {
 	blocklist := &Blocklist{
 		CourseNamePatterns:    []string{},
+		CourseCodePatterns:    []string{},
 		EventTitlePatterns:    []string{},
 		EventLocationPatterns: []string{},
 		QuizTitlePatterns:     []string{},
@@ -258,9 +259,113 @@ func TestBlocklist_IsCourseBlocked_Wildcard(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := blocklist.IsCourseBlocked("12345", tt.name)
+		result := blocklist.IsCourseBlocked("12345", tt.name, "")
 		if result != tt.blocked {
 			t.Errorf("IsCourseBlocked(%q) = %v, want %v", tt.name, result, tt.blocked)
+		}
+	}
+}
+
+func TestBlocklist_IsCourseCodeBlocked_Substring(t *testing.T) {
+	blocklist := &Blocklist{
+		CourseCodePatterns: []string{"ALT2501", "MOD0001"},
+	}
+	blocklist.CompilePatterns()
+
+	tests := []struct {
+		code    string
+		blocked bool
+	}{
+		{"ALT2501", true},
+		{"MOD0001", true},
+		{"alt2501", true},
+		{"mod0001", true},
+		{"ALT2501A", true},
+		{"XALT2501Y", true},
+		{"MOD0002", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		result := blocklist.IsCourseCodeBlocked(tt.code)
+		if result != tt.blocked {
+			t.Errorf("IsCourseCodeBlocked(%q) = %v, want %v", tt.code, result, tt.blocked)
+		}
+	}
+}
+
+func TestBlocklist_IsCourseCodeBlocked_Wildcard(t *testing.T) {
+	blocklist := &Blocklist{
+		CourseCodePatterns: []string{"MOD*001", "*2501"},
+	}
+	blocklist.CompilePatterns()
+
+	tests := []struct {
+		code    string
+		blocked bool
+	}{
+		{"MOD0001", true},
+		{"MOD2501", true},
+		{"MOD1234001", true},
+		{"MOD0002", false},
+		{"XMOD0001", false},
+		{"ALT2501", true},
+		{"X2501Y", false},
+	}
+
+	for _, tt := range tests {
+		result := blocklist.IsCourseCodeBlocked(tt.code)
+		if result != tt.blocked {
+			t.Errorf("IsCourseCodeBlocked(%q) = %v, want %v", tt.code, result, tt.blocked)
+		}
+	}
+}
+
+func TestBlocklist_IsCourseCodeBlocked_EmptyCode(t *testing.T) {
+	blocklist := &Blocklist{
+		CourseCodePatterns: []string{"MOD0001"},
+	}
+	blocklist.CompilePatterns()
+
+	if blocklist.IsCourseCodeBlocked("") {
+		t.Error("IsCourseCodeBlocked(\"\") should return false")
+	}
+}
+
+func TestBlocklist_IsCourseCodeBlocked_NoMatch(t *testing.T) {
+	blocklist := &Blocklist{
+		CourseCodePatterns: []string{"ALT2501", "MOD0001"},
+	}
+	blocklist.CompilePatterns()
+
+	tests := []string{"MOD0002", "ALT2502", "CS101", "PHY201"}
+	for _, code := range tests {
+		if blocklist.IsCourseCodeBlocked(code) {
+			t.Errorf("IsCourseCodeBlocked(%q) should return false", code)
+		}
+	}
+}
+
+func TestBlocklist_IsCourseCodeBlocked_MixedPatterns(t *testing.T) {
+	blocklist := &Blocklist{
+		CourseCodePatterns: []string{"MOD*001", "ALT2501", "*2501"},
+	}
+	blocklist.CompilePatterns()
+
+	tests := []struct {
+		code    string
+		blocked bool
+	}{
+		{"MOD0001", true},   // wildcard
+		{"ALT2501", true},   // substring
+		{"MOD2501", true},   // wildcard
+		{"CS101", false},    // no match
+	}
+
+	for _, tt := range tests {
+		result := blocklist.IsCourseCodeBlocked(tt.code)
+		if result != tt.blocked {
+			t.Errorf("IsCourseCodeBlocked(%q) = %v, want %v", tt.code, result, tt.blocked)
 		}
 	}
 }
