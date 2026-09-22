@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -41,9 +42,12 @@ type App struct {
 	mu       sync.Mutex
 	fetching bool
 	done     chan struct{}
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 func New(cfg *config.Config, cache *calendar.ICSCache, browser browser.AuthBrowser, provider *auth.ADFSProvider, loc *time.Location) *App {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &App{
 		cfg:      cfg,
 		cache:    cache,
@@ -51,6 +55,8 @@ func New(cfg *config.Config, cache *calendar.ICSCache, browser browser.AuthBrows
 		provider: provider,
 		loc:      loc,
 		done:     make(chan struct{}),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 }
 
@@ -108,12 +114,13 @@ func (a *App) Fetch() {
 		a.mu.Unlock()
 	}()
 
-	runFetch(a.cfg, a.provider, a.cache, a.loc)
+	runFetch(a.ctx, a.cfg, a.provider, a.cache, a.loc)
 }
 
 func (a *App) Shutdown() {
 	a.mu.Lock()
 	if a.fetching {
+		a.cancel()
 		a.mu.Unlock()
 		select {
 		case <-a.done:
