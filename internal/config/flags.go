@@ -10,6 +10,7 @@ import (
 
 func applyFlags(cfg *Config) error {
 	fs := pflag.NewFlagSet("app", pflag.ContinueOnError)
+	fs.BoolP("help", "h", false, "Show help and exit")
 	startDate := fs.String("start-date", "", "Start date (YYYY-MM-DD) (env: START_DATE)")
 	endDate := fs.String("end-date", "", "End date (YYYY-MM-DD) (env: END_DATE)")
 	tz := fs.String("tz", "", "Timezone (IANA name) (env: TZ)")
@@ -43,7 +44,13 @@ func applyFlags(cfg *Config) error {
 	xsiteQuizzesPath                   := fs.String("xsite-quizzes-path", "", "Path to xsite quizzes ICS file (env: XSITE_QUIZZES_PATH)")
 	timetableAlerts                    := fs.String("timetable-alerts", "", "Comma-separated ICS duration strings for main timetable VALARM (e.g. -P2D,-P1D) (env: TIMETABLE_ALERTS)")
 
-	fs.Parse(os.Args[1:])
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		return err
+	}
+	if help, err := fs.GetBool("help"); err == nil && help {
+		fs.PrintDefaults()
+		os.Exit(0)
+	}
 
 	if fs.Lookup("start-date").Changed && *startDate != "" {
 		t, err := time.Parse("2006-01-02", *startDate)
