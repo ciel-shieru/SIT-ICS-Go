@@ -75,6 +75,18 @@ func Render(events []Event, opts RenderOptions) ([]byte, error) {
 		if event.Source != "" {
 			sb.WriteString(fmt.Sprintf("X-SOURCE:%s\r\n", EscapeText(event.Source)))
 		}
+		if event.OrgUnitID != "" {
+			sb.WriteString(fmt.Sprintf("X-OrgUnitID:%s\r\n", EscapeText(event.OrgUnitID)))
+		}
+		if event.OrgUnitName != "" {
+			sb.WriteString(fmt.Sprintf("X-OrgUnitName:%s\r\n", EscapeText(event.OrgUnitName)))
+		}
+		if event.OrgUnitCode != "" {
+			sb.WriteString(fmt.Sprintf("X-OrgUnitCode:%s\r\n", EscapeText(event.OrgUnitCode)))
+		}
+		if event.Title != "" {
+			sb.WriteString(fmt.Sprintf("X-Title:%s\r\n", EscapeText(event.Title)))
+		}
 		for _, alert := range opts.Alerts {
 			renderVALARM(&sb, alert)
 		}

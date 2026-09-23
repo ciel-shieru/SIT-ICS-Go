@@ -871,6 +871,203 @@ func TestICSCachePersistenceFailure(t *testing.T) {
 	}
 }
 
+func TestICSCacheBrightSpaceFieldsRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	icsPath := filepath.Join(tmpDir, "test.ics")
+
+	cache := NewICSCache()
+	events := []Event{
+		{
+			Summary:     "[ALT2501] Assignment 1",
+			Location:    "Online",
+			DTStart:     time.Date(2026, 9, 15, 23, 59, 0, 0, time.UTC),
+			DTEnd:       time.Date(2026, 9, 16, 23, 59, 0, 0, time.UTC),
+			Source:      "brightspace-calendar",
+			OrgUnitID:   "12345678",
+			OrgUnitName: "ALT2501 - Software Engineering",
+			OrgUnitCode: "ALT2501",
+			Title:       "Assignment 1: Requirements Analysis",
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if err := cache.SaveToFile(icsPath, time.Hour); err != nil {
+		t.Fatalf("SaveToFile() error = %v", err)
+	}
+
+	cache2 := NewICSCache()
+	if err := cache2.LoadFromFile(icsPath, time.UTC); err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+
+	if cache2.EventCount() != 1 {
+		t.Fatalf("Expected 1 event after reload, got %d", cache2.EventCount())
+	}
+
+	data := cache2.Get("Asia/Singapore", time.Hour)
+	content := string(data)
+
+	if !contains(content, "X-OrgUnitID:12345678") {
+		t.Error("Reloaded event missing X-OrgUnitID:12345678")
+	}
+	if !contains(content, "X-OrgUnitName:ALT2501 - Software Engineering") {
+		t.Error("Reloaded event missing X-OrgUnitName")
+	}
+	if !contains(content, "X-OrgUnitCode:ALT2501") {
+		t.Error("Reloaded event missing X-OrgUnitCode:ALT2501")
+	}
+	if !contains(content, "X-Title:Assignment 1: Requirements Analysis") {
+		t.Error("Reloaded event missing X-Title")
+	}
+}
+
+func TestRemoveWhere_BrightSpaceBlocklistRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	icsPath := filepath.Join(tmpDir, "test.ics")
+
+	cache := NewICSCache()
+	events := []Event{
+		{
+			Summary:     "Campus Class",
+			Location:    "W1-05-07",
+			DTStart:     time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:       time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:     "[COR2001] Assignment 1",
+			Location:    "Online",
+			DTStart:     time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:       time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			Source:      "brightspace-calendar",
+			OrgUnitID:   "98765432",
+			OrgUnitCode: "COR2001",
+			Title:       "Assignment 1",
+		},
+		{
+			Summary:     "[COR2002] Lab 3 Due",
+			Location:    "",
+			DTStart:     time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
+			DTEnd:       time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
+			Source:      "brightspace-dropbox",
+			OrgUnitID:   "11223344",
+			OrgUnitCode: "COR2002",
+			Title:       "Lab 3",
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if err := cache.SaveToFile(icsPath, time.Hour); err != nil {
+		t.Fatalf("SaveToFile() error = %v", err)
+	}
+
+	cache2 := NewICSCache()
+	if err := cache2.LoadFromFile(icsPath, time.UTC); err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+
+	deleted := cache2.RemoveWhere(func(e Event) bool {
+		return e.OrgUnitCode == "COR2001" || e.Title == "Lab 3"
+	})
+
+	if deleted != 2 {
+		t.Errorf("Expected 2 deleted events, got %d", deleted)
+	}
+
+	if count := cache2.EventCount(); count != 1 {
+		t.Errorf("Expected 1 event after deletion, got %d", count)
+	}
+
+	data := cache2.Get("Asia/Singapore", time.Hour)
+	content := string(data)
+
+	if !contains(content, "SUMMARY:Campus Class") {
+		t.Error("Campus Class should still be in cache")
+	}
+	if contains(content, "SUMMARY:[COR2001] Assignment 1") {
+		t.Error("[COR2001] Assignment 1 should be deleted")
+	}
+	if contains(content, "SUMMARY:[COR2002] Lab 3 Due") {
+		t.Error("[COR2002] Lab 3 Due should be deleted")
+	}
+}
+
+func TestParseICS_BackwardCompatibility(t *testing.T) {
+	icsContent := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SIT Timetable//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\nBEGIN:VEVENT\r\nUID:test-uid-12345\r\nDTSTART;TZID=Asia/Singapore:20260907T090000\r\nDTEND;TZID=Asia/Singapore:20260907T110000\r\nSUMMARY:Test Event\r\nLOCATION:Room 101\r\nDESCRIPTION:Test Description\r\nX-SOURCE:brightspace-calendar\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+
+	loc, err := time.LoadLocation("Asia/Singapore")
+	if err != nil {
+		t.Fatalf("Failed to load timezone: %v", err)
+	}
+
+	events := parseICS([]byte(icsContent), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	e := events[0]
+	if e.Summary != "Test Event" {
+		t.Errorf("Summary = %q, want %q", e.Summary, "Test Event")
+	}
+	if e.Location != "Room 101" {
+		t.Errorf("Location = %q, want %q", e.Location, "Room 101")
+	}
+	if e.Description != "Test Description" {
+		t.Errorf("Description = %q, want %q", e.Description, "Test Description")
+	}
+	if e.Source != "brightspace-calendar" {
+		t.Errorf("Source = %q, want %q", e.Source, "brightspace-calendar")
+	}
+	if e.OrgUnitID != "" {
+		t.Errorf("OrgUnitID = %q, want empty", e.OrgUnitID)
+	}
+	if e.OrgUnitName != "" {
+		t.Errorf("OrgUnitName = %q, want empty", e.OrgUnitName)
+	}
+	if e.OrgUnitCode != "" {
+		t.Errorf("OrgUnitCode = %q, want empty", e.OrgUnitCode)
+	}
+	if e.Title != "" {
+		t.Errorf("Title = %q, want empty", e.Title)
+	}
+}
+
+func TestParseICS_XPropertySpecialCharacters(t *testing.T) {
+	icsContent := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SIT Timetable//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\nBEGIN:VEVENT\r\nUID:test-uid-special\r\nDTSTART;TZID=Asia/Singapore:20260907T090000\r\nDTEND;TZID=Asia/Singapore:20260907T110000\r\nSUMMARY:Test Event\r\nLOCATION:Room 101\r\nDESCRIPTION:Test Description\r\nX-SOURCE:brightspace-calendar\r\nX-OrgUnitID:12345\\;6789\r\nX-OrgUnitName:ALT2501\\, Software Engineering\r\nX-OrgUnitCode:ALT2501\\;Sec01\r\nX-Title:Assignment with backslash\\\\ and newline\\nhere\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+
+	loc, err := time.LoadLocation("Asia/Singapore")
+	if err != nil {
+		t.Fatalf("Failed to load timezone: %v", err)
+	}
+
+	events := parseICS([]byte(icsContent), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	e := events[0]
+
+	if e.OrgUnitID != "12345;6789" {
+		t.Errorf("OrgUnitID = %q, want %q", e.OrgUnitID, "12345;6789")
+	}
+	if e.OrgUnitName != "ALT2501, Software Engineering" {
+		t.Errorf("OrgUnitName = %q, want %q", e.OrgUnitName, "ALT2501, Software Engineering")
+	}
+	if e.OrgUnitCode != "ALT2501;Sec01" {
+		t.Errorf("OrgUnitCode = %q, want %q", e.OrgUnitCode, "ALT2501;Sec01")
+	}
+	if e.Title != "Assignment with backslash\\ and newline\nhere" {
+		t.Errorf("Title = %q, want %q", e.Title, "Assignment with backslash\\ and newline\nhere")
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
 }
