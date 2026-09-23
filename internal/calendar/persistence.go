@@ -45,6 +45,14 @@ func parseICS(data []byte, loc *time.Location) []Event {
 				event.Description = unescapeText(strings.TrimPrefix(line, "DESCRIPTION:"))
 			} else if strings.HasPrefix(line, "X-SOURCE:") {
 				event.Source = unescapeText(strings.TrimPrefix(line, "X-SOURCE:"))
+			} else if strings.HasPrefix(line, "X-OrgUnitID:") {
+				event.OrgUnitID = unescapeText(strings.TrimPrefix(line, "X-OrgUnitID:"))
+			} else if strings.HasPrefix(line, "X-OrgUnitName:") {
+				event.OrgUnitName = unescapeText(strings.TrimPrefix(line, "X-OrgUnitName:"))
+			} else if strings.HasPrefix(line, "X-OrgUnitCode:") {
+				event.OrgUnitCode = unescapeText(strings.TrimPrefix(line, "X-OrgUnitCode:"))
+			} else if strings.HasPrefix(line, "X-Title:") {
+				event.Title = unescapeText(strings.TrimPrefix(line, "X-Title:"))
 			} else if strings.HasPrefix(line, "DTSTART;TZID=") {
 				timeStr := strings.SplitN(line, ":", 2)
 				if len(timeStr) == 2 {
