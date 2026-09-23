@@ -46,6 +46,7 @@ type Config struct {
 	XsiteEventsAlerts                  string        `env:"XSITE_EVENTS_ALERTS" envDefault:""`
 	XsiteDropboxAlerts                 string        `env:"XSITE_DROPBOX_ALERTS" envDefault:""`
 	ServerTrustedProxies               string        `env:"SERVER_TRUSTED_PROXIES" envDefault:""`
+	ServerDisableCaching               bool          `env:"SERVER_DISABLE_CACHING" envDefault:"false"`
 
 	credStore credentialstore.Store
 }
