@@ -27,8 +27,8 @@ func TestAPIToStringEntry_SetsCalendarEventIDAndQuizID(t *testing.T) {
 	if entry.CalendarEventID != 99001 {
 		t.Errorf("CalendarEventID = %d, want 99001", entry.CalendarEventID)
 	}
-	if entry.QuizID != 99010 {
-		t.Errorf("QuizID = %d, want 99010", entry.QuizID)
+	if entry.QuizID != 99002 {
+		t.Errorf("QuizID = %d, want 99002", entry.QuizID)
 	}
 	if entry.Title != "Quiz Event" {
 		t.Errorf("Title = %q, want %q", entry.Title, "Quiz Event")
@@ -373,7 +373,10 @@ func TestAPIToStringEntry_SourceCalendar(t *testing.T) {
 		EndDateTime:     "2026-12-01T11:00:00Z",
 		OrgUnitName:     "MOD1077",
 		OrgUnitCode:     "MOD1077",
-		QuizId:          99130,
+		AssociatedEntity: &AssociatedEntity{
+			AssociatedEntityType: "D2L.LE.Quizzing.Quiz",
+			AssociatedEntityId:   99130,
+		},
 	}
 
 	entry := APIToStringEntry(ev, "calendar")

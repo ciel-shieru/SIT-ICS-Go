@@ -264,15 +264,17 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 // DedupQuizzes replaces calendar events that are associated with quizzes
 // with their quiz equivalents.
 //
-// BrightSpace calendar events associated with quizzes have QuizID == 0.
-// Matching is done by cross-referencing: a quiz event with QuizID == X
-// replaces a calendar event with CalendarEventID == X.
+// BrightSpace calendar events associated with quizzes have AssociatedEntity
+// with AssociatedEntityType == "D2L.LE.Quizzing.Quiz". The AssociatedEntityId
+// contains the quiz ID, which is extracted into QuizID during conversion.
+// Matching is done by comparing calendar QuizID (from AssociatedEntity)
+// against quiz event QuizID.
 //
 // When a match is found:
 //   - The calendar event is removed from the result
 //   - The quiz event is kept as-is (CalendarEventID remains 0)
 //   - Unmatched quiz events are kept as-is
-//   - Non-quiz calendar events (no matching quiz) are kept as-is
+//   - Non-quiz calendar events (no AssociatedEntity type "D2L.LE.Quizzing.Quiz") are kept as-is
 //
 // Duplicate calendar events (same CalendarEventID) are deduplicated —
 // only the first occurrence is kept.
@@ -280,18 +282,16 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 // Returns the merged event slice and the count of calendar events
 // replaced by quiz events.
 func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event, int) {
-	// Build set of CalendarEventIDs that have matching quiz events.
-	// BrightSpace calendar events associated with quizzes have QuizID == 0,
-	// so we match by cross-referencing calendar CalendarEventID with quiz QuizID.
-	quizCalendarEventIDs := make(map[int]bool)
+	// Build set of QuizIDs from quiz events for quick lookup.
+	quizIDs := make(map[int]bool)
 	for _, qEv := range quizEvents {
 		if qEv.QuizID > 0 {
-			quizCalendarEventIDs[qEv.QuizID] = true
+			quizIDs[qEv.QuizID] = true
 		}
 	}
 
 	// Deduplicate calendar events by CalendarEventID (keep first occurrence),
-	// and filter out those that have matching quiz events.
+	// and filter out those associated with quizzes.
 	replacements := 0
 	seenCalendarEventIDs := make(map[int]bool)
 	var result []calendar.Event
@@ -300,7 +300,7 @@ func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event
 			if seenCalendarEventIDs[ev.CalendarEventID] {
 				continue // duplicate calendar event, skip
 			}
-			if quizCalendarEventIDs[ev.CalendarEventID] {
+			if ev.QuizID > 0 && quizIDs[ev.QuizID] {
 				replacements++ // calendar event replaced by quiz event
 				continue       // skip (quiz will be added below)
 			}

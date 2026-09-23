@@ -31,6 +31,11 @@ func APIToStringEntry(ev CalendarEventAPI, source string) BrightSpaceStringEntry
 		descParts = append(descParts, "Location: "+ev.LocationName)
 	}
 
+	var quizID int
+	if ev.AssociatedEntity != nil && ev.AssociatedEntity.AssociatedEntityType == "D2L.LE.Quizzing.Quiz" {
+		quizID = ev.AssociatedEntity.AssociatedEntityId
+	}
+
 	return BrightSpaceStringEntry{
 		Title:           title,
 		OrgUnitId:       fmt.Sprintf("%d", ev.OrgUnitId),
@@ -43,7 +48,7 @@ func APIToStringEntry(ev CalendarEventAPI, source string) BrightSpaceStringEntry
 		IsAllDay:        ev.IsAllDayEvent,
 		Source:          source,
 		CalendarEventID: ev.CalendarEventId,
-		QuizID:          ev.QuizId,
+		QuizID:          quizID,
 	}
 }
 

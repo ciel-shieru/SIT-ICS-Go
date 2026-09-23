@@ -555,7 +555,7 @@ func TestDedupQuizzes(t *testing.T) {
 		{
 			name: "basic replacement",
 			calendarEvents: []calendar.Event{
-				{Summary: "Quiz Event", CalendarEventID: 99001, QuizID: 0, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+				{Summary: "Quiz Event", CalendarEventID: 99001, QuizID: 99001, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
 			},
 			quizEvents: []calendar.Event{
 				{Summary: "Sample Quiz", QuizID: 99001, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
@@ -615,9 +615,9 @@ func TestDedupQuizzes(t *testing.T) {
 		{
 			name: "mixed scenario",
 			calendarEvents: []calendar.Event{
-				{Summary: "Quiz Event A", CalendarEventID: 99010, QuizID: 0, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+				{Summary: "Quiz Event A", CalendarEventID: 99010, QuizID: 99010, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
 				{Summary: "Lecture", CalendarEventID: 99012, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(1 * time.Hour), DTEnd: base.Add(2 * time.Hour)},
-				{Summary: "Quiz Event B", CalendarEventID: 99013, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(3 * time.Hour), DTEnd: base.Add(4 * time.Hour)},
+				{Summary: "Quiz Event B", CalendarEventID: 99013, QuizID: 99013, Source: "brightspace-calendar", DTStart: base.Add(3 * time.Hour), DTEnd: base.Add(4 * time.Hour)},
 			},
 			quizEvents: []calendar.Event{
 				{Summary: "Quiz A", QuizID: 99010, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
@@ -656,7 +656,7 @@ func TestDedupQuizzes(t *testing.T) {
 		{
 			name: "quiz event has CalendarEventID set on match",
 			calendarEvents: []calendar.Event{
-				{Summary: "Quiz Event", CalendarEventID: 99005, QuizID: 0, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+				{Summary: "Quiz Event", CalendarEventID: 99005, QuizID: 99005, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
 			},
 			quizEvents: []calendar.Event{
 				{Summary: "Sample Quiz", QuizID: 99005, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
@@ -693,9 +693,9 @@ func TestDedupQuizzes(t *testing.T) {
 		{
 			name: "multiple matches",
 			calendarEvents: []calendar.Event{
-				{Summary: "Quiz Event A", CalendarEventID: 99030, QuizID: 0, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+				{Summary: "Quiz Event A", CalendarEventID: 99030, QuizID: 99030, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
 				{Summary: "Lecture", CalendarEventID: 99032, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(1 * time.Hour), DTEnd: base.Add(2 * time.Hour)},
-				{Summary: "Quiz Event B", CalendarEventID: 99033, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(3 * time.Hour), DTEnd: base.Add(4 * time.Hour)},
+				{Summary: "Quiz Event B", CalendarEventID: 99033, QuizID: 99033, Source: "brightspace-calendar", DTStart: base.Add(3 * time.Hour), DTEnd: base.Add(4 * time.Hour)},
 				{Summary: "Tutorial", CalendarEventID: 99035, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(5 * time.Hour), DTEnd: base.Add(6 * time.Hour)},
 			},
 			quizEvents: []calendar.Event{
