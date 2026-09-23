@@ -32,16 +32,18 @@ func APIToStringEntry(ev CalendarEventAPI, source string) BrightSpaceStringEntry
 	}
 
 	return BrightSpaceStringEntry{
-		Title:       title,
-		OrgUnitId:   fmt.Sprintf("%d", ev.OrgUnitId),
-		OrgUnitName: ev.OrgUnitName,
-		OrgUnitCode: ev.OrgUnitCode,
-		Location:    ev.LocationName,
-		Description: strings.Join(descParts, "\n"),
-		DTStart:     ev.StartDateTime,
-		DTEnd:       ev.EndDateTime,
-		IsAllDay:    ev.IsAllDayEvent,
-		Source:      source,
+		Title:           title,
+		OrgUnitId:       fmt.Sprintf("%d", ev.OrgUnitId),
+		OrgUnitName:     ev.OrgUnitName,
+		OrgUnitCode:     ev.OrgUnitCode,
+		Location:        ev.LocationName,
+		Description:     strings.Join(descParts, "\n"),
+		DTStart:         ev.StartDateTime,
+		DTEnd:           ev.EndDateTime,
+		IsAllDay:        ev.IsAllDayEvent,
+		Source:          source,
+		CalendarEventID: ev.CalendarEventId,
+		QuizID:          ev.QuizId,
 	}
 }
 
@@ -92,16 +94,18 @@ func QuizToStringEntry(quiz QuizAPI) BrightSpaceStringEntry {
 	}
 
 	return BrightSpaceStringEntry{
-		Title:       quiz.Name,
-		OrgUnitId:   quiz.OrgUnitId,
-		OrgUnitName: quiz.OrgUnitName,
-		OrgUnitCode: quiz.OrgUnitCode,
-		Location:    "",
-		Description: strings.Join(descParts, "\n"),
-		DTStart:     quiz.StartDate,
-		DTEnd:       dtEnd,
-		IsAllDay:    false,
-		Source:      "brightspace-quizzes",
+		Title:           quiz.Name,
+		OrgUnitId:       quiz.OrgUnitId,
+		OrgUnitName:     quiz.OrgUnitName,
+		OrgUnitCode:     quiz.OrgUnitCode,
+		Location:        "",
+		Description:     strings.Join(descParts, "\n"),
+		DTStart:         quiz.StartDate,
+		DTEnd:           dtEnd,
+		IsAllDay:        false,
+		Source:          "brightspace-quizzes",
+		CalendarEventID: 0,
+		QuizID:          quiz.QuizId,
 	}
 }
 
@@ -139,16 +143,18 @@ func htmlToPlainText(html string) string {
 // BrightSpaceStringEntry represents a BrightSpace event with string-based timestamps,
 // as returned by the browser scraping layer.
 type BrightSpaceStringEntry struct {
-	Title       string
-	OrgUnitId   string
-	OrgUnitName string
-	OrgUnitCode string
-	Location    string
-	Description string
-	DTStart     string
-	DTEnd       string
-	IsAllDay    bool
-	Source      string
+	Title           string
+	OrgUnitId       string
+	OrgUnitName     string
+	OrgUnitCode     string
+	Location        string
+	Description     string
+	DTStart         string
+	DTEnd           string
+	IsAllDay        bool
+	Source          string
+	CalendarEventID int
+	QuizID          int
 }
 
 // ParseTimestamp parses a BrightSpace timestamp string into a time.Time value.
@@ -230,17 +236,19 @@ func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc
 		}
 
 		events = append(events, calendar.Event{
-			CourseCode:  entry.OrgUnitCode,
-			DTStart:     dtStart,
-			DTEnd:       dtEnd,
-			Summary:     summary,
-			Title:       entry.Title,
-			OrgUnitID:   entry.OrgUnitId,
-			OrgUnitName: entry.OrgUnitName,
-			OrgUnitCode: entry.OrgUnitCode,
-			Location:    entry.Location,
-			Description: entry.Description,
-			Source:      entry.Source,
+			CourseCode:      entry.OrgUnitCode,
+			DTStart:         dtStart,
+			DTEnd:           dtEnd,
+			Summary:         summary,
+			Title:           entry.Title,
+			OrgUnitID:       entry.OrgUnitId,
+			OrgUnitName:     entry.OrgUnitName,
+			OrgUnitCode:     entry.OrgUnitCode,
+			Location:        entry.Location,
+			Description:     entry.Description,
+			Source:          entry.Source,
+			CalendarEventID: entry.CalendarEventID,
+			QuizID:          entry.QuizID,
 		})
 	}
 	return events

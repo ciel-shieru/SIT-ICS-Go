@@ -92,10 +92,11 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		brightSpaceCtx, brightSpaceCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
 		bsEntries, err := provider.FetchBrightSpace(brightSpaceCtx, "https://xsite.singaporetech.edu.sg")
 		brightSpaceCancel()
+		var bsEvents []calendar.Event
 		if err != nil {
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
-			bsEvents := brightspace.EntriesToEvents(bsEntries, blocklist, loc)
+			bsEvents = brightspace.EntriesToEvents(bsEntries, blocklist, loc)
 			if cfg.XsiteSmartMergeEnabled {
 				psEvents, mergedCount := smartmerge.MergeEvents(icsEvents, bsEvents)
 				if mergedCount > 0 {
@@ -118,8 +119,15 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 			log.Printf("scheduler: brightspace quizzes fetch failed: %v", err)
 		} else {
 			bsQuizzes := brightspace.QuizEntriesToEvents(bsQuizzesEntries, blocklist, loc)
-			icsEvents = append(icsEvents, bsQuizzes...)
-			log.Printf("scheduler: added %d brightspace quiz events", len(bsQuizzes))
+
+			// Deduplicate: replace quiz-associated calendar events with quiz entries
+			bsMerged, replacedCount := smartmerge.DedupQuizzes(bsEvents, bsQuizzes)
+			if replacedCount > 0 {
+				log.Printf("smartmerge: replaced %d quiz-associated calendar events with quiz entries", replacedCount)
+			}
+
+			icsEvents = append(icsEvents, bsMerged...)
+			log.Printf("scheduler: added %d brightspace events", len(bsMerged))
 		}
 	}
 
