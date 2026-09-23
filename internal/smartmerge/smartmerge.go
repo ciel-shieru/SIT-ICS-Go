@@ -264,58 +264,53 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 // DedupQuizzes replaces calendar events that are associated with quizzes
 // with their quiz equivalents.
 //
-// When a calendar event has CalendarEventID > 0 and QuizID > 0 (meaning it's
-// associated with a quiz via AssociatedEntity), and a quiz event exists with
-// a matching QuizID:
-//   - The calendar event is removed
-//   - The quiz event is kept, with CalendarEventID set to the calendar event's ID
-//   - Unmatched quiz events are kept as-is
-//   - Non-quiz calendar events (QuizID == 0) are kept as-is
+// BrightSpace calendar events associated with quizzes have QuizID == 0.
+// Matching is done by cross-referencing: a quiz event with QuizID == X
+// replaces a calendar event with CalendarEventID == X.
 //
-// Returns the merged event slice and the count of replacements made.
+// When a match is found:
+//   - The calendar event is removed from the result
+//   - The quiz event is kept as-is (CalendarEventID remains 0)
+//   - Unmatched quiz events are kept as-is
+//   - Non-quiz calendar events (no matching quiz) are kept as-is
+//
+// Duplicate calendar events (same CalendarEventID) are deduplicated —
+// only the first occurrence is kept.
+//
+// Returns the merged event slice and the count of calendar events
+// replaced by quiz events.
 func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event, int) {
-	// Build map of CalendarEventID -> QuizID from calendar events that have both
-	calendarIDToQuizID := make(map[int]int)
-	for _, ev := range calendarEvents {
-		if ev.CalendarEventID > 0 && ev.QuizID > 0 {
-			calendarIDToQuizID[ev.CalendarEventID] = ev.QuizID
+	// Build set of CalendarEventIDs that have matching quiz events.
+	// BrightSpace calendar events associated with quizzes have QuizID == 0,
+	// so we match by cross-referencing calendar CalendarEventID with quiz QuizID.
+	quizCalendarEventIDs := make(map[int]bool)
+	for _, qEv := range quizEvents {
+		if qEv.QuizID > 0 {
+			quizCalendarEventIDs[qEv.QuizID] = true
 		}
 	}
 
-	// Build reverse map: QuizID -> CalendarEventID for quick lookup
-	quizIDToCalendarID := make(map[int]int)
-	for calID, quizID := range calendarIDToQuizID {
-		quizIDToCalendarID[quizID] = calID
-	}
-
-	// Find calendar event IDs that should be removed (those associated with quizzes)
-	quizCalendarIDs := make(map[int]bool)
-	for calID := range calendarIDToQuizID {
-		quizCalendarIDs[calID] = true
-	}
-
-	// Filter out calendar events associated with quizzes
+	// Deduplicate calendar events by CalendarEventID (keep first occurrence),
+	// and filter out those that have matching quiz events.
+	replacements := 0
+	seenCalendarEventIDs := make(map[int]bool)
 	var result []calendar.Event
 	for _, ev := range calendarEvents {
-		if quizCalendarIDs[ev.CalendarEventID] {
-			continue // skip this calendar event
+		if ev.CalendarEventID > 0 {
+			if seenCalendarEventIDs[ev.CalendarEventID] {
+				continue // duplicate calendar event, skip
+			}
+			if quizCalendarEventIDs[ev.CalendarEventID] {
+				replacements++ // calendar event replaced by quiz event
+				continue       // skip (quiz will be added below)
+			}
+			seenCalendarEventIDs[ev.CalendarEventID] = true
 		}
 		result = append(result, ev)
 	}
 
-	// Process quiz events
-	replacements := 0
+	// Add quiz events.
 	for _, quizEv := range quizEvents {
-		if quizEv.QuizID > 0 {
-			if calID, ok := quizIDToCalendarID[quizEv.QuizID]; ok {
-				// This quiz has a matching calendar event — replace it
-				quizEv.CalendarEventID = calID
-				result = append(result, quizEv)
-				replacements++
-				continue
-			}
-		}
-		// No matching calendar event — keep quiz event as-is
 		result = append(result, quizEv)
 	}
 
