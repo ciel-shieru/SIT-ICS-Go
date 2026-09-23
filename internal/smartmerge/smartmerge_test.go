@@ -539,3 +539,209 @@ func TestMergeEvents_OnePSMatchedOnce(t *testing.T) {
 		t.Error("expected Tutorial 2 to be in results as unmatched BS event")
 	}
 }
+
+func TestDedupQuizzes(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 10, 18, 15, 59, 59, 0, loc)
+
+	tests := []struct {
+		name             string
+		calendarEvents   []calendar.Event
+		quizEvents       []calendar.Event
+		wantTotalCount   int
+		wantReplacements int
+		wantVerify       func(t *testing.T, result []calendar.Event)
+	}{
+		{
+			name: "basic replacement",
+			calendarEvents: []calendar.Event{
+				{Summary: "Quiz Event", CalendarEventID: 99001, QuizID: 99002, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+			},
+			quizEvents: []calendar.Event{
+				{Summary: "Sample Quiz", QuizID: 99002, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
+			},
+			wantTotalCount:   1,
+			wantReplacements: 1,
+			wantVerify: func(t *testing.T, result []calendar.Event) {
+				if result[0].CalendarEventID != 99001 {
+					t.Errorf("CalendarEventID = %d, want 99001", result[0].CalendarEventID)
+				}
+				if result[0].QuizID != 99002 {
+					t.Errorf("QuizID = %d, want 99002", result[0].QuizID)
+				}
+			},
+		},
+		{
+			name: "non-quiz calendar event passthrough",
+			calendarEvents: []calendar.Event{
+				{Summary: "Lecture", CalendarEventID: 99003, QuizID: 0, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+			},
+			quizEvents:       []calendar.Event{},
+			wantTotalCount:   1,
+			wantReplacements: 0,
+			wantVerify: func(t *testing.T, result []calendar.Event) {
+				if result[0].CalendarEventID != 99003 {
+					t.Errorf("CalendarEventID = %d, want 99003", result[0].CalendarEventID)
+				}
+				if result[0].QuizID != 0 {
+					t.Errorf("QuizID = %d, want 0", result[0].QuizID)
+				}
+			},
+		},
+		{
+			name:             "unmatched quiz event passthrough",
+			calendarEvents:   []calendar.Event{},
+			quizEvents: []calendar.Event{
+				{Summary: "Sample Quiz", QuizID: 99004, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
+			},
+			wantTotalCount:   1,
+			wantReplacements: 0,
+			wantVerify: func(t *testing.T, result []calendar.Event) {
+				if result[0].QuizID != 99004 {
+					t.Errorf("QuizID = %d, want 99004", result[0].QuizID)
+				}
+				if result[0].CalendarEventID != 0 {
+					t.Errorf("CalendarEventID = %d, want 0", result[0].CalendarEventID)
+				}
+			},
+		},
+		{
+			name:             "empty inputs",
+			calendarEvents:   []calendar.Event{},
+			quizEvents:       []calendar.Event{},
+			wantTotalCount:   0,
+			wantReplacements: 0,
+		},
+		{
+			name: "mixed scenario",
+			calendarEvents: []calendar.Event{
+				{Summary: "Quiz Event A", CalendarEventID: 99010, QuizID: 99011, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+				{Summary: "Lecture", CalendarEventID: 99012, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(1 * time.Hour), DTEnd: base.Add(2 * time.Hour)},
+				{Summary: "Quiz Event B", CalendarEventID: 99013, QuizID: 99014, Source: "brightspace-calendar", DTStart: base.Add(3 * time.Hour), DTEnd: base.Add(4 * time.Hour)},
+			},
+			quizEvents: []calendar.Event{
+				{Summary: "Quiz A", QuizID: 99011, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
+				{Summary: "Quiz B", QuizID: 99014, Source: "brightspace-quizzes", DTStart: base.Add(2 * time.Hour), DTEnd: base.Add(3 * time.Hour)},
+				{Summary: "Unmatched Quiz", QuizID: 99015, Source: "brightspace-quizzes", DTStart: base.Add(5 * time.Hour), DTEnd: base.Add(6 * time.Hour)},
+			},
+			wantTotalCount:   4,
+			wantReplacements: 2,
+			wantVerify: func(t *testing.T, result []calendar.Event) {
+				quizIDs := make(map[int]bool)
+				nonQuizIDs := make(map[int]bool)
+				for _, e := range result {
+					if e.QuizID == 0 && e.CalendarEventID > 0 {
+						nonQuizIDs[e.CalendarEventID] = true
+					} else if e.QuizID > 0 {
+						quizIDs[e.QuizID] = true
+					}
+				}
+				if !nonQuizIDs[99012] {
+					t.Error("expected non-quiz calendar event with CalendarEventID 99012")
+				}
+				if len(nonQuizIDs) != 1 {
+					t.Errorf("expected 1 non-quiz calendar event, got %d", len(nonQuizIDs))
+				}
+				if !quizIDs[99011] {
+					t.Error("expected matched quiz event with QuizID 99011")
+				}
+				if !quizIDs[99014] {
+					t.Error("expected matched quiz event with QuizID 99014")
+				}
+				if !quizIDs[99015] {
+					t.Error("expected unmatched quiz event with QuizID 99015")
+				}
+			},
+		},
+		{
+			name: "quiz event has CalendarEventID set on match",
+			calendarEvents: []calendar.Event{
+				{Summary: "Quiz Event", CalendarEventID: 99005, QuizID: 99006, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+			},
+			quizEvents: []calendar.Event{
+				{Summary: "Sample Quiz", QuizID: 99006, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
+			},
+			wantTotalCount:   1,
+			wantReplacements: 1,
+			wantVerify: func(t *testing.T, result []calendar.Event) {
+				if result[0].CalendarEventID != 99005 {
+					t.Errorf("CalendarEventID = %d, want 99005", result[0].CalendarEventID)
+				}
+				if result[0].QuizID != 99006 {
+					t.Errorf("QuizID = %d, want 99006", result[0].QuizID)
+				}
+			},
+		},
+		{
+			name: "duplicate quiz IDs in calendar events",
+			calendarEvents: []calendar.Event{
+				{Summary: "Quiz Event A", CalendarEventID: 99020, QuizID: 99007, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+				{Summary: "Quiz Event B", CalendarEventID: 99021, QuizID: 99007, Source: "brightspace-calendar", DTStart: base.Add(1 * time.Hour), DTEnd: base.Add(2 * time.Hour)},
+			},
+			quizEvents: []calendar.Event{
+				{Summary: "Sample Quiz", QuizID: 99007, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
+			},
+			wantTotalCount:   1,
+			wantReplacements: 1,
+			wantVerify: func(t *testing.T, result []calendar.Event) {
+				// Both calendar events have QuizID > 0, so both are removed.
+				// The quiz event should have CalendarEventID set to whichever calendar event was last in the map iteration.
+				if len(result) != 1 {
+					t.Fatalf("expected 1 result, got %d", len(result))
+				}
+				if result[0].QuizID != 99007 {
+					t.Errorf("QuizID = %d, want 99007", result[0].QuizID)
+				}
+				if result[0].CalendarEventID != 99020 && result[0].CalendarEventID != 99021 {
+					t.Errorf("CalendarEventID = %d, want 99020 or 99021", result[0].CalendarEventID)
+				}
+			},
+		},
+		{
+			name: "multiple matches",
+			calendarEvents: []calendar.Event{
+				{Summary: "Quiz Event A", CalendarEventID: 99030, QuizID: 99031, Source: "brightspace-calendar", DTStart: base, DTEnd: base},
+				{Summary: "Lecture", CalendarEventID: 99032, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(1 * time.Hour), DTEnd: base.Add(2 * time.Hour)},
+				{Summary: "Quiz Event B", CalendarEventID: 99033, QuizID: 99034, Source: "brightspace-calendar", DTStart: base.Add(3 * time.Hour), DTEnd: base.Add(4 * time.Hour)},
+				{Summary: "Tutorial", CalendarEventID: 99035, QuizID: 0, Source: "brightspace-calendar", DTStart: base.Add(5 * time.Hour), DTEnd: base.Add(6 * time.Hour)},
+			},
+			quizEvents: []calendar.Event{
+				{Summary: "Quiz A", QuizID: 99031, Source: "brightspace-quizzes", DTStart: base.Add(-1 * time.Hour), DTEnd: base},
+				{Summary: "Quiz B", QuizID: 99034, Source: "brightspace-quizzes", DTStart: base.Add(2 * time.Hour), DTEnd: base.Add(3 * time.Hour)},
+			},
+			wantTotalCount:   4,
+			wantReplacements: 2,
+			wantVerify: func(t *testing.T, result []calendar.Event) {
+				var nonQuizCount, matchedQuizCount int
+				for _, e := range result {
+					if e.QuizID == 0 && e.CalendarEventID > 0 {
+						nonQuizCount++
+					} else if e.QuizID > 0 && e.CalendarEventID > 0 {
+						matchedQuizCount++
+					}
+				}
+				if nonQuizCount != 2 {
+					t.Errorf("expected 2 non-quiz calendar events, got %d", nonQuizCount)
+				}
+				if matchedQuizCount != 2 {
+					t.Errorf("expected 2 matched quiz events, got %d", matchedQuizCount)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, replacements := DedupQuizzes(tt.calendarEvents, tt.quizEvents)
+			if len(result) != tt.wantTotalCount {
+				t.Errorf("DedupQuizzes() total count = %d, want %d", len(result), tt.wantTotalCount)
+			}
+			if replacements != tt.wantReplacements {
+				t.Errorf("DedupQuizzes() replacements = %d, want %d", replacements, tt.wantReplacements)
+			}
+			if tt.wantVerify != nil {
+				tt.wantVerify(t, result)
+			}
+		})
+	}
+}

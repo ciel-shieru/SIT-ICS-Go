@@ -23,21 +23,29 @@ type Course struct {
 	IsActive  bool   `json:"IsActive"`
 }
 
+type AssociatedEntity struct {
+	AssociatedEntityType string `json:"AssociatedEntityType"`
+	AssociatedEntityId   int    `json:"AssociatedEntityId"`
+	Link                 string `json:"Link"`
+}
+
 // CalendarEventAPI mirrors the BrightSpace calendar event JSON structure
 // with string-based timestamps for browser-based fetching.
 type CalendarEventAPI struct {
-	CalendarEventId int       `json:"CalendarEventId"`
-	OrgUnitId       int       `json:"OrgUnitId"`
-	Title           string    `json:"Title"`
-	Description     string    `json:"Description"`
-	IsAllDayEvent   bool      `json:"IsAllDayEvent"`
-	StartDateTime   string    `json:"StartDateTime"`
-	EndDateTime     string    `json:"EndDateTime"`
-	IsRecurring     bool      `json:"IsRecurring"`
-	LocationName    string    `json:"LocationName"`
-	OrgUnitName     string    `json:"OrgUnitName"`
-	OrgUnitCode     string    `json:"OrgUnitCode"`
-	EventType       int       `json:"EventType"`
+	CalendarEventId  int              `json:"CalendarEventId"`
+	OrgUnitId        int              `json:"OrgUnitId"`
+	Title            string           `json:"Title"`
+	Description      string           `json:"Description"`
+	IsAllDayEvent    bool             `json:"IsAllDayEvent"`
+	StartDateTime    string           `json:"StartDateTime"`
+	EndDateTime      string           `json:"EndDateTime"`
+	IsRecurring      bool             `json:"IsRecurring"`
+	LocationName     string           `json:"LocationName"`
+	OrgUnitName      string           `json:"OrgUnitName"`
+	OrgUnitCode      string           `json:"OrgUnitCode"`
+	EventType        int              `json:"EventType"`
+	QuizId           int              `json:"QuizId"`
+	AssociatedEntity *AssociatedEntity `json:"AssociatedEntity,omitempty"`
 }
 
 // DropboxFolderAPI mirrors the BrightSpace dropbox folder JSON structure
@@ -97,16 +105,18 @@ type QuizzesResponse struct {
 // BrightSpaceEntry is the internal representation of a BrightSpace event/due date.
 type BrightSpaceEntry struct {
 	// Source identifies whether this came from calendar events or dropbox folders.
-	Source      SourceType
-	Title       string
-	OrgUnitId   string
-	OrgUnitName string
-	OrgUnitCode string
-	Location    string
-	Description string
-	DTStart     time.Time
-	DTEnd       time.Time
-	IsAllDay    bool
+	Source        SourceType
+	Title         string
+	OrgUnitId     string
+	OrgUnitName   string
+	OrgUnitCode   string
+	Location      string
+	Description   string
+	DTStart       time.Time
+	DTEnd         time.Time
+	IsAllDay      bool
+	CalendarEventID int
+	QuizID        int
 }
 
 type SourceType string

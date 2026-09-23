@@ -87,6 +87,12 @@ func Render(events []Event, opts RenderOptions) ([]byte, error) {
 		if event.Title != "" {
 			sb.WriteString(fmt.Sprintf("X-Title:%s\r\n", EscapeText(event.Title)))
 		}
+		if event.CalendarEventID > 0 {
+			sb.WriteString(fmt.Sprintf("X-CalendarEventId:%d\r\n", event.CalendarEventID))
+		}
+		if event.QuizID > 0 {
+			sb.WriteString(fmt.Sprintf("X-QuizId:%d\r\n", event.QuizID))
+		}
 		for _, alert := range opts.Alerts {
 			renderVALARM(&sb, alert)
 		}

@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -53,6 +54,10 @@ func parseICS(data []byte, loc *time.Location) []Event {
 				event.OrgUnitCode = unescapeText(strings.TrimPrefix(line, "X-OrgUnitCode:"))
 			} else if strings.HasPrefix(line, "X-Title:") {
 				event.Title = unescapeText(strings.TrimPrefix(line, "X-Title:"))
+			} else if strings.HasPrefix(line, "X-CalendarEventId:") {
+				event.CalendarEventID = parseInt(strings.TrimPrefix(line, "X-CalendarEventId:"))
+			} else if strings.HasPrefix(line, "X-QuizId:") {
+				event.QuizID = parseInt(strings.TrimPrefix(line, "X-QuizId:"))
 			} else if strings.HasPrefix(line, "DTSTART;TZID=") {
 				timeStr := strings.SplitN(line, ":", 2)
 				if len(timeStr) == 2 {
@@ -86,4 +91,10 @@ func unescapeText(text string) string {
 	text = strings.ReplaceAll(text, "\\;", ";")
 	text = strings.ReplaceAll(text, "\\\\", "\\")
 	return text
+}
+
+func parseInt(s string) int {
+	var n int
+	fmt.Sscanf(s, "%d", &n)
+	return n
 }
