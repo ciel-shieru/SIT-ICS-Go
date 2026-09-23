@@ -22,9 +22,10 @@ type Server struct {
 	bsDropboxAlerts []calendar.Alert
 	bsQuizzesAlerts []calendar.Alert
 	trustedProxies  string
+	disableCaching  bool
 }
 
-func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert, trustedProxies string) *Server {
+func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert, trustedProxies string, disableCaching bool) *Server {
 	return &Server{
 		port:            port,
 		serverAddr:      serverAddr,
@@ -38,18 +39,19 @@ func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string,
 		bsDropboxAlerts: bsDropboxAlerts,
 		bsQuizzesAlerts: bsQuizzesAlerts,
 		trustedProxies:  trustedProxies,
+		disableCaching:  disableCaching,
 	}
 }
 
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/timetable.ics", newTimetableHandler(s.cache, s.tz, s.refreshInterval, s.mainAlerts))
-	mux.HandleFunc("/timetable-online.ics", newOnlineHandler(s.cache, s.tz, s.refreshInterval, s.onlineAlerts))
-	mux.HandleFunc("/timetable-campus.ics", newCampusHandler(s.cache, s.tz, s.refreshInterval, s.campusAlerts))
-	mux.HandleFunc("/xsite-events.ics", newXsiteEventsHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts))
-	mux.HandleFunc("/xsite-dropbox.ics", newXsiteDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts))
-	mux.HandleFunc("/xsite-quizzes.ics", newXsiteQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts))
-	mux.HandleFunc("/xsite.ics", newXsiteHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts, s.bsDropboxAlerts, s.bsQuizzesAlerts))
+	mux.HandleFunc("/timetable.ics", newTimetableHandler(s.cache, s.tz, s.refreshInterval, s.mainAlerts, s.disableCaching))
+	mux.HandleFunc("/timetable-online.ics", newOnlineHandler(s.cache, s.tz, s.refreshInterval, s.onlineAlerts, s.disableCaching))
+	mux.HandleFunc("/timetable-campus.ics", newCampusHandler(s.cache, s.tz, s.refreshInterval, s.campusAlerts, s.disableCaching))
+	mux.HandleFunc("/xsite-events.ics", newXsiteEventsHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts, s.disableCaching))
+	mux.HandleFunc("/xsite-dropbox.ics", newXsiteDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts, s.disableCaching))
+	mux.HandleFunc("/xsite-quizzes.ics", newXsiteQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts, s.disableCaching))
+	mux.HandleFunc("/xsite.ics", newXsiteHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts, s.bsDropboxAlerts, s.bsQuizzesAlerts, s.disableCaching))
 
 	handler, err := NewLoggingMiddleware(mux, s.trustedProxies)
 	if err != nil {
