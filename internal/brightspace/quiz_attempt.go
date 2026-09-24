@@ -110,10 +110,6 @@ func ParseQuizSubmissionHTML(htmlStr string, quizID int, orgUnitID string) (Quiz
 		attemptsMade++
 	}
 
-	if attemptsMade < 0 {
-		attemptsMade = 0
-	}
-
 	if bestTotal > 0 {
 		bestScore = (bestScore / bestTotal) * 100.0
 	}
