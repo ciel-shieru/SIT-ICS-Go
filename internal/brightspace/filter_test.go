@@ -103,7 +103,7 @@ func TestPatternToRegex(t *testing.T) {
 			name:      "case insensitive matching",
 			pattern:   "MOD0001*QUIZ",
 			wantNil:   false,
-			input:     "mod1002 Week 2 quiz",
+			input:     "mod0001 week 2 quiz",
 			wantMatch: true,
 		},
 		// Leading/trailing wildcard
