@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.20] - 2026-09-24
+
+### Added
+- **Quiz Attempt Tracking**: Opt-in quiz attempt tracking with HTML parsing for BrightSpace/D2L
+- **Calendar/Quiz Deduplication**: Add `calendarEventId` and `quizId` ICS properties to prevent duplicate events across quiz and calendar sources
+
+### Changed
+- **Quiz Association Detection**: Use `AssociatedEntity` for quiz association detection in BrightSpace
+
+### Fixed
+- **Cache Deletion for Smart Merge**: Ensure stale events are properly deleted during smart merge and quiz deduplication
+- **Nil Context Panic**: Use `NewRodFetcher` constructor to prevent nil context panic in browser fetcher
+- **Case-Insensitive Matching**: Correct test input for case-insensitive matching in BrightSpace module filtering
+- **Quiz Deduplication**: Fix BrightSpace quiz deduplication and calendar event dedup logic
+
+### Removed
+- **Dead Code**: Remove dead code checking negative `attemptsMade` counter
+
 ## [Unreleased]
 
 ### Added
