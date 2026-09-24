@@ -42,6 +42,7 @@ type Config struct {
 	TimetableAlerts                    string        `env:"TIMETABLE_ALERTS" envDefault:""`
 	TimetableOnlineAlerts              string        `env:"TIMETABLE_ONLINE_ALERTS" envDefault:""`
 	XsiteSmartMergeEnabled             bool          `env:"XSITE_SMART_MERGE_ENABLED" envDefault:"true"`
+	XsiteQuizAttemptTrackingEnabled    bool          `env:"XSITE_QUIZ_ATTEMPT_TRACKING_ENABLED" envDefault:"false"`
 	TimetableCampusAlerts              string        `env:"TIMETABLE_CAMPUS_ALERTS" envDefault:""`
 	XsiteEventsAlerts                  string        `env:"XSITE_EVENTS_ALERTS" envDefault:""`
 	XsiteDropboxAlerts                 string        `env:"XSITE_DROPBOX_ALERTS" envDefault:""`

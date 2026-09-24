@@ -76,3 +76,17 @@ func (a *ADFSProvider) FetchBrightSpaceQuizzes(ctx context.Context, baseURL stri
 	}
 	return entries, nil
 }
+
+// FetchBrightSpaceQuizzesAPI fetches BrightSpace quiz API objects using the existing authenticated session.
+func (a *ADFSProvider) FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+	return a.browser.FetchBrightSpaceQuizzesAPI(ctx, baseURL)
+}
+
+// FetchQuizSubmissionPage fetches the HTML of a quiz submission page.
+func (a *ADFSProvider) FetchQuizSubmissionPage(ctx context.Context, quizURL string) (string, error) {
+	html, err := a.browser.FetchQuizSubmissionPage(ctx, quizURL)
+	if err != nil {
+		return "", fmt.Errorf("browser fetch quiz submission page: %w", err)
+	}
+	return html, nil
+}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	// "time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/go-rod/rod"
@@ -150,4 +149,26 @@ func FetchBrightSpaceQuizzes(ctx context.Context, page *rod.Page, baseURL string
 	}
 
 	return entries, nil
+}
+
+// FetchQuizSubmissionPage navigates to a quiz submission page and returns its HTML.
+func FetchQuizSubmissionPage(ctx context.Context, page *rod.Page, quizURL string, cfg BrowserConfig) (string, error) {
+	navigCtx, navigCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
+	page = page.Context(navigCtx)
+	defer navigCancel()
+
+	if err := page.Navigate(quizURL); err != nil {
+		return "", fmt.Errorf("navigate: %w", err)
+	}
+
+	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+	if err := page.WaitStable(5000); err != nil {
+		debug(cfg, "brightspace: quiz submission page stable wait warning: %v", err)
+	}
+
+	h, err := page.HTML()
+	if err != nil {
+		return "", fmt.Errorf("get HTML: %w", err)
+	}
+	return h, nil
 }

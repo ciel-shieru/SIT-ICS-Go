@@ -17,6 +17,8 @@ type AuthBrowser interface {
 	FetchTimetable(ctx context.Context, weekDate string) (string, error)
 	FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	FetchBrightSpaceQuizzes(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
+	FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error)
+	FetchQuizSubmissionPage(ctx context.Context, quizURL string) (string, error)
 	Close()
 }
 
@@ -51,6 +53,8 @@ type MockAuthBrowser struct {
 	FetchTimetableFunc           func(ctx context.Context, weekDate string) (string, error)
 	FetchBrightSpaceFunc         func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	FetchBrightSpaceQuizzesFunc  func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
+	FetchBrightSpaceQuizzesAPIFunc func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error)
+	FetchQuizSubmissionPageFunc  func(ctx context.Context, quizURL string) (string, error)
 }
 
 func (m *MockAuthBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
@@ -79,6 +83,20 @@ func (m *MockAuthBrowser) FetchBrightSpaceQuizzes(ctx context.Context, baseURL s
 		return m.FetchBrightSpaceQuizzesFunc(ctx, baseURL)
 	}
 	return nil, nil
+}
+
+func (m *MockAuthBrowser) FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+	if m.FetchBrightSpaceQuizzesAPIFunc != nil {
+		return m.FetchBrightSpaceQuizzesAPIFunc(ctx, baseURL)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthBrowser) FetchQuizSubmissionPage(ctx context.Context, quizURL string) (string, error) {
+	if m.FetchQuizSubmissionPageFunc != nil {
+		return m.FetchQuizSubmissionPageFunc(ctx, quizURL)
+	}
+	return "", nil
 }
 
 func (m *MockAuthBrowser) Close() {}

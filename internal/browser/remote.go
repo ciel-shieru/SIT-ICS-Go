@@ -205,6 +205,21 @@ func (b *RemoteBrowser) FetchBrightSpaceQuizzes(ctx context.Context, baseURL str
 	return FetchBrightSpaceQuizzes(ctx, b.page, baseURL, b.cfg)
 }
 
+func (b *RemoteBrowser) FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+	if b.browser == nil {
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	fetcher := &RodFetcher{page: b.page, cfg: b.cfg}
+	return brightspace.FetchQuizzes(ctx, brightspace.NewClient(baseURL, fetcher))
+}
+
+func (b *RemoteBrowser) FetchQuizSubmissionPage(ctx context.Context, quizURL string) (string, error) {
+	if b.page == nil {
+		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	return FetchQuizSubmissionPage(ctx, b.page, quizURL, b.cfg)
+}
+
 func (b *RemoteBrowser) Close() {
 	if b.incognito != nil && b.incognito != b.browser {
 		var pageIDs rod.Pages
