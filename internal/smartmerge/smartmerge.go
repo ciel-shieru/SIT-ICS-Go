@@ -203,13 +203,20 @@ func ExtractZoomDetails(description string) ZoomDetails {
 // 1. Module code match
 // 2. Time overlap
 // 3. Location conditions (PS "Online" + BS "Zoom Online Meeting")
-func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
+//
+// Returns the merged event slice, the count of merged events, and a set of
+// UIDs for BrightSpace calendar events that were consumed by the merge.
+// These UIDs should be used to remove the consumed events from the cache
+// before calling cache.Update(), since cache.Update() uses non-destructive
+// merge semantics and would otherwise retain them.
+func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int, map[string]bool) {
 	merged := 0
 	mergedPS := make([]calendar.Event, len(psEvents))
 	copy(mergedPS, psEvents)
 	matchedPS := make([]bool, len(psEvents))
 
 	unmatchedBS := make([]calendar.Event, 0, len(bsEvents))
+	matchedBSUIDs := make(map[string]bool)
 
 	for _, bsEvent := range bsEvents {
 		found := false
@@ -247,6 +254,7 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 		matchedPS[i] = true
 		merged++
 		found = true
+		matchedBSUIDs[bsEvent.UID] = true
 		break
 		}
 		if !found {
@@ -258,7 +266,7 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 	result = append(result, mergedPS...)
 	result = append(result, unmatchedBS...)
 
-	return result, merged
+	return result, merged, matchedBSUIDs
 }
 
 // DedupQuizzes replaces calendar events that are associated with quizzes
@@ -279,9 +287,12 @@ func MergeEvents(psEvents, bsEvents []calendar.Event) ([]calendar.Event, int) {
 // Duplicate calendar events (same CalendarEventID) are deduplicated —
 // only the first occurrence is kept.
 //
-// Returns the merged event slice and the count of calendar events
-// replaced by quiz events.
-func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event, int) {
+// Returns the merged event slice, the count of calendar events
+// replaced by quiz events, and a set of UIDs for calendar events that
+// were removed. These UIDs should be used to remove the removed events
+// from the cache before calling cache.Update(), since cache.Update() uses
+// non-destructive merge semantics and would otherwise retain them.
+func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event, int, map[string]bool) {
 	// Build set of QuizIDs from quiz events for quick lookup.
 	quizIDs := make(map[int]bool)
 	for _, qEv := range quizEvents {
@@ -294,6 +305,7 @@ func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event
 	// and filter out those associated with quizzes.
 	replacements := 0
 	seenCalendarEventIDs := make(map[int]bool)
+	removedUIDs := make(map[string]bool)
 	var result []calendar.Event
 	for _, ev := range calendarEvents {
 		if ev.CalendarEventID > 0 {
@@ -302,6 +314,7 @@ func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event
 			}
 			if ev.QuizID > 0 && quizIDs[ev.QuizID] {
 				replacements++ // calendar event replaced by quiz event
+				removedUIDs[ev.UID] = true
 				continue       // skip (quiz will be added below)
 			}
 			seenCalendarEventIDs[ev.CalendarEventID] = true
@@ -314,5 +327,5 @@ func DedupQuizzes(calendarEvents, quizEvents []calendar.Event) ([]calendar.Event
 		result = append(result, quizEv)
 	}
 
-	return result, replacements
+	return result, replacements, removedUIDs
 }

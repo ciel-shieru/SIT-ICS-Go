@@ -427,7 +427,7 @@ func TestMergeEvents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, mergedCount := MergeEvents(tt.psEvents, tt.bsEvents)
+			result, mergedCount, _ := MergeEvents(tt.psEvents, tt.bsEvents)
 
 			if len(result) != tt.wantTotalCount {
 				t.Errorf("MergeEvents() total count = %d, want %d", len(result), tt.wantTotalCount)
@@ -478,7 +478,7 @@ func TestMergeEvents_LocationFilter(t *testing.T) {
 		DTEnd:       base.Add(2 * time.Hour),
 	}
 
-	result, mergedCount := MergeEvents([]calendar.Event{campusPS}, []calendar.Event{zoomBS})
+	result, mergedCount, _ := MergeEvents([]calendar.Event{campusPS}, []calendar.Event{zoomBS})
 
 	if mergedCount != 0 {
 		t.Errorf("MergeEvents() merged %d events, expected 0 (campus PS should not match zoom BS)", mergedCount)
@@ -519,7 +519,7 @@ func TestMergeEvents_OnePSMatchedOnce(t *testing.T) {
 		DTEnd:       base.Add(4 * time.Hour),
 	}
 
-	result, mergedCount := MergeEvents([]calendar.Event{psEvent}, []calendar.Event{bsEvent1, bsEvent2})
+	result, mergedCount, _ := MergeEvents([]calendar.Event{psEvent}, []calendar.Event{bsEvent1, bsEvent2})
 
 	if mergedCount != 1 {
 		t.Errorf("MergeEvents() merged %d events, expected 1 (PS event can only be matched once)", mergedCount)
@@ -725,7 +725,7 @@ func TestDedupQuizzes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, replacements := DedupQuizzes(tt.calendarEvents, tt.quizEvents)
+			result, replacements, _ := DedupQuizzes(tt.calendarEvents, tt.quizEvents)
 			if len(result) != tt.wantTotalCount {
 				t.Errorf("DedupQuizzes() total count = %d, want %d", len(result), tt.wantTotalCount)
 			}
@@ -736,5 +736,252 @@ func TestDedupQuizzes(t *testing.T) {
 				tt.wantVerify(t, result)
 			}
 		})
+	}
+}
+
+func TestMergeEvents_ReturnsMatchedBSUIDs(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 8, 31, 9, 0, 0, 0, loc)
+
+	psEvent := calendar.Event{
+		CourseCode: "MOD1001",
+		Summary:    "MOD1001 - L01 (Tutorial)",
+		Location:   "Online",
+		DTStart:    base,
+		DTEnd:      base.Add(2 * time.Hour),
+	}
+
+	bsEvent1 := calendar.Event{
+		Source:      "calendar",
+		Title:       "Tutorial 1",
+		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		OrgUnitCode: "MOD1001",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/0000000000?pwd=000000">Join</a></p>`,
+		DTStart:     base,
+		DTEnd:       base.Add(2 * time.Hour),
+	}
+	bsEvent1.UID = "bs-uid-1"
+
+	bsEvent2 := calendar.Event{
+		Source:      "calendar",
+		Title:       "Tutorial 2",
+		OrgUnitName: "MOD1001-Sample Module Title [2026/27 T1]",
+		OrgUnitCode: "MOD1001",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/1111111111?pwd=111111">Join</a></p>`,
+		DTStart:     base.Add(30 * time.Minute),
+		DTEnd:       base.Add(4 * time.Hour),
+	}
+	bsEvent2.UID = "bs-uid-2"
+
+	// BS event for different module - should NOT match
+	bsEvent3 := calendar.Event{
+		Source:      "calendar",
+		Title:       "Lecture 1",
+		OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
+		OrgUnitCode: "COR2003",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/2222222222?pwd=222222">Join</a></p>`,
+		DTStart:     base,
+		DTEnd:       base.Add(2 * time.Hour),
+	}
+	bsEvent3.UID = "bs-uid-3"
+
+	result, mergedCount, matchedUIDs := MergeEvents([]calendar.Event{psEvent}, []calendar.Event{bsEvent1, bsEvent2, bsEvent3})
+
+	if mergedCount != 1 {
+		t.Errorf("mergedCount = %d, want 1", mergedCount)
+	}
+	if len(result) != 3 {
+		t.Errorf("result count = %d, want 3 (1 PS + 2 unmatched BS)", len(result))
+	}
+	if len(matchedUIDs) != 1 {
+		t.Fatalf("matchedUIDs count = %d, want 1", len(matchedUIDs))
+	}
+	if !matchedUIDs["bs-uid-1"] {
+		t.Error("expected bs-uid-1 to be in matchedUIDs")
+	}
+	if matchedUIDs["bs-uid-2"] {
+		t.Error("bs-uid-2 should NOT be in matchedUIDs (no match — PS already matched)")
+	}
+	if matchedUIDs["bs-uid-3"] {
+		t.Error("bs-uid-3 should NOT be in matchedUIDs (different module)")
+	}
+}
+
+func TestMergeEvents_MultipleMatches(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 8, 31, 9, 0, 0, 0, loc)
+
+	psEvent1 := calendar.Event{
+		CourseCode: "MOD1001",
+		Location:   "Online",
+		DTStart:    base,
+		DTEnd:      base.Add(2 * time.Hour),
+	}
+	psEvent2 := calendar.Event{
+		CourseCode: "COR2003",
+		Location:   "Online",
+		DTStart:    base.Add(3 * time.Hour),
+		DTEnd:      base.Add(5 * time.Hour),
+	}
+
+	bsEvent1 := calendar.Event{
+		Source:      "calendar",
+		Title:       "Tutorial 1",
+		OrgUnitName: "MOD1001-Sample [2026/27 T1]",
+		OrgUnitCode: "MOD1001",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/0000000000?pwd=000000">Join</a></p>`,
+		DTStart:     base,
+		DTEnd:       base.Add(2 * time.Hour),
+	}
+	bsEvent1.UID = "bs-uid-mod1001"
+
+	bsEvent2 := calendar.Event{
+		Source:      "calendar",
+		Title:       "Lecture 1",
+		OrgUnitName: "COR2003-Software Engineering [2026/27 T1]",
+		OrgUnitCode: "COR2003",
+		Location:    "Zoom Online Meeting",
+		Description: `<p><a href="http://zoom.us/j/1111111111?pwd=111111">Join</a></p>`,
+		DTStart:     base.Add(3 * time.Hour),
+		DTEnd:       base.Add(5 * time.Hour),
+	}
+	bsEvent2.UID = "bs-uid-cor2003"
+
+	result, mergedCount, matchedUIDs := MergeEvents(
+		[]calendar.Event{psEvent1, psEvent2},
+		[]calendar.Event{bsEvent1, bsEvent2},
+	)
+
+	if mergedCount != 2 {
+		t.Errorf("mergedCount = %d, want 2", mergedCount)
+	}
+	if len(result) != 2 {
+		t.Errorf("result count = %d, want 2 (both PS merged, no unmatched BS)", len(result))
+	}
+	if len(matchedUIDs) != 2 {
+		t.Fatalf("matchedUIDs count = %d, want 2", len(matchedUIDs))
+	}
+	if !matchedUIDs["bs-uid-mod1001"] {
+		t.Error("expected bs-uid-mod1001 to be in matchedUIDs")
+	}
+	if !matchedUIDs["bs-uid-cor2003"] {
+		t.Error("expected bs-uid-cor2003 to be in matchedUIDs")
+	}
+}
+
+func TestDedupQuizzes_ReturnsRemovedUIDs(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 10, 18, 15, 59, 59, 0, loc)
+
+	calendarEvent1 := calendar.Event{
+		Summary:         "Quiz Event A",
+		CalendarEventID: 99010,
+		QuizID:          99010,
+		Source:          "brightspace-calendar",
+		DTStart:         base,
+		DTEnd:           base,
+	}
+	calendarEvent1.UID = "cal-uid-99010"
+
+	calendarEvent2 := calendar.Event{
+		Summary:         "Quiz Event B",
+		CalendarEventID: 99011,
+		QuizID:          99011,
+		Source:          "brightspace-calendar",
+		DTStart:         base.Add(1 * time.Hour),
+		DTEnd:           base.Add(1 * time.Hour),
+	}
+	calendarEvent2.UID = "cal-uid-99011"
+
+	nonQuizEvent := calendar.Event{
+		Summary:         "Lecture",
+		CalendarEventID: 99012,
+		QuizID:          0,
+		Source:          "brightspace-calendar",
+		DTStart:         base.Add(2 * time.Hour),
+		DTEnd:           base.Add(3 * time.Hour),
+	}
+	nonQuizEvent.UID = "cal-uid-99012"
+
+	quizEvent1 := calendar.Event{
+		Summary: "Quiz A",
+		QuizID:  99010,
+		Source:  "brightspace-quizzes",
+		DTStart: base.Add(-1 * time.Hour),
+		DTEnd:   base,
+	}
+
+	quizEvent2 := calendar.Event{
+		Summary: "Quiz B",
+		QuizID:  99011,
+		Source:  "brightspace-quizzes",
+		DTStart: base.Add(1 * time.Hour),
+		DTEnd:   base.Add(2 * time.Hour),
+	}
+
+	result, replacements, removedUIDs := DedupQuizzes(
+		[]calendar.Event{calendarEvent1, calendarEvent2, nonQuizEvent},
+		[]calendar.Event{quizEvent1, quizEvent2},
+	)
+
+	if replacements != 2 {
+		t.Errorf("replacements = %d, want 2", replacements)
+	}
+	if len(result) != 3 {
+		t.Errorf("result count = %d, want 3 (1 non-quiz + 2 quizzes)", len(result))
+	}
+	if len(removedUIDs) != 2 {
+		t.Fatalf("removedUIDs count = %d, want 2", len(removedUIDs))
+	}
+	if !removedUIDs["cal-uid-99010"] {
+		t.Error("expected cal-uid-99010 to be in removedUIDs")
+	}
+	if !removedUIDs["cal-uid-99011"] {
+		t.Error("expected cal-uid-99011 to be in removedUIDs")
+	}
+	if removedUIDs["cal-uid-99012"] {
+		t.Error("cal-uid-99012 should NOT be in removedUIDs (non-quiz event)")
+	}
+}
+
+func TestDedupQuizzes_NoQuizMatches(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	base := time.Date(2026, 10, 18, 15, 59, 59, 0, loc)
+
+	calendarEvent := calendar.Event{
+		Summary:         "Lecture",
+		CalendarEventID: 99020,
+		QuizID:          0,
+		Source:          "brightspace-calendar",
+		DTStart:         base,
+		DTEnd:           base,
+	}
+	calendarEvent.UID = "cal-uid-99020"
+
+	quizEvent := calendar.Event{
+		Summary: "Quiz A",
+		QuizID:  99030,
+		Source:  "brightspace-quizzes",
+		DTStart: base.Add(-1 * time.Hour),
+		DTEnd:   base,
+	}
+
+	result, replacements, removedUIDs := DedupQuizzes(
+		[]calendar.Event{calendarEvent},
+		[]calendar.Event{quizEvent},
+	)
+
+	if replacements != 0 {
+		t.Errorf("replacements = %d, want 0", replacements)
+	}
+	if len(result) != 2 {
+		t.Errorf("result count = %d, want 2 (1 calendar + 1 quiz)", len(result))
+	}
+	if len(removedUIDs) != 0 {
+		t.Errorf("removedUIDs count = %d, want 0", len(removedUIDs))
 	}
 }
