@@ -1,0 +1,102 @@
+package browser
+
+import (
+	"context"
+	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
+)
+
+type AuthResult struct {
+	RedirectURL string
+	Token       string
+}
+
+type AuthBrowser interface {
+	Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error)
+	FetchTimetable(ctx context.Context, weekDate string) (string, error)
+	FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
+	FetchBrightSpaceQuizzes(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
+	FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error)
+	FetchQuizSubmissionPage(ctx context.Context, quizURL string) (string, error)
+	Close()
+}
+
+func DefaultBrowserConfig(mode BrowserMode) BrowserConfig {
+	return BrowserConfig{
+		Mode:              mode,
+		Headless:          true,
+		Incognito:         true,
+		ConnectTimeout:    10 * time.Second,
+		NavigationTimeout: 30 * time.Second,
+		AuthTimeout:       5 * time.Minute,
+	}
+}
+
+var allowedOrigins = []string{
+	"https://in4sit.singaporetech.edu.sg",
+	"https://fs.singaporetech.edu.sg",
+	"https://xsite.singaporetech.edu.sg",
+}
+
+func isAllowedOrigin(url string) bool {
+	for _, origin := range allowedOrigins {
+		if url == origin || len(url) >= len(origin) && url[:len(origin)] == origin && (url[len(origin)] == '/' || url[len(origin)] == ':') {
+			return true
+		}
+	}
+	return false
+}
+
+type MockAuthBrowser struct {
+	AuthenticateFunc             func(ctx context.Context, req AuthRequest) (AuthResult, error)
+	FetchTimetableFunc           func(ctx context.Context, weekDate string) (string, error)
+	FetchBrightSpaceFunc         func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
+	FetchBrightSpaceQuizzesFunc  func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
+	FetchBrightSpaceQuizzesAPIFunc func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error)
+	FetchQuizSubmissionPageFunc  func(ctx context.Context, quizURL string) (string, error)
+}
+
+func (m *MockAuthBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error) {
+	if m.AuthenticateFunc != nil {
+		return m.AuthenticateFunc(ctx, req)
+	}
+	return AuthResult{}, nil
+}
+
+func (m *MockAuthBrowser) FetchTimetable(ctx context.Context, weekDate string) (string, error) {
+	if m.FetchTimetableFunc != nil {
+		return m.FetchTimetableFunc(ctx, weekDate)
+	}
+	return "", nil
+}
+
+func (m *MockAuthBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+	if m.FetchBrightSpaceFunc != nil {
+		return m.FetchBrightSpaceFunc(ctx, baseURL)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthBrowser) FetchBrightSpaceQuizzes(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+	if m.FetchBrightSpaceQuizzesFunc != nil {
+		return m.FetchBrightSpaceQuizzesFunc(ctx, baseURL)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthBrowser) FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+	if m.FetchBrightSpaceQuizzesAPIFunc != nil {
+		return m.FetchBrightSpaceQuizzesAPIFunc(ctx, baseURL)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthBrowser) FetchQuizSubmissionPage(ctx context.Context, quizURL string) (string, error) {
+	if m.FetchQuizSubmissionPageFunc != nil {
+		return m.FetchQuizSubmissionPageFunc(ctx, quizURL)
+	}
+	return "", nil
+}
+
+func (m *MockAuthBrowser) Close() {}
