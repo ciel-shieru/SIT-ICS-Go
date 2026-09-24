@@ -209,7 +209,7 @@ func (b *RemoteBrowser) FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL 
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
-	fetcher := &RodFetcher{page: b.page, cfg: b.cfg}
+	fetcher := NewRodFetcher(b.page, b.cfg)
 	return brightspace.FetchQuizzes(ctx, brightspace.NewClient(baseURL, fetcher))
 }
 
