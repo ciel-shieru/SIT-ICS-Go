@@ -98,11 +98,11 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		} else {
 			bsEvents = brightspace.EntriesToEvents(bsEntries, blocklist, loc)
 			if cfg.XsiteSmartMergeEnabled {
-				psEvents, mergedCount, matchedBSUIDs := smartmerge.MergeEvents(icsEvents, bsEvents)
+				psEvents, mergedCount, matchedCalendarEventIDs := smartmerge.MergeEvents(icsEvents, bsEvents)
 				if mergedCount > 0 {
 					log.Printf("smartmerge: merged %d brightspace events into timetable events", mergedCount)
 					removed := cache.RemoveWhere(func(e calendar.Event) bool {
-						return matchedBSUIDs[e.UID]
+						return matchedCalendarEventIDs[e.CalendarEventID]
 					})
 					if removed > 0 {
 						log.Printf("smartmerge: removed %d matched brightspace calendar events from cache", removed)
@@ -115,7 +115,6 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 				icsEvents = append(icsEvents, bsEvents...)
 				log.Printf("scheduler: smart merge disabled, added %d brightspace events", len(bsEvents))
 			}
-			log.Printf("scheduler: added %d brightspace events", len(bsEvents))
 		}
 
 		brightSpaceQuizzesCtx, brightSpaceQuizzesCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
@@ -131,18 +130,18 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 
 			bsQuizzes := brightspace.QuizEntriesToEvents(bsQuizzesEntries, blocklist, loc)
 
-			bsMerged, replacedCount, removedQuizCalendarUIDs := smartmerge.DedupQuizzes(bsEvents, bsQuizzes)
+			bsMerged, replacedCount, removedCalendarEventIDs := smartmerge.DedupQuizzes(icsEvents, bsQuizzes)
 			if replacedCount > 0 {
 				log.Printf("smartmerge: replaced %d quiz-associated calendar events with quiz entries", replacedCount)
 				removed := cache.RemoveWhere(func(e calendar.Event) bool {
-					return removedQuizCalendarUIDs[e.UID]
+					return removedCalendarEventIDs[e.CalendarEventID]
 				})
 				if removed > 0 {
 					log.Printf("smartmerge: removed %d quiz-associated calendar events from cache", removed)
 				}
 			}
 
-			icsEvents = append(icsEvents, bsMerged...)
+			icsEvents = bsMerged
 			log.Printf("scheduler: added %d brightspace quiz events", len(bsMerged))
 
 			if cfg.XsiteQuizAttemptTrackingEnabled {
