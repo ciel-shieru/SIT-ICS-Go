@@ -642,3 +642,92 @@ func TestAPIToStringEntry_WithoutRecurrenceInfo(t *testing.T) {
 		t.Errorf("RepeatUntilDateString = %q, want empty", entry.RepeatUntilDateString)
 	}
 }
+
+func TestParseEntryTimes_ZeroDuration(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+
+	entry := &BrightSpaceStringEntry{
+		DTStart: "2026-09-15T14:00:00Z",
+		DTEnd:   "2026-09-15T14:00:00Z",
+		IsAllDay: false,
+	}
+
+	dtStart, dtEnd, err := parseEntryTimes(entry, loc)
+	if err != nil {
+		t.Fatalf("parseEntryTimes() error = %v", err)
+	}
+
+	if !dtStart.Equal(dtEnd.Add(-1 * time.Hour)) {
+		t.Errorf("DTSTART = %v, want DTEND - 1h (%v)", dtStart, dtEnd.Add(-1*time.Hour))
+	}
+	if !dtEnd.Equal(dtStart.Add(1 * time.Hour)) {
+		t.Errorf("DTEnd = %v, want DTSTART + 1h (%v)", dtEnd, dtStart.Add(1*time.Hour))
+	}
+}
+
+func TestParseEntryTimes_AllDayNoAdjustment(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+
+	entry := &BrightSpaceStringEntry{
+		DTStart:  "2026-09-15T00:00:00Z",
+		DTEnd:    "2026-09-15T00:00:00Z",
+		IsAllDay: true,
+	}
+
+	dtStart, dtEnd, err := parseEntryTimes(entry, loc)
+	if err != nil {
+		t.Fatalf("parseEntryTimes() error = %v", err)
+	}
+
+	if !dtEnd.Equal(dtStart.Add(24 * time.Hour)) {
+		t.Errorf("DTEnd = %v, want DTSTART + 24h (%v)", dtEnd, dtStart.Add(24*time.Hour))
+	}
+}
+
+func TestParseEntryTimes_NonZeroDurationNoAdjustment(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+
+	entry := &BrightSpaceStringEntry{
+		DTStart:  "2026-09-15T10:00:00Z",
+		DTEnd:    "2026-09-15T11:30:00Z",
+		IsAllDay: false,
+	}
+
+	dtStart, dtEnd, err := parseEntryTimes(entry, loc)
+	if err != nil {
+		t.Fatalf("parseEntryTimes() error = %v", err)
+	}
+
+	expectedStart, _ := time.Parse(time.RFC3339, "2026-09-15T10:00:00Z")
+	expectedEnd, _ := time.Parse(time.RFC3339, "2026-09-15T11:30:00Z")
+
+	if !dtStart.Equal(expectedStart) {
+		t.Errorf("DTSTART = %v, want %v", dtStart, expectedStart)
+	}
+	if !dtEnd.Equal(expectedEnd) {
+		t.Errorf("DTEnd = %v, want %v", dtEnd, expectedEnd)
+	}
+}
+
+func TestParseEntryTimes_EmptyDTStartUsesDTEnd(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+
+	entry := &BrightSpaceStringEntry{
+		DTStart: "",
+		DTEnd:   "2026-09-15T14:00:00Z",
+		IsAllDay: false,
+	}
+
+	dtStart, dtEnd, err := parseEntryTimes(entry, loc)
+	if err != nil {
+		t.Fatalf("parseEntryTimes() error = %v", err)
+	}
+
+	expectedEnd, _ := time.Parse(time.RFC3339, "2026-09-15T14:00:00Z")
+	if !dtEnd.Equal(expectedEnd) {
+		t.Errorf("DTEnd = %v, want %v", dtEnd, expectedEnd)
+	}
+	if !dtStart.Equal(dtEnd.Add(-1 * time.Hour)) {
+		t.Errorf("DTSTART = %v, want DTEND - 1h (%v)", dtStart, dtEnd.Add(-1*time.Hour))
+	}
+}

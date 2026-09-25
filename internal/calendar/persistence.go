@@ -32,6 +32,17 @@ func parseICS(data []byte, loc *time.Location) []Event {
 		event := Event{}
 		lines := strings.Split(block, "\r\n")
 
+		// Fold-join continuation lines (lines starting with space are RFC 5545 continuations)
+		joinedLines := make([]string, 0, len(lines))
+		for _, line := range lines {
+			if len(joinedLines) > 0 && len(line) > 0 && line[0] == ' ' {
+				joinedLines[len(joinedLines)-1] += line[1:]
+			} else {
+				joinedLines = append(joinedLines, line)
+			}
+		}
+		lines = joinedLines
+
 		for _, line := range lines {
 			line = strings.TrimPrefix(line, "END:VEVENT")
 			line = strings.TrimPrefix(line, "BEGIN:VEVENT")
@@ -58,6 +69,11 @@ func parseICS(data []byte, loc *time.Location) []Event {
 				event.CalendarEventID = parseInt(strings.TrimPrefix(line, "X-CalendarEventId:"))
 			} else if strings.HasPrefix(line, "X-QuizId:") {
 				event.QuizID = parseInt(strings.TrimPrefix(line, "X-QuizId:"))
+			} else if strings.HasPrefix(line, "DTSTAMP:") {
+				t, err := time.Parse("20060102T150405Z", strings.TrimPrefix(line, "DTSTAMP:"))
+				if err == nil {
+					event.DTStamp = t.UTC()
+				}
 			} else if strings.HasPrefix(line, "DTSTART;TZID=") {
 				timeStr := strings.SplitN(line, ":", 2)
 				if len(timeStr) == 2 {

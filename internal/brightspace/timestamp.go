@@ -231,6 +231,11 @@ func parseEntryTimes(entry *BrightSpaceStringEntry, loc *time.Location) (time.Ti
 		dtEnd = dtStart.Add(24 * time.Hour)
 	}
 
+	// Zero-duration BrightSpace events: set DTSTART to 1 hour before DTEND.
+	if dtStart.Equal(dtEnd) && !entry.IsAllDay {
+		dtStart = dtEnd.Add(-1 * time.Hour)
+	}
+
 	return dtStart, dtEnd, nil
 }
 
