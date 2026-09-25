@@ -141,11 +141,29 @@ func vtimezoneBlock(loc *time.Location) string {
 }
 
 // EscapeText escapes ICS special characters in text per RFC 5545.
+// Strips non-printable and non-ASCII characters for maximum iCalendar compatibility.
 func EscapeText(text string) string {
+	// Strip non-printable and non-ASCII characters for maximum iCalendar compatibility.
+	// RFC 5545 allows UTF-8, but many clients (Apple Calendar, etc.) have issues
+	// with non-ASCII content in certain fields. We restrict to printable ASCII.
+	var sb strings.Builder
+	for _, r := range text {
+		if r >= 0x20 && r <= 0x7E {
+			sb.WriteRune(r)
+		} else if r == '\n' || r == '\r' || r == '\t' {
+			// Preserve whitespace that will be escaped later
+			sb.WriteRune(r)
+		}
+		// Drop everything else (non-ASCII, control chars except tab/newline/CR)
+	}
+	text = sb.String()
+
+	// Escape ICS special characters per RFC 5545 Section 3.3.11
 	text = strings.ReplaceAll(text, "\\", "\\\\")
 	text = strings.ReplaceAll(text, ";", "\\;")
 	text = strings.ReplaceAll(text, ",", "\\,")
 	text = strings.ReplaceAll(text, "\n", "\\n")
+	text = strings.ReplaceAll(text, "\r", "")
 	return text
 }
 
@@ -157,25 +175,39 @@ func FoldText(text string) string {
 	}
 	var result strings.Builder
 	for len(text) > 0 {
+		limit := 75
+		if result.Len() > 0 {
+			limit = 74 // continuation line: 1 byte for leading space
+		}
+
+		pos := limit
+		if pos > len(text) {
+			pos = len(text)
+		}
+		// Back up if we'd split an escape sequence
+		for pos > 0 && pos < len(text) && isEscapeStart(text[pos:]) {
+			pos--
+		}
+
 		if result.Len() == 0 {
-			if len(text) > 75 {
-				result.WriteString(text[:75])
-				text = text[75:]
-			} else {
-				result.WriteString(text)
-				text = ""
-			}
+			result.WriteString(text[:pos])
+			text = text[pos:]
 		} else {
-			if len(text) > 74 {
-				result.WriteString("\r\n " + text[:74])
-				text = text[74:]
-			} else {
-				result.WriteString("\r\n " + text)
-				text = ""
-			}
+			result.WriteString("\r\n ")
+			result.WriteString(text[:pos])
+			text = text[pos:]
 		}
 	}
 	return result.String()
+}
+
+// isEscapeStart checks whether the given text starts with an ICS escape sequence.
+func isEscapeStart(text string) bool {
+	return strings.HasPrefix(text, "\\n") ||
+		strings.HasPrefix(text, "\\N") ||
+		strings.HasPrefix(text, "\\;") ||
+		strings.HasPrefix(text, "\\,") ||
+		strings.HasPrefix(text, "\\\\")
 }
 
 func formatDuration(d time.Duration) string {

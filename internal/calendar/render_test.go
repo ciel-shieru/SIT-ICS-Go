@@ -673,3 +673,115 @@ func TestRender_DTSTAMP_ZeroTime(t *testing.T) {
 		t.Error("Rendered ICS should include DTSTAMP even for zero time")
 	}
 }
+
+func TestEscapeText_StripsNonASCII(t *testing.T) {
+	input := "Hello ∞ World 入力"
+	got := EscapeText(input)
+	want := "Hello  World " // non-ASCII stripped
+	if got != want {
+		t.Errorf("EscapeText(%q) = %q, want %q", input, got, want)
+	}
+}
+
+func TestEscapeText_EscapesSpecialChars(t *testing.T) {
+	tests := []struct {
+		input, want string
+	}{
+		{"a\\b", "a\\\\b"},
+		{"a;b", "a\\;b"},
+		{"a,b", "a\\,b"},
+		{"a\nb", "a\\nb"},
+		{"&#160;", "&#160\\;"}, // EscapeText escapes semicolons
+	}
+	for _, tc := range tests {
+		got := EscapeText(tc.input)
+		if got != tc.want {
+			t.Errorf("EscapeText(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestFoldText_ByteCount(t *testing.T) {
+	// 75 ASCII chars = 75 bytes, should not fold
+	input := strings.Repeat("a", 75)
+	got := FoldText(input)
+	if got != input {
+		t.Errorf("FoldText(75 ASCII chars) = folded, should not fold")
+	}
+
+	// 76 ASCII chars = 76 bytes, should fold
+	input = strings.Repeat("a", 76)
+	got = FoldText(input)
+	parts := strings.Split(got, "\r\n ")
+	if len(parts) != 2 {
+		t.Fatalf("FoldText(76 ASCII chars) should produce 2 parts, got %d", len(parts))
+	}
+	if len([]byte(parts[0])) != 75 {
+		t.Errorf("First part = %d bytes, want 75", len([]byte(parts[0])))
+	}
+}
+
+func TestFoldText_NoSplitEscapeSequence(t *testing.T) {
+	// Text ending with escape sequence at fold boundary
+	text := strings.Repeat("a", 73) + "\\n" + strings.Repeat("b", 10)
+	got := FoldText(text)
+
+	// The \n should not be split across lines
+	if strings.Contains(got, "\\") && strings.Contains(got, "\r\n n") {
+		t.Error("FoldText split a \\n escape sequence across line boundary")
+	}
+
+	// Verify the escaped newline is preserved intact
+	if !strings.Contains(got, "\\n") {
+		t.Error("FoldText should preserve escaped newlines")
+	}
+}
+
+func TestFoldText_MultiByteUTF8(t *testing.T) {
+	// After ASCII stripping in EscapeText, only ASCII remains.
+	// But FoldText should still use byte counting for correctness.
+	input := strings.Repeat("x", 80) // all ASCII
+	got := FoldText(input)
+	parts := strings.Split(got, "\r\n ")
+	// First part should be exactly 75 bytes
+	if len([]byte(parts[0])) != 75 {
+		t.Errorf("First part = %d bytes, want 75", len([]byte(parts[0])))
+	}
+}
+
+func TestRender_NoMalformedEntities(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := []Event{
+		{
+			Summary:     "Test Event",
+			Description: "Space here's and symbol",
+			DTStart:     time.Date(2026, 9, 7, 9, 0, 0, 0, loc),
+			DTEnd:       time.Date(2026, 9, 7, 11, 0, 0, 0, loc),
+		},
+	}
+	data, err := Render(events, RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	content := string(data)
+	// Should not contain malformed &#...; patterns
+	if strings.Contains(content, "&#") {
+		t.Errorf("Rendered ICS should not contain HTML entities, found: &# in content")
+	}
+	// Should not contain trailing backslash before CRLF
+	lines := strings.Split(string(data), "\r\n")
+	for i, line := range lines {
+		if strings.HasSuffix(line, "\\") {
+			t.Errorf("Line %d ends with trailing backslash: %q", i, line)
+		}
+	}
+	// All lines should be <= 75 octets
+	for i, line := range lines {
+		if len([]byte(line)) > 75 {
+			t.Errorf("Line %d exceeds 75 octets: %d bytes", i, len([]byte(line)))
+		}
+	}
+}

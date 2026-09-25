@@ -136,12 +136,14 @@ func QuizToStringEntry(quiz QuizAPI) BrightSpaceStringEntry {
 
 // htmlToPlainText strips HTML tags and common entities from an HTML string.
 func htmlToPlainText(html string) string {
+	// Convert line breaks
 	html = strings.ReplaceAll(html, "<br>", "\n")
 	html = strings.ReplaceAll(html, "<br/>", "\n")
 	html = strings.ReplaceAll(html, "<br />", "\n")
 	html = strings.ReplaceAll(html, "</p>", "\n")
 	html = strings.ReplaceAll(html, "<p>", "")
 
+	// Strip HTML tags
 	var result strings.Builder
 	inTag := false
 	for _, ch := range html {
@@ -158,11 +160,88 @@ func htmlToPlainText(html string) string {
 	}
 
 	text := result.String()
+
+	// Handle common HTML entities (order matters: named before numeric)
 	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	text = strings.ReplaceAll(text, "&ensp;", " ")
+	text = strings.ReplaceAll(text, "&emsp;", "  ")
 	text = strings.ReplaceAll(text, "&amp;", "&")
 	text = strings.ReplaceAll(text, "&lt;", "<")
 	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&apos;", "'")
+	text = strings.ReplaceAll(text, "&ndash;", "-")
+	text = strings.ReplaceAll(text, "&mdash;", "-")
+	text = strings.ReplaceAll(text, "&hellip;", "...")
+	text = strings.ReplaceAll(text, "&bull;", "-")
+	text = strings.ReplaceAll(text, "&copy;", "(C)")
+	text = strings.ReplaceAll(text, "&reg;", "(R)")
+	text = strings.ReplaceAll(text, "&trade;", "(TM)")
+	text = strings.ReplaceAll(text, "&minus;", "-")
+	text = strings.ReplaceAll(text, "&times;", "x")
+	text = strings.ReplaceAll(text, "&divide;", "/")
+
+	// Convert &#160; to regular space before stripNumericEntities
+	// (otherwise it becomes U+00A0 which EscapeText strips as non-ASCII)
+	text = strings.ReplaceAll(text, "&#160;", " ")
+
+	// Handle numeric character references: &#NNN; and &#xHHH;
+	text = stripNumericEntities(text)
+
+	// Strip any remaining HTML entities (&...;)
+	text = stripRemainingEntities(text)
+
 	return strings.TrimSpace(text)
+}
+
+// stripNumericEntities converts numeric character references (&#NNN; and &#xHHH;)
+// to their Unicode equivalents, then returns the string.
+func stripNumericEntities(s string) string {
+	// Handle decimal: &#NNN;
+	for {
+		idx := strings.Index(s, "&#")
+		if idx < 0 {
+			break
+		}
+		semiIdx := strings.IndexByte(s[idx:], ';')
+		if semiIdx < 0 {
+			break
+		}
+		numStr := s[idx+2 : idx+1+semiIdx]
+		var r rune
+		if len(numStr) > 0 && (numStr[0] == 'x' || numStr[0] == 'X') {
+			// Hex: &#xHHH;
+			var n uint64
+			fmt.Sscanf(numStr[1:], "%x", &n)
+			r = rune(n)
+		} else {
+			// Decimal: &#NNN;
+			var n uint64
+			fmt.Sscanf(numStr, "%d", &n)
+			r = rune(n)
+		}
+		s = s[:idx] + string(r) + s[idx+1+semiIdx:]
+	}
+	return s
+}
+
+// stripRemainingEntities removes any remaining HTML entity patterns.
+func stripRemainingEntities(s string) string {
+	result := strings.Builder{}
+	i := 0
+	for i < len(s) {
+		if s[i] == '&' {
+			semiIdx := strings.IndexByte(s[i:], ';')
+			if semiIdx > 0 && semiIdx < 10 {
+				// Skip the entity
+				i += 1 + semiIdx
+				continue
+			}
+		}
+		result.WriteByte(s[i])
+		i++
+	}
+	return result.String()
 }
 
 // BrightSpaceStringEntry represents a BrightSpace event with string-based timestamps,
