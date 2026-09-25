@@ -2,6 +2,7 @@ package brightspace
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -729,5 +730,34 @@ func TestParseEntryTimes_EmptyDTStartUsesDTEnd(t *testing.T) {
 	}
 	if !dtStart.Equal(dtEnd.Add(-1 * time.Hour)) {
 		t.Errorf("DTSTART = %v, want DTEND - 1h (%v)", dtStart, dtEnd.Add(-1*time.Hour))
+	}
+}
+
+func TestHtmlToPlainText_NumericEntities(t *testing.T) {
+	tests := []struct {
+		input, want string
+	}{
+		{"hello&#160;world", "hello world"},
+		{"test&#39;s", "test's"},
+		{"&#169; 2026", "\u00a9 2026"},
+		{"a&amp;b", "a&b"},
+		{"hello&lt;world&gt;", "hello<world>"},
+		{"&#8211; dash", "\u2013 dash"},
+		{"&#8230; ellipsis", "\u2026 ellipsis"},
+	}
+	for _, tc := range tests {
+		got := htmlToPlainText(tc.input)
+		if got != tc.want {
+			t.Errorf("htmlToPlainText(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestHtmlToPlainText_RandomEntitiesStripped(t *testing.T) {
+	input := "test&#99999;remaining&#xyz;end"
+	got := htmlToPlainText(input)
+	// Entities should be stripped, not left as malformed &#...;
+	if strings.Contains(got, "&#") {
+		t.Errorf("htmlToPlainText should strip remaining entities, got %q", got)
 	}
 }
