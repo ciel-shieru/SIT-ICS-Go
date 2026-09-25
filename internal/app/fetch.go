@@ -204,6 +204,11 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		}
 	}
 
+	now := time.Now().UTC()
+	for i := range icsEvents {
+		icsEvents[i].DTStamp = now
+	}
+
 	if err := cache.Update(icsEvents, cfg.TZ); err != nil {
 		log.Printf("scheduler: update failed: %v", err)
 		return

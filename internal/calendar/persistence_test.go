@@ -474,3 +474,321 @@ func TestWriteAtomic_ProducesValidICS(t *testing.T) {
 		t.Errorf("QuizID = %d, want 99061", loadedCache.events[0].QuizID)
 	}
 }
+
+func TestParseICS_FoldedLines(t *testing.T) {
+	foldedDesc := "DESCRIPTION:This is a very long description that exceeds seventy five octets per line limit per RFC 5545 Section 3.1 and must be folded correctly when parsed back from the ICS file content to ensure round-trip fidelity for the calendar application"
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:-//SIT Timetable//EN",
+		"CALSCALE:GREGORIAN",
+		"METHOD:PUBLISH",
+		"REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+		"BEGIN:VEVENT",
+		"UID:test-uid-folded",
+		"DTSTART;TZID=Asia/Singapore:20260915T100000",
+		"DTEND;TZID=Asia/Singapore:20260915T110000",
+		"SUMMARY:Folded Test Event",
+		foldedDesc,
+		"LOCATION:Room 101",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	expectedDesc := "This is a very long description that exceeds seventy five octets per line limit per RFC 5545 Section 3.1 and must be folded correctly when parsed back from the ICS file content to ensure round-trip fidelity for the calendar application"
+	if events[0].Description != expectedDesc {
+		t.Errorf("Description = %q, want %q", events[0].Description, expectedDesc)
+	}
+}
+
+func TestParseICS_MultipleFoldedProperties(t *testing.T) {
+	foldedSummary := "SUMMARY:This is a very long event summary that exceeds seventy five octets per line limit per RFC 5545 Section 3.1 and must be folded correctly when parsed back from the ICS file content"
+	foldedLocation := "LOCATION:This is a very long location name that exceeds seventy five octets per line limit per RFC 5545 Section 3.1 and must be folded correctly when parsed back"
+
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:-//SIT Timetable//EN",
+		"CALSCALE:GREGORIAN",
+		"METHOD:PUBLISH",
+		"REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+		"BEGIN:VEVENT",
+		"UID:test-uid-folded-multi",
+		"DTSTART;TZID=Asia/Singapore:20260915T100000",
+		"DTEND;TZID=Asia/Singapore:20260915T110000",
+		foldedSummary,
+		foldedLocation,
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	expectedSummary := "This is a very long event summary that exceeds seventy five octets per line limit per RFC 5545 Section 3.1 and must be folded correctly when parsed back from the ICS file content"
+	if events[0].Summary != expectedSummary {
+		t.Errorf("Summary = %q, want %q", events[0].Summary, expectedSummary)
+	}
+
+	expectedLocation := "This is a very long location name that exceeds seventy five octets per line limit per RFC 5545 Section 3.1 and must be folded correctly when parsed back"
+	if events[0].Location != expectedLocation {
+		t.Errorf("Location = %q, want %q", events[0].Location, expectedLocation)
+	}
+}
+
+func TestRoundTrip_FoldedLines(t *testing.T) {
+	tmpDir := t.TempDir()
+	icsPath := filepath.Join(tmpDir, "folded.ics")
+
+	longDesc := strings.Repeat("Lorem ipsum dolor sit amet. ", 10)
+	longSummary := strings.Repeat("A conference session title that is very long and exceeds the line limit. ", 5)
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+
+	cache := NewICSCache()
+	err := cache.Update([]Event{
+		{
+			Summary:     longSummary,
+			Location:    "Conference Hall A",
+			Description: longDesc,
+			DTStart:     time.Date(2026, 9, 15, 10, 0, 0, 0, loc),
+			DTEnd:       time.Date(2026, 9, 15, 11, 0, 0, 0, loc),
+		},
+	}, "Asia/Singapore")
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	err = cache.SaveToFile(icsPath, time.Hour)
+	if err != nil {
+		t.Fatalf("SaveToFile() error = %v", err)
+	}
+
+	newCache := NewICSCache()
+	err = newCache.LoadFromFile(icsPath, loc)
+	if err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+
+	if len(newCache.events) != 1 {
+		t.Fatalf("Expected 1 loaded event, got %d", len(newCache.events))
+	}
+
+	if newCache.events[0].Summary != longSummary {
+		t.Errorf("Summary mismatch: got %d chars, want %d chars", len(newCache.events[0].Summary), len(longSummary))
+	}
+	if newCache.events[0].Description != longDesc {
+		t.Errorf("Description mismatch: got %d chars, want %d chars", len(newCache.events[0].Description), len(longDesc))
+	}
+}
+
+func TestParseICS_DTSTAMP(t *testing.T) {
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:-//SIT Timetable//EN",
+		"CALSCALE:GREGORIAN",
+		"METHOD:PUBLISH",
+		"REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+		"BEGIN:VEVENT",
+		"UID:test-uid-dtstamp",
+		"DTSTAMP:20260907T123045Z",
+		"DTSTART;TZID=Asia/Singapore:20260915T100000",
+		"DTEND;TZID=Asia/Singapore:20260915T110000",
+		"SUMMARY:Test Event with DTSTAMP",
+		"LOCATION:Room 101",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	expectedDTStamp := time.Date(2026, 9, 7, 12, 30, 45, 0, time.UTC)
+	if !events[0].DTStamp.Equal(expectedDTStamp) {
+		t.Errorf("DTStamp = %v, want %v", events[0].DTStamp, expectedDTStamp)
+	}
+
+	if events[0].DTStamp.Location() != time.UTC {
+		t.Errorf("DTStamp location = %v, want UTC", events[0].DTStamp.Location())
+	}
+}
+
+func TestParseICS_DTSTAMP_RoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	icsPath := filepath.Join(tmpDir, "dtstamp.ics")
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+
+	cache := NewICSCache()
+
+	dtstamp := time.Date(2026, 9, 7, 12, 30, 45, 0, time.UTC)
+	events := []Event{
+		{
+			Summary:     "Event with DTSTAMP",
+			Location:    "Room 101",
+			DTStamp:     dtstamp,
+			DTStart:     time.Date(2026, 9, 15, 10, 0, 0, 0, loc),
+			DTEnd:       time.Date(2026, 9, 15, 11, 0, 0, 0, loc),
+			Source:      "calendar",
+			OrgUnitCode: "MOD1001",
+		},
+	}
+
+	err := cache.Update(events, "Asia/Singapore")
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	err = cache.SaveToFile(icsPath, time.Hour)
+	if err != nil {
+		t.Fatalf("SaveToFile() error = %v", err)
+	}
+
+	newCache := NewICSCache()
+	err = newCache.LoadFromFile(icsPath, loc)
+	if err != nil {
+		t.Fatalf("LoadFromFile() error = %v", err)
+	}
+
+	if len(newCache.events) != 1 {
+		t.Fatalf("Expected 1 loaded event, got %d", len(newCache.events))
+	}
+
+	expectedDTStamp := time.Date(2026, 9, 7, 12, 30, 45, 0, time.UTC)
+	if !newCache.events[0].DTStamp.Equal(expectedDTStamp) {
+		t.Errorf("DTStamp after round-trip = %v, want %v", newCache.events[0].DTStamp, expectedDTStamp)
+	}
+
+	if newCache.events[0].DTStamp.Location() != time.UTC {
+		t.Errorf("DTStamp location after round-trip = %v, want UTC", newCache.events[0].DTStamp.Location())
+	}
+}
+
+func TestParseICS_DTSTAMP_Missing(t *testing.T) {
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:-//SIT Timetable//EN",
+		"CALSCALE:GREGORIAN",
+		"METHOD:PUBLISH",
+		"REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+		"BEGIN:VEVENT",
+		"UID:test-uid-no-dtstamp",
+		"DTSTART;TZID=Asia/Singapore:20260915T100000",
+		"DTEND;TZID=Asia/Singapore:20260915T110000",
+		"SUMMARY:Test Event without DTSTAMP",
+		"LOCATION:Room 101",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	if !events[0].DTStamp.IsZero() {
+		t.Errorf("DTStamp should be zero when DTSTAMP is absent, got %v", events[0].DTStamp)
+	}
+}
+
+func TestParseICS_DTSTAMP_InvalidFormat(t *testing.T) {
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:-//SIT Timetable//EN",
+		"CALSCALE:GREGORIAN",
+		"METHOD:PUBLISH",
+		"REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+		"BEGIN:VEVENT",
+		"UID:test-uid-invalid-dtstamp",
+		"DTSTAMP:invalid",
+		"DTSTART;TZID=Asia/Singapore:20260915T100000",
+		"DTEND;TZID=Asia/Singapore:20260915T110000",
+		"SUMMARY:Test Event with invalid DTSTAMP",
+		"LOCATION:Room 101",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	if !events[0].DTStamp.IsZero() {
+		t.Errorf("DTStamp should be zero when DTSTAMP has invalid format, got %v", events[0].DTStamp)
+	}
+}
+
+func TestParseICS_DTSTAMP_MultipleEvents(t *testing.T) {
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:-//SIT Timetable//EN",
+		"CALSCALE:GREGORIAN",
+		"METHOD:PUBLISH",
+		"REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+		"BEGIN:VEVENT",
+		"UID:test-uid-dtstamp-001",
+		"DTSTAMP:20260907T100000Z",
+		"DTSTART;TZID=Asia/Singapore:20260915T100000",
+		"DTEND;TZID=Asia/Singapore:20260915T110000",
+		"SUMMARY:Event 1",
+		"END:VEVENT",
+		"BEGIN:VEVENT",
+		"UID:test-uid-dtstamp-002",
+		"DTSTAMP:20260907T140000Z",
+		"DTSTART;TZID=Asia/Singapore:20260915T140000",
+		"DTEND;TZID=Asia/Singapore:20260915T150000",
+		"SUMMARY:Event 2",
+		"END:VEVENT",
+		"BEGIN:VEVENT",
+		"UID:test-uid-dtstamp-003",
+		"DTSTART;TZID=Asia/Singapore:20260916T100000",
+		"DTEND;TZID=Asia/Singapore:20260916T110000",
+		"SUMMARY:Event 3 no DTSTAMP",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 3 {
+		t.Fatalf("Expected 3 events, got %d", len(events))
+	}
+
+	expectedDTStamp1 := time.Date(2026, 9, 7, 10, 0, 0, 0, time.UTC)
+	expectedDTStamp2 := time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC)
+
+	if !events[0].DTStamp.Equal(expectedDTStamp1) {
+		t.Errorf("Event 0 DTStamp = %v, want %v", events[0].DTStamp, expectedDTStamp1)
+	}
+	if !events[1].DTStamp.Equal(expectedDTStamp2) {
+		t.Errorf("Event 1 DTStamp = %v, want %v", events[1].DTStamp, expectedDTStamp2)
+	}
+	if !events[2].DTStamp.IsZero() {
+		t.Errorf("Event 2 DTStamp should be zero, got %v", events[2].DTStamp)
+	}
+}

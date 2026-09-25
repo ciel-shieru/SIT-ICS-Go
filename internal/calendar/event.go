@@ -4,6 +4,7 @@ import "time"
 
 type Event struct {
 	UID             string
+	DTStamp         time.Time
 	DTStart         time.Time
 	DTEnd           time.Time
 	CourseCode      string

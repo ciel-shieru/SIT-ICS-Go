@@ -79,34 +79,38 @@ func Render(events []Event, opts RenderOptions) ([]byte, error) {
 	sb.WriteString("PRODID:-//SIT Timetable//EN\r\n")
 	sb.WriteString("CALSCALE:GREGORIAN\r\n")
 	sb.WriteString("METHOD:PUBLISH\r\n")
+	if vtz := vtimezoneBlock(opts.Timezone); vtz != "" {
+		sb.WriteString(vtz)
+	}
 	sb.WriteString(fmt.Sprintf("REFRESH-INTERVAL;VALUE=DURATION:%s\r\n", formatDuration(opts.RefreshInterval)))
 
 	for _, event := range events {
 		sb.WriteString("BEGIN:VEVENT\r\n")
 		sb.WriteString(fmt.Sprintf("UID:%s\r\n", event.UID))
+		sb.WriteString(fmt.Sprintf("DTSTAMP:%s\r\n", event.DTStamp.UTC().Format("20060102T150405Z")))
 		sb.WriteString(fmt.Sprintf("DTSTART;TZID=%s:%s\r\n", opts.Timezone.String(), toICSTime(event.DTStart, opts.Timezone)))
 		sb.WriteString(fmt.Sprintf("DTEND;TZID=%s:%s\r\n", opts.Timezone.String(), toICSTime(event.DTEnd, opts.Timezone)))
-		sb.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", EscapeText(event.Summary)))
+		sb.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", FoldText(EscapeText(event.Summary))))
 		if event.Location != "" {
-			sb.WriteString(fmt.Sprintf("LOCATION:%s\r\n", EscapeText(event.Location)))
+			sb.WriteString(fmt.Sprintf("LOCATION:%s\r\n", FoldText(EscapeText(event.Location))))
 		}
 		if event.Description != "" {
-			sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", EscapeText(event.Description)))
+			sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", FoldText(EscapeText(event.Description))))
 		}
 		if event.Source != "" {
-			sb.WriteString(fmt.Sprintf("X-SOURCE:%s\r\n", EscapeText(event.Source)))
+			sb.WriteString(fmt.Sprintf("X-SOURCE:%s\r\n", FoldText(EscapeText(event.Source))))
 		}
 		if event.OrgUnitID != "" {
-			sb.WriteString(fmt.Sprintf("X-OrgUnitID:%s\r\n", EscapeText(event.OrgUnitID)))
+			sb.WriteString(fmt.Sprintf("X-OrgUnitID:%s\r\n", FoldText(EscapeText(event.OrgUnitID))))
 		}
 		if event.OrgUnitName != "" {
-			sb.WriteString(fmt.Sprintf("X-OrgUnitName:%s\r\n", EscapeText(event.OrgUnitName)))
+			sb.WriteString(fmt.Sprintf("X-OrgUnitName:%s\r\n", FoldText(EscapeText(event.OrgUnitName))))
 		}
 		if event.OrgUnitCode != "" {
-			sb.WriteString(fmt.Sprintf("X-OrgUnitCode:%s\r\n", EscapeText(event.OrgUnitCode)))
+			sb.WriteString(fmt.Sprintf("X-OrgUnitCode:%s\r\n", FoldText(EscapeText(event.OrgUnitCode))))
 		}
 		if event.Title != "" {
-			sb.WriteString(fmt.Sprintf("X-Title:%s\r\n", EscapeText(event.Title)))
+			sb.WriteString(fmt.Sprintf("X-Title:%s\r\n", FoldText(EscapeText(event.Title))))
 		}
 		if event.CalendarEventID > 0 {
 			sb.WriteString(fmt.Sprintf("X-CalendarEventId:%d\r\n", event.CalendarEventID))
@@ -129,6 +133,13 @@ func toICSTime(t time.Time, loc *time.Location) string {
 	return t.In(loc).Format("20060102T150405")
 }
 
+func vtimezoneBlock(loc *time.Location) string {
+	if loc == time.UTC || loc.String() == "UTC" {
+		return ""
+	}
+	return "BEGIN:VTIMEZONE\r\nTZID:Asia/Singapore\r\nBEGIN:STANDARD\r\nDTSTART:19820101T000000\r\nTZOFFSETFROM:+0800\r\nTZOFFSETTO:+0800\r\nTZNAME:SGT\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n"
+}
+
 // EscapeText escapes ICS special characters in text per RFC 5545.
 func EscapeText(text string) string {
 	text = strings.ReplaceAll(text, "\\", "\\\\")
@@ -136,6 +147,35 @@ func EscapeText(text string) string {
 	text = strings.ReplaceAll(text, ",", "\\,")
 	text = strings.ReplaceAll(text, "\n", "\\n")
 	return text
+}
+
+// FoldText folds a content line to comply with RFC 5545 Section 3.1
+// (max 75 octets per line). Each continuation line is prefixed with CRLF+space.
+func FoldText(text string) string {
+	if len(text) <= 75 {
+		return text
+	}
+	var result strings.Builder
+	for len(text) > 0 {
+		if result.Len() == 0 {
+			if len(text) > 75 {
+				result.WriteString(text[:75])
+				text = text[75:]
+			} else {
+				result.WriteString(text)
+				text = ""
+			}
+		} else {
+			if len(text) > 74 {
+				result.WriteString("\r\n " + text[:74])
+				text = text[74:]
+			} else {
+				result.WriteString("\r\n " + text)
+				text = ""
+			}
+		}
+	}
+	return result.String()
 }
 
 func formatDuration(d time.Duration) string {
@@ -156,7 +196,7 @@ func renderVALARM(sb *strings.Builder, alert Alert) {
 	sb.WriteString("ACTION:DISPLAY\r\n")
 	sb.WriteString(fmt.Sprintf("TRIGGER:%s\r\n", formatICSDuration(alert.Duration)))
 	if alert.Description != "" {
-		sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", EscapeText(alert.Description)))
+		sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", FoldText(EscapeText(alert.Description))))
 	}
 	sb.WriteString("END:VALARM\r\n")
 }
