@@ -142,7 +142,7 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 			}
 
 			icsEvents = bsMerged
-			log.Printf("scheduler: added %d brightspace quiz events", len(bsMerged))
+			log.Printf("scheduler: added %d brightspace quiz events", len(bsQuizzes))
 
 			if cfg.XsiteQuizAttemptTrackingEnabled {
 				removedQuizIDs := make(map[int]bool)
