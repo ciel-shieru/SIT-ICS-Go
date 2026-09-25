@@ -17,4 +17,5 @@ type Event struct {
 	Source          string
 	CalendarEventID int
 	QuizID          int
+	RecurrenceIndex int
 }

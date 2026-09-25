@@ -37,18 +37,38 @@ func APIToStringEntry(ev CalendarEventAPI, source string) BrightSpaceStringEntry
 	}
 
 	return BrightSpaceStringEntry{
-		Title:           title,
-		OrgUnitId:       fmt.Sprintf("%d", ev.OrgUnitId),
-		OrgUnitName:     ev.OrgUnitName,
-		OrgUnitCode:     ev.OrgUnitCode,
-		Location:        ev.LocationName,
-		Description:     strings.Join(descParts, "\n"),
-		DTStart:         ev.StartDateTime,
-		DTEnd:           ev.EndDateTime,
-		IsAllDay:        ev.IsAllDayEvent,
-		Source:          source,
-		CalendarEventID: ev.CalendarEventId,
-		QuizID:          quizID,
+		Title:                 title,
+		OrgUnitId:             fmt.Sprintf("%d", ev.OrgUnitId),
+		OrgUnitName:           ev.OrgUnitName,
+		OrgUnitCode:           ev.OrgUnitCode,
+		Location:              ev.LocationName,
+		Description:           strings.Join(descParts, "\n"),
+		DTStart:               ev.StartDateTime,
+		DTEnd:                 ev.EndDateTime,
+		IsAllDay:              ev.IsAllDayEvent,
+		Source:                source,
+		CalendarEventID:       ev.CalendarEventId,
+		QuizID:                quizID,
+		IsRecurring:           ev.IsRecurring,
+		RepeatType: func() int {
+			if ev.RecurrenceInfo != nil {
+				return ev.RecurrenceInfo.RepeatType
+			}
+			return 1
+		}(),
+		RepeatEvery: func() int {
+			if ev.RecurrenceInfo != nil {
+				return ev.RecurrenceInfo.RepeatEvery
+			}
+			return 0
+		}(),
+		RepeatOnInfo:          ev.RecurrenceInfo,
+		RepeatUntilDateString: func() string {
+			if ev.RecurrenceInfo != nil {
+				return ev.RecurrenceInfo.RepeatUntilDate
+			}
+			return ""
+		}(),
 	}
 }
 
@@ -148,18 +168,23 @@ func htmlToPlainText(html string) string {
 // BrightSpaceStringEntry represents a BrightSpace event with string-based timestamps,
 // as returned by the browser scraping layer.
 type BrightSpaceStringEntry struct {
-	Title           string
-	OrgUnitId       string
-	OrgUnitName     string
-	OrgUnitCode     string
-	Location        string
-	Description     string
-	DTStart         string
-	DTEnd           string
-	IsAllDay        bool
-	Source          string
-	CalendarEventID int
-	QuizID          int
+	Title                 string
+	OrgUnitId             string
+	OrgUnitName           string
+	OrgUnitCode           string
+	Location              string
+	Description           string
+	DTStart               string
+	DTEnd                 string
+	IsAllDay              bool
+	Source                string
+	CalendarEventID       int
+	QuizID                int
+	IsRecurring           bool
+	RepeatType            int
+	RepeatEvery           int
+	RepeatOnInfo          *RecurrenceInfo
+	RepeatUntilDateString string
 }
 
 // ParseTimestamp parses a BrightSpace timestamp string into a time.Time value.
@@ -182,8 +207,77 @@ func ParseTimestamp(s string, loc *time.Location) (time.Time, error) {
 	return t, nil
 }
 
+// parseEntryTimes parses DTStart and DTEnd from a BrightSpaceStringEntry.
+// Returns (dtStart, dtEnd, error). If DTStart is empty but DTEnd exists, DTEnd is used as DTStart.
+func parseEntryTimes(entry *BrightSpaceStringEntry, loc *time.Location) (time.Time, time.Time, error) {
+	if entry.DTStart == "" && entry.DTEnd != "" {
+		entry.DTStart = entry.DTEnd
+	}
+
+	dtStart, err := ParseTimestamp(entry.DTStart, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+
+	dtEnd := dtStart
+	if entry.DTEnd != "" {
+		endTime, err := ParseTimestamp(entry.DTEnd, loc)
+		if err == nil {
+			dtEnd = endTime
+		}
+	}
+
+	if entry.IsAllDay {
+		dtEnd = dtStart.Add(24 * time.Hour)
+	}
+
+	return dtStart, dtEnd, nil
+}
+
+// buildEvent creates a calendar.Event from parsed times and a BrightSpaceStringEntry.
+func buildEvent(entry BrightSpaceStringEntry, dtStart, dtEnd time.Time, recurrenceIndex int) calendar.Event {
+	orgUnitName := entry.OrgUnitName
+	if len(orgUnitName) > 80 {
+		orgUnitName = orgUnitName[:77] + "..."
+	}
+
+	summary := entry.Title
+	if entry.OrgUnitCode != "" {
+		summary = fmt.Sprintf("[%s] %s", entry.OrgUnitCode, entry.Title)
+	} else if orgUnitName != "" {
+		summary = fmt.Sprintf("[%s] %s", orgUnitName, entry.Title)
+	}
+
+	return calendar.Event{
+		CourseCode:      entry.OrgUnitCode,
+		DTStart:         dtStart,
+		DTEnd:           dtEnd,
+		Summary:         summary,
+		Title:           entry.Title,
+		OrgUnitID:       entry.OrgUnitId,
+		OrgUnitName:     entry.OrgUnitName,
+		OrgUnitCode:     entry.OrgUnitCode,
+		Location:        entry.Location,
+		Description:     entry.Description,
+		Source:          entry.Source,
+		CalendarEventID: entry.CalendarEventID,
+		QuizID:          entry.QuizID,
+		RecurrenceIndex: recurrenceIndex,
+	}
+}
+
+// singleEventFromEntry creates a calendar.Event from a BrightSpaceStringEntry using
+// the entry's original DTStart/DTEnd (parsed). Returns the event and an error if parsing fails.
+func singleEventFromEntry(entry BrightSpaceStringEntry, loc *time.Location) (calendar.Event, error) {
+	dtStart, dtEnd, err := parseEntryTimes(&entry, loc)
+	if err != nil {
+		return calendar.Event{}, err
+	}
+	return buildEvent(entry, dtStart, dtEnd, 0), nil
+}
+
 // EntriesToEvents converts BrightSpace string entries to calendar.Event values,
-// applying blocklist filtering.
+// applying blocklist filtering and expanding recurring events.
 func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc *time.Location) []calendar.Event {
 	events := make([]calendar.Event, 0, len(entries))
 	for _, entry := range entries {
@@ -204,57 +298,25 @@ func EntriesToEvents(entries []BrightSpaceStringEntry, blocklist *Blocklist, loc
 			continue
 		}
 
-		// If start time is empty but end time exists, use end time as start time.
-		// This handles quizzes where StartDate is null but EndDate/DueDate is set.
-		if entry.DTStart == "" && entry.DTEnd != "" {
-			entry.DTStart = entry.DTEnd
-		}
-
-		dtStart, err := ParseTimestamp(entry.DTStart, loc)
+		dtStart, dtEnd, err := parseEntryTimes(&entry, loc)
 		if err != nil {
 			log.Printf("brightspace: skipping entry %q: invalid start time %q: %v", entry.Title, entry.DTStart, err)
 			continue
 		}
 
-		dtEnd := dtStart
-		if entry.DTEnd != "" {
-			endTime, err := ParseTimestamp(entry.DTEnd, loc)
-			if err == nil {
-				dtEnd = endTime
+		var entryEvents []calendar.Event
+		if entry.IsRecurring && entry.RepeatType > 0 {
+			expanded, err := ExpandRecurrence(entry, loc)
+			if err != nil {
+				log.Printf("brightspace: expanding recurring event %q failed: %v", entry.Title, err)
+				entryEvents = []calendar.Event{buildEvent(entry, dtStart, dtEnd, 0)}
+			} else {
+				entryEvents = expanded
 			}
+		} else {
+			entryEvents = []calendar.Event{buildEvent(entry, dtStart, dtEnd, 0)}
 		}
-
-		if entry.IsAllDay {
-			dtEnd = dtStart.Add(24 * time.Hour)
-		}
-
-		orgUnitName := entry.OrgUnitName
-		if len(orgUnitName) > 80 {
-			orgUnitName = orgUnitName[:77] + "..."
-		}
-
-		summary := entry.Title
-		if entry.OrgUnitCode != "" {
-			summary = fmt.Sprintf("[%s] %s", entry.OrgUnitCode, entry.Title)
-		} else if orgUnitName != "" {
-			summary = fmt.Sprintf("[%s] %s", orgUnitName, entry.Title)
-		}
-
-		events = append(events, calendar.Event{
-			CourseCode:      entry.OrgUnitCode,
-			DTStart:         dtStart,
-			DTEnd:           dtEnd,
-			Summary:         summary,
-			Title:           entry.Title,
-			OrgUnitID:       entry.OrgUnitId,
-			OrgUnitName:     entry.OrgUnitName,
-			OrgUnitCode:     entry.OrgUnitCode,
-			Location:        entry.Location,
-			Description:     entry.Description,
-			Source:          entry.Source,
-			CalendarEventID: entry.CalendarEventID,
-			QuizID:          entry.QuizID,
-		})
+		events = append(events, entryEvents...)
 	}
 	return events
 }

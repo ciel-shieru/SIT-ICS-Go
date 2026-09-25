@@ -29,6 +29,23 @@ type AssociatedEntity struct {
 	Link                 string `json:"Link"`
 }
 
+type RecurrenceInfo struct {
+	RepeatType      int             `json:"RepeatType"`
+	RepeatEvery     int             `json:"RepeatEvery"`
+	RepeatOnInfo    *RepeatOnInfo   `json:"RepeatOnInfo,omitempty"`
+	RepeatUntilDate string          `json:"RepeatUntilDate"`
+}
+
+type RepeatOnInfo struct {
+	Monday    bool `json:"Monday"`
+	Tuesday   bool `json:"Tuesday"`
+	Wednesday bool `json:"Wednesday"`
+	Thursday  bool `json:"Thursday"`
+	Friday    bool `json:"Friday"`
+	Saturday  bool `json:"Saturday"`
+	Sunday    bool `json:"Sunday"`
+}
+
 // CalendarEventAPI mirrors the BrightSpace calendar event JSON structure
 // with string-based timestamps for browser-based fetching.
 type CalendarEventAPI struct {
@@ -40,6 +57,7 @@ type CalendarEventAPI struct {
 	StartDateTime    string           `json:"StartDateTime"`
 	EndDateTime      string           `json:"EndDateTime"`
 	IsRecurring      bool             `json:"IsRecurring"`
+	RecurrenceInfo   *RecurrenceInfo  `json:"RecurrenceInfo,omitempty"`
 	LocationName     string           `json:"LocationName"`
 	OrgUnitName      string           `json:"OrgUnitName"`
 	OrgUnitCode      string           `json:"OrgUnitCode"`

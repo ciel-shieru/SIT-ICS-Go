@@ -577,3 +577,68 @@ func TestQuizEntriesToEvents_PreservesAllFields(t *testing.T) {
 		t.Errorf("Location = %q, want %q", event.Location, "Online")
 	}
 }
+
+func TestAPIToStringEntry_WithRecurrenceInfo(t *testing.T) {
+	ev := CalendarEventAPI{
+		CalendarEventId: 212823,
+		OrgUnitId:       213426,
+		Title:           "Test Recurring Event",
+		StartDateTime:   "2026-09-04T01:00:00.000Z",
+		EndDateTime:     "2026-09-04T03:00:00.000Z",
+		OrgUnitName:     "MOD1001-Sample Module",
+		OrgUnitCode:     "MOD1001",
+		IsRecurring:     true,
+		RecurrenceInfo: &RecurrenceInfo{
+			RepeatType:      3,
+			RepeatEvery:     1,
+			RepeatOnInfo:    &RepeatOnInfo{Friday: true},
+			RepeatUntilDate: "2026-10-02T01:00:00.000Z",
+		},
+	}
+
+	entry := APIToStringEntry(ev, "brightspace-calendar")
+
+	if !entry.IsRecurring {
+		t.Error("IsRecurring should be true")
+	}
+	if entry.RepeatType != 3 {
+		t.Errorf("RepeatType = %d, want 3", entry.RepeatType)
+	}
+	if entry.RepeatEvery != 1 {
+		t.Errorf("RepeatEvery = %d, want 1", entry.RepeatEvery)
+	}
+	if entry.RepeatOnInfo == nil || entry.RepeatOnInfo.RepeatOnInfo == nil || !entry.RepeatOnInfo.RepeatOnInfo.Friday {
+		t.Error("RepeatOnInfo.Friday should be true")
+	}
+	if entry.RepeatUntilDateString != "2026-10-02T01:00:00.000Z" {
+		t.Errorf("RepeatUntilDateString = %q, want %q", entry.RepeatUntilDateString, "2026-10-02T01:00:00.000Z")
+	}
+}
+
+func TestAPIToStringEntry_WithoutRecurrenceInfo(t *testing.T) {
+	ev := CalendarEventAPI{
+		CalendarEventId: 12345,
+		OrgUnitId:       12345,
+		Title:           "Non-Recurring Event",
+		StartDateTime:   "2026-09-04T01:00:00.000Z",
+		EndDateTime:     "2026-09-04T03:00:00.000Z",
+		OrgUnitName:     "MOD1002",
+		OrgUnitCode:     "MOD1002",
+		IsRecurring:     false,
+	}
+
+	entry := APIToStringEntry(ev, "brightspace-calendar")
+
+	if entry.IsRecurring {
+		t.Error("IsRecurring should be false")
+	}
+	if entry.RepeatType != 1 {
+		t.Errorf("RepeatType = %d, want 1 (default None)", entry.RepeatType)
+	}
+	if entry.RepeatEvery != 0 {
+		t.Errorf("RepeatEvery = %d, want 0", entry.RepeatEvery)
+	}
+	if entry.RepeatUntilDateString != "" {
+		t.Errorf("RepeatUntilDateString = %q, want empty", entry.RepeatUntilDateString)
+	}
+}

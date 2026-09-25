@@ -29,22 +29,43 @@ type Alert struct {
 func EventID(e Event) string {
 	var uidStr string
 	if e.Source != "" {
-		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s-%s",
-			e.Source,
-			e.Summary,
-			e.Location,
-			e.DTStart.Format("2006-01-02"),
-			e.DTStart.Format("15:04"),
-			e.DTEnd.Format("15:04"),
-		)
+		if e.RecurrenceIndex > 0 {
+			uidStr = fmt.Sprintf("%s-%s-%s-%s-%s-%d",
+				e.Source,
+				e.Summary,
+				e.Location,
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
+				e.RecurrenceIndex,
+			)
+		} else {
+			uidStr = fmt.Sprintf("%s-%s-%s-%s-%s-%s",
+				e.Source,
+				e.Summary,
+				e.Location,
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
+				e.DTEnd.Format("15:04"),
+			)
+		}
 	} else {
-		uidStr = fmt.Sprintf("%s-%s-%s-%s-%s",
-			e.Summary,
-			e.Location,
-			e.DTStart.Format("2006-01-02"),
-			e.DTStart.Format("15:04"),
-			e.DTEnd.Format("15:04"),
-		)
+		if e.RecurrenceIndex > 0 {
+			uidStr = fmt.Sprintf("%s-%s-%s-%s-%d",
+				e.Summary,
+				e.Location,
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
+				e.RecurrenceIndex,
+			)
+		} else {
+			uidStr = fmt.Sprintf("%s-%s-%s-%s-%s",
+				e.Summary,
+				e.Location,
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
+				e.DTEnd.Format("15:04"),
+			)
+		}
 	}
 	hash := sha256.Sum256([]byte(uidStr))
 	return hex.EncodeToString(hash[:])
