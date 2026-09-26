@@ -59,6 +59,8 @@ func createBrowser(cfg *config.Config) browser.AuthBrowser {
 			ConnectTimeout:    10 * time.Second,
 			NavigationTimeout: 30 * time.Second,
 			AuthTimeout:       app.FetchTimeout,
+			RetryInterval:     cfg.BrowserRetryInterval,
+			MaxRetries:        cfg.BrowserMaxRetries,
 		})
 		if err != nil {
 			log.Fatalf("browser: %v", err)
@@ -75,6 +77,8 @@ func createBrowser(cfg *config.Config) browser.AuthBrowser {
 			ConnectTimeout:    10 * time.Second,
 			NavigationTimeout: 30 * time.Second,
 			AuthTimeout:       app.FetchTimeout,
+			RetryInterval:     cfg.BrowserRetryInterval,
+			MaxRetries:        cfg.BrowserMaxRetries,
 		})
 		if err != nil {
 			log.Fatalf("browser: %v", err)

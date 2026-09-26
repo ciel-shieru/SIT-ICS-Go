@@ -24,6 +24,8 @@ type BrowserConfig struct {
 	ConnectTimeout    time.Duration
 	NavigationTimeout time.Duration
 	AuthTimeout       time.Duration
+	RetryInterval     time.Duration
+	MaxRetries        int
 }
 
 type BrowserMode string

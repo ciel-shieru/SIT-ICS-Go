@@ -35,12 +35,6 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	}
 	b.launcherURL = launcherURL
 
-	// The Rod browser/page object must outlive the authentication operation.
-	// AuthenticateADFS derives a short-lived page context from this browser,
-	// while Rod's page root remains tied to the browser's session context.
-	// Therefore the connection context must not inherit authCtx or expire after
-	// ConnectTimeout; otherwise later Click()/Hover()/WaitStableRAF() calls can
-	// observe context.Canceled through the page root.
 	browserCtx, browserCancel := context.WithCancel(context.Background())
 	connectCtx, connectCancel := context.WithCancel(browserCtx)
 	var connectTimer *time.Timer
@@ -49,7 +43,9 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	}
 
 	b.browser = rod.New().ControlURL(launcherURL).Context(connectCtx)
-	if err := b.browser.Connect(); err != nil {
+	if err := Do(connectCtx, func() error {
+		return b.browser.Connect()
+	}, b.cfg.MaxRetries, b.cfg.RetryInterval); err != nil {
 		if connectTimer != nil {
 			connectTimer.Stop()
 		}
@@ -69,8 +65,14 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 
 	if b.cfg.Incognito {
 		debug(b.cfg, "creating incognito context")
-		incognito, err = b.browser.Incognito()
-		if err != nil {
+		if err := Do(connectCtx, func() error {
+			browser, err := b.browser.Incognito()
+			if err != nil {
+				return err
+			}
+			incognito = browser
+			return nil
+		}, b.cfg.MaxRetries, b.cfg.RetryInterval); err != nil {
 			return AuthResult{}, fmt.Errorf("create incognito context: %w", err)
 		}
 		b.incognito = incognito
@@ -88,7 +90,7 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	b.page = page
 
 	return AuthResult{
-		RedirectURL: getPageURL(page),
+		RedirectURL: getPageURL(ctx, page, b.cfg),
 	}, nil
 }
 
@@ -170,8 +172,15 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	launcherInst = launcherInst.Set("disable-dev-shm-usage", "true")
 	launcherInst = launcherInst.Set("disable-setuid-sandbox", strconv.FormatBool(environment.IsContainerized()))
 
-	url, err := launcherInst.Launch()
-	if err != nil {
+	var url string
+	if err := Do(ctx, func() error {
+		u, err := launcherInst.Launch()
+		if err != nil {
+			return err
+		}
+		url = u
+		return nil
+	}, b.cfg.MaxRetries, b.cfg.RetryInterval); err != nil {
 		debug(b.cfg, "launch failed: %v", err)
 		return "", fmt.Errorf("launch browser: %w", err)
 	}
@@ -180,7 +189,6 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	return url, nil
 }
 
-// GetPage returns the active page for use by brightspace package.
 func (b *LocalBrowser) GetPage() *rod.Page {
 	return b.page
 }

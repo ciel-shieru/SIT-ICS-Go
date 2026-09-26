@@ -12,23 +12,41 @@ import (
 	"golang.org/x/net/html"
 )
 
-// AuthenticateADFS performs the complete ADFS login workflow:
-// 1. Navigate to login page
-// 2. Fill username and password
-// 3. Submit credentials
-// 4. Handle MFA if present (TOTP)
-// 5. Wait for SAML redirect
-// 6. Verify authenticated destination
 func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthRequest, waitNavigation bool, cfg BrowserConfig, isAllowedOrigin func(string) bool) (*rod.Page, error) {
 	initialURL := req.URL
 	debug(cfg, "navigating to %s", initialURL)
-	page := incognito.MustPage(initialURL).Context(ctx)
 
-	if err := page.WaitStable(3000); err != nil {
+	var page *rod.Page
+	if err := Do(ctx, func() error {
+		p, err := incognito.Page(proto.TargetCreateTarget{URL: initialURL})
+		if err != nil {
+			return err
+		}
+		page = p
+		return nil
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+		return nil, fmt.Errorf("create page: %w", err)
+	}
+	page = page.Context(ctx)
+
+	if err := Do(ctx, func() error {
+		return page.WaitStable(3000)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		debug(cfg, "wait stable failed: %v", err)
 	}
 
-	finalURL := page.MustInfo().URL
+	var info *proto.TargetTargetInfo
+	if err := Do(ctx, func() error {
+		i, err := page.Info()
+		if err != nil {
+			return err
+		}
+		info = i
+		return nil
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+		return nil, fmt.Errorf("get page info: %w", err)
+	}
+	finalURL := info.URL
 	debug(cfg, "navigated to %s", finalURL)
 	if !isAllowedOrigin(finalURL) {
 		return nil, fmt.Errorf("%w: redirect to disallowed origin %s (started from %s)", ErrAuthentication, finalURL, initialURL)
@@ -39,8 +57,12 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	}
 
 	debug(cfg, "finding username field")
-	el, err := page.Element("#userNameInput")
-	if err != nil {
+	var el *rod.Element
+	if err := Do(ctx, func() error {
+		var err error
+		el, err = page.Element("#userNameInput")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("%w: credential form not rendered: %v", ErrAuthentication, err)
 	}
 
@@ -53,40 +75,67 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	}
 
 	debug(cfg, "filling username")
-	if err := el.Input(req.Username); err != nil {
+	if err := Do(ctx, func() error {
+		return el.Input(req.Username)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("%w: failed to fill username: %v", ErrCredentialExtraction, err)
 	}
 
 	debug(cfg, "finding password field")
-	passEl, err := page.Element("#passwordInput")
-	if err != nil {
+	var passEl *rod.Element
+	if err := Do(ctx, func() error {
+		var err error
+		passEl, err = page.Element("#passwordInput")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("%w: password field not found: %v", ErrAuthentication, err)
 	}
 	debug(cfg, "filling password")
-	if err := passEl.Input(req.Password); err != nil {
+	if err := Do(ctx, func() error {
+		return passEl.Input(req.Password)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("%w: failed to fill password: %v", ErrCredentialExtraction, err)
 	}
 
 	debug(cfg, "finding submit button")
-	submitEl, err := page.Element("#submitButton")
-	if err != nil {
+	var submitEl *rod.Element
+	if err := Do(ctx, func() error {
+		var err error
+		submitEl, err = page.Element("#submitButton")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("%w: submit button not found: %v", ErrAuthentication, err)
 	}
 	debug(cfg, "clicking submit button")
-	if err := submitEl.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := Do(ctx, func() error {
+		return submitEl.Click(proto.InputMouseButtonLeft, 1)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("%w: failed to submit credentials: %v", ErrAuthentication, err)
 	}
 
 	if waitNavigation {
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 	}
-	if err := page.WaitStable(5000); err != nil {
+	if err := Do(ctx, func() error {
+		return page.WaitStable(5000)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		debug(cfg, "wait stable after submit failed: %v", err)
 	}
 
 	debug(cfg, "checking for MFA field")
-	mfaEl, err := page.Element("#verificationCodeInput")
-	mfaVisible := err == nil
+	var mfaEl *rod.Element
+	mfaVisible := false
+	if err := Do(ctx, func() error {
+		var err error
+		mfaEl, err = page.Element("#verificationCodeInput")
+		if err != nil {
+			return nil
+		}
+		mfaVisible = true
+		return nil
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+		debug(cfg, "MFA element check error (non-fatal): %v", err)
+	}
 
 	if mfaVisible {
 		debug(cfg, "MFA detected, generating TOTP code")
@@ -95,21 +144,31 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 			return nil, fmt.Errorf("%w: failed to generate TOTP: %v", ErrAuthentication, err)
 		}
 		debug(cfg, "filling MFA code")
-		if err := mfaEl.Input(totpCode); err != nil {
+		if err := Do(ctx, func() error {
+			return mfaEl.Input(totpCode)
+		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 			return nil, fmt.Errorf("%w: failed to fill MFA code: %v", ErrCredentialExtraction, err)
 		}
 		debug(cfg, "finding sign-in button")
-		signInEl, err := page.Element("#signInButton")
-		if err != nil {
+		var signInEl *rod.Element
+		if err := Do(ctx, func() error {
+			var err error
+			signInEl, err = page.Element("#signInButton")
+			return err
+		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 			return nil, fmt.Errorf("%w: sign-in button not found: %v", ErrAuthentication, err)
 		}
 		debug(cfg, "clicking sign-in button")
-		if err := signInEl.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		if err := Do(ctx, func() error {
+			return signInEl.Click(proto.InputMouseButtonLeft, 1)
+		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 			return nil, fmt.Errorf("%w: failed to submit MFA code: %v", ErrAuthentication, err)
 		}
 		debug(cfg, "waiting for SAML redirect after MFA")
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		if err := page.WaitStable(5000); err != nil {
+		if err := Do(ctx, func() error {
+			return page.WaitStable(5000)
+		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 			debug(cfg, "wait stable after MFA redirect failed: %v", err)
 		}
 
@@ -124,32 +183,27 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	} else {
 		debug(cfg, "no MFA field detected, waiting for redirect")
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		if err := page.WaitStable(5000); err != nil {
+		if err := Do(ctx, func() error {
+			return page.WaitStable(5000)
+		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 			debug(cfg, "wait stable after submit redirect failed: %v", err)
 		}
 	}
 
 	debug(cfg, "waiting for ADFS redirect to complete")
 	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-	if err := page.WaitStable(5000); err != nil {
+	if err := Do(ctx, func() error {
+		return page.WaitStable(5000)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		debug(cfg, "wait stable after redirect failed: %v", err)
 	}
 
-	finalURL = getPageURL(page)
+	finalURL = getPageURL(ctx, page, cfg)
 	debug(cfg, "auth complete, final URL: %s", finalURL)
 
-	// The authentication context belongs only to the authentication operation.
-	// Do not return a page whose context is tied to that operation, because the
-	// caller is expected to cancel ctx immediately after Authenticate returns.
-	//
-	// Rod's Context creates a shallow clone, so this detaches the authenticated
-	// page's operation context while keeping the same underlying browser target,
-	// session and cookies. Subsequent operations attach their own bounded context
-	// with page.Context(...).
 	return page.Context(context.Background()), nil
 }
 
-// ExtractADFSLoginError extracts the error message from an ADFS login page.
 func ExtractADFSLoginError(page *rod.Page) (string, error) {
 	htmlStr, err := page.HTML()
 	if err != nil {

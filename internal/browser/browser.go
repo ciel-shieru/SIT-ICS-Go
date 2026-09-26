@@ -30,6 +30,8 @@ func DefaultBrowserConfig(mode BrowserMode) BrowserConfig {
 		ConnectTimeout:    10 * time.Second,
 		NavigationTimeout: 30 * time.Second,
 		AuthTimeout:       5 * time.Minute,
+		RetryInterval:     5 * time.Second,
+		MaxRetries:        3,
 	}
 }
 
