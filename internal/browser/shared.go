@@ -11,9 +11,16 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-func getPageURL(page *rod.Page) string {
+func getPageURL(ctx context.Context, page *rod.Page, cfg BrowserConfig) string {
 	var url string
-	page.Eval("() => window.location.href", &url)
+	_ = Do(ctx, func() error {
+		result, err := page.Eval("() => window.location.href")
+		if err != nil {
+			return err
+		}
+		url = result.Value.Str()
+		return nil
+	}, cfg.MaxRetries, cfg.RetryInterval)
 	return url
 }
 
@@ -34,11 +41,12 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 
 	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
 	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
-	if err := page.Navigate(timetableURL); err != nil {
+	if err := Do(fetchCtx, func() error {
+		return page.Navigate(timetableURL)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return "", fmt.Errorf("navigate to timetable: %w", err)
 	}
 
-	// Wait for navigation with context awareness
 	navDone := make(chan struct{})
 	go func() {
 		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
@@ -51,7 +59,6 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 	case <-navDone:
 	}
 
-	// Wait for stable with context awareness
 	stableDone := make(chan error)
 	go func() {
 		stableDone <- page.WaitStable(5000)
@@ -93,18 +100,23 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 	if deadline, ok := ctx.Deadline(); ok {
 		debug(cfg, "term selection context deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
 	}
-	// Wait for term selection radio buttons to appear with timeout
 	termCtx, termCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer termCancel()
 	termPage := page.Context(termCtx)
 
-	_, err := termPage.Element("input.PSRADIOBUTTON")
-	if err != nil {
+	if err := Do(termCtx, func() error {
+		_, err := termPage.Element("input.PSRADIOBUTTON")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("term selection radio button not found: %w", err)
 	}
 
-	radioButtons, err := termPage.Elements("input.PSRADIOBUTTON")
-	if err != nil {
+	var radioButtons []*rod.Element
+	if err := Do(termCtx, func() error {
+		var err error
+		radioButtons, err = termPage.Elements("input.PSRADIOBUTTON")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("query term selection radio buttons: %w", err)
 	}
 
@@ -117,29 +129,36 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 
 	lastRadio := radioButtons[len(radioButtons)-1]
 	debug(cfg, "selecting last radio button (index %d of %d)", len(radioButtons)-1, len(radioButtons))
-	if err := lastRadio.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := Do(termCtx, func() error {
+		return lastRadio.Click(proto.InputMouseButtonLeft, 1)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("click term selection radio button: %w", err)
 	}
 
-	continueEl, err := page.Element("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
-	if err != nil {
+	var continueEl *rod.Element
+	if err := Do(ctx, func() error {
+		var err error
+		continueEl, err = page.Element("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("find continue button: %w", err)
 	}
 
 	debug(cfg, "clicking continue button")
-	if err := continueEl.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err := Do(ctx, func() error {
+		return continueEl.Click(proto.InputMouseButtonLeft, 1)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("click continue button: %w", err)
 	}
 
 	debug(cfg, "waiting for timetable data to load after term selection")
 
-	// Wait for timetable table/grid to appear (ICAJAX partial refresh, not navigation)
-	// PeopleSoft renders the timetable as a table within the page container
-	if err := page.Wait(rod.Eval("() => document.querySelectorAll('table.PSGROUPBOXWBO').length > 0")); err != nil {
+	if err := Do(ctx, func() error {
+		return page.Wait(rod.Eval("() => document.querySelectorAll('table.PSGROUPBOXWBO').length > 0"))
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("wait for timetable data: %w", err)
 	}
 
-	// Wait for stable with context awareness
 	stableDone := make(chan error)
 	go func() {
 		stableDone <- page.WaitStable(5000)
@@ -158,7 +177,7 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 	return nil
 }
 
-func extractPageText(page *rod.Page) (result string, err error) {
+func extractPageText(ctx context.Context, page *rod.Page, maxRetries int, interval time.Duration) (result string, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = ""
@@ -166,8 +185,18 @@ func extractPageText(page *rod.Page) (result string, err error) {
 		}
 	}()
 
-	value := page.MustEval(`() => document.body ? document.body.innerText : ""`)
-	return strings.TrimSpace(value.String()), nil
+	var value string
+	if err := Do(ctx, func() error {
+		r, err := page.Eval(`() => document.body ? document.body.innerText : ""`)
+		if err != nil {
+			return err
+		}
+		value = r.Value.Str()
+		return nil
+	}, maxRetries, interval); err != nil {
+		return "", fmt.Errorf("eval: %w", err)
+	}
+	return strings.TrimSpace(value), nil
 }
 
 func safeRod(fn func()) {
