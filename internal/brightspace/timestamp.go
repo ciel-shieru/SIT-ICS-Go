@@ -310,10 +310,10 @@ func parseEntryTimes(entry *BrightSpaceStringEntry, loc *time.Location) (time.Ti
 		dtEnd = dtStart.Add(24 * time.Hour)
 	}
 
-	// Zero-duration BrightSpace events: set DTSTART to 1 hour before DTEND.
-	if dtStart.Equal(dtEnd) && !entry.IsAllDay {
-		dtStart = dtEnd.Add(-1 * time.Hour)
-	}
+	// Zero-duration BrightSpace events: do not artificially shift DTSTART.
+	// Events with identical start/end times are treated as point-in-time events
+	// (e.g. quiz due dates). Artificial shifting breaks smart merge overlap
+	// detection and causes UID instability in cache lookups.
 
 	return dtStart, dtEnd, nil
 }

@@ -658,11 +658,12 @@ func TestParseEntryTimes_ZeroDuration(t *testing.T) {
 		t.Fatalf("parseEntryTimes() error = %v", err)
 	}
 
-	if !dtStart.Equal(dtEnd.Add(-1 * time.Hour)) {
-		t.Errorf("DTSTART = %v, want DTEND - 1h (%v)", dtStart, dtEnd.Add(-1*time.Hour))
+	expected, _ := time.Parse(time.RFC3339, "2026-09-15T14:00:00Z")
+	if !dtStart.Equal(expected) {
+		t.Errorf("DTSTART = %v, want %v (no artificial shift for zero-duration)", dtStart, expected)
 	}
-	if !dtEnd.Equal(dtStart.Add(1 * time.Hour)) {
-		t.Errorf("DTEnd = %v, want DTSTART + 1h (%v)", dtEnd, dtStart.Add(1*time.Hour))
+	if !dtEnd.Equal(expected) {
+		t.Errorf("DTEnd = %v, want %v (point-in-time event)", dtEnd, expected)
 	}
 }
 
@@ -724,12 +725,13 @@ func TestParseEntryTimes_EmptyDTStartUsesDTEnd(t *testing.T) {
 		t.Fatalf("parseEntryTimes() error = %v", err)
 	}
 
-	expectedEnd, _ := time.Parse(time.RFC3339, "2026-09-15T14:00:00Z")
-	if !dtEnd.Equal(expectedEnd) {
-		t.Errorf("DTEnd = %v, want %v", dtEnd, expectedEnd)
+	expected, _ := time.Parse(time.RFC3339, "2026-09-15T14:00:00Z")
+	if !dtEnd.Equal(expected) {
+		t.Errorf("DTEnd = %v, want %v", dtEnd, expected)
 	}
-	if !dtStart.Equal(dtEnd.Add(-1 * time.Hour)) {
-		t.Errorf("DTSTART = %v, want DTEND - 1h (%v)", dtStart, dtEnd.Add(-1*time.Hour))
+	// DTStart is copied from DTEnd when empty; no artificial shift applied.
+	if !dtStart.Equal(expected) {
+		t.Errorf("DTSTART = %v, want %v (copied from DTEnd, no shift)", dtStart, expected)
 	}
 }
 
