@@ -52,6 +52,7 @@ func createBrowser(cfg *config.Config) browser.AuthBrowser {
 	switch cfg.BrowserMode {
 	case config.BrowserSystem, config.BrowserAuto, config.BrowserRod:
 		authBrowser, err := browser.NewLocalBrowser(browser.BrowserConfig{
+			Mode:              cfg.BrowserMode,
 			Executable:        cfg.BrowserExecutable,
 			Headless:          cfg.BrowserHeadless,
 			Incognito:         true,
@@ -69,6 +70,7 @@ func createBrowser(cfg *config.Config) browser.AuthBrowser {
 		return authBrowser
 	case config.BrowserRemote:
 		authBrowser, err := browser.NewRemoteBrowser(browser.BrowserConfig{
+			Mode:              cfg.BrowserMode,
 			RemoteHost:        cfg.BrowserRemoteHost,
 			RemotePort:        cfg.BrowserRemotePort,
 			Headless:          cfg.BrowserHeadless,
