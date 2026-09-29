@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/app"
 	"github.com/ciel-shieru/sit-ics-go/internal/auth"
