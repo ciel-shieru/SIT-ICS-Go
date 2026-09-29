@@ -33,7 +33,7 @@ type BrowserMode string
 const (
 	BrowserModeAuto   BrowserMode = "auto"
 	BrowserModeSystem BrowserMode = "system"
-	BrowserModeRod    BrowserMode = "rod"
+	BrowserModeManaged BrowserMode = "managed"
 	BrowserModeRemote BrowserMode = "remote"
 )
 

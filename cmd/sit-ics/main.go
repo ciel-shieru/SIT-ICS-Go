@@ -50,7 +50,7 @@ func main() {
 
 func createBrowser(cfg *config.Config) browser.AuthBrowser {
 	switch cfg.BrowserMode {
-	case config.BrowserSystem, config.BrowserAuto, config.BrowserRod:
+	case config.BrowserSystem, config.BrowserAuto, config.BrowserManaged:
 		authBrowser, err := browser.NewLocalBrowser(browser.BrowserConfig{
 			Mode:              cfg.BrowserMode,
 			Executable:        cfg.BrowserExecutable,

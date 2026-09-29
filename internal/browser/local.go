@@ -173,7 +173,7 @@ func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 			launcherInst = launcher.New()
 		}
 
-	case BrowserModeRod:
+	case BrowserModeManaged:
 		launcherInst = launcher.New()
 
 	default:

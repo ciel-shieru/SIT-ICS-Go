@@ -118,7 +118,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Credentials sourcing**: Desktop builds (`!container`) source credentials from OS keyring (`sit-ics-go` service) with env var fallback. Container builds (`-tags container`) source from env vars only. CLI flags `--username`, `--password`, `--totp-secret` are removed.
 - **ICS upsert semantics** — non-destructive merge by UID. Events absent from new data are retained. Changing the UID formula breaks idempotency.
 - **Timezone** — all time ops use `TZ` env var (default `Asia/Singapore`). `time.Local` is set at startup.
-- **Browser modes** — `auto`, `system`, `rod` all use `LocalBrowser`; `remote` uses `RemoteBrowser`. Controlled by `BROWSER_MODE`.
+- **Browser modes** — `auto`, `system`, `managed` all use `LocalBrowser`; `remote` uses `RemoteBrowser`. Controlled by `BROWSER_MODE`.
 - **Auth flow** — browser follows ADFS redirect naturally after MFA; no SAMLResponse extraction (ADR-0010).
 - **Cookie extraction** — extracts cookies from `*.singaporetech.edu.sg` domains. Tries current page first, falls back to `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.
 - **Browser-based fetch** — `fetchTimetable()` navigates to `SSR_SSENRL_LIST.GBL`, waits for stable, extracts full HTML via `page.HTML()`. Returns all scheduled classes in one response (ADR-0012).

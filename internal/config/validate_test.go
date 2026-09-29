@@ -12,7 +12,7 @@ func TestValidate_BrowserMode(t *testing.T) {
 	}{
 		{"auto", BrowserAuto, false},
 		{"system", BrowserSystem, false},
-		{"rod", BrowserRod, false},
+		{"managed", BrowserManaged, false},
 		{"remote", BrowserRemote, false},
 		{"invalid", BrowserMode("foobar"), true},
 		{"empty", BrowserMode(""), true},

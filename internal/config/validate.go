@@ -10,7 +10,7 @@ import (
 var validBrowserModes = map[BrowserMode]bool{
 	BrowserAuto:   true,
 	BrowserSystem: true,
-	BrowserRod:    true,
+	BrowserManaged: true,
 	BrowserRemote: true,
 }
 
@@ -35,7 +35,7 @@ func Validate(cfg *Config) error {
 
 func validateBrowserMode(mode BrowserMode) error {
 	if !validBrowserModes[mode] {
-		return fmt.Errorf("invalid browser mode %q: must be one of auto, system, rod, remote", mode)
+		return fmt.Errorf("invalid browser mode %q: must be one of auto, system, managed, remote", mode)
 	}
 	return nil
 }

@@ -7,6 +7,6 @@ type BrowserMode = browser.BrowserMode
 const (
 	BrowserAuto   BrowserMode = browser.BrowserModeAuto
 	BrowserSystem BrowserMode = browser.BrowserModeSystem
-	BrowserRod    BrowserMode = browser.BrowserModeRod
+	BrowserManaged BrowserMode = browser.BrowserModeManaged
 	BrowserRemote BrowserMode = browser.BrowserModeRemote
 )

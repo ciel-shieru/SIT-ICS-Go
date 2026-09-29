@@ -100,9 +100,9 @@ Authentication code uses this interface and never imports Rod types. This keeps 
 type BrowserMode string
 
 const (
-    BrowserAuto   BrowserMode = "auto"     // Try system browser, fall back to Rod-managed
+    BrowserAuto   BrowserMode = "auto"     // Try system browser, fall back to Rod-bundled Chromium
     BrowserSystem BrowserMode = "system"   // Require installed Chrome/Edge/Chromium
-    BrowserRod    BrowserMode = "rod"      // Use Rod-managed Chromium (auto-download)
+    BrowserManaged  BrowserMode = "managed"   // Use Rod-bundled Chromium (auto-download)
     BrowserRemote BrowserMode = "remote"   // Connect to externally managed browser via CDP
 )
 ```

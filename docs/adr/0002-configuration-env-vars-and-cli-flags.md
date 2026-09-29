@@ -90,7 +90,7 @@ type BrowserMode string
 const (
     BrowserAuto   BrowserMode = "auto"
     BrowserSystem BrowserMode = "system"
-    BrowserRod    BrowserMode = "rod"
+    BrowserManaged  BrowserMode = "managed"
     BrowserRemote BrowserMode = "remote"
 )
 
@@ -115,9 +115,9 @@ type Config struct {
 
 ### Browser Mode Resolution
 
-- `auto` (default): Try system browser → fall back to Rod-managed Chromium
+- `auto` (default): Try system browser → fall back to Rod-bundled Chromium
 - `system`: Require installed Chrome/Edge/Chromium
-- `rod`: Use Rod-managed Chromium (auto-download)
+- `managed`: Use Rod-bundled Chromium (auto-download)
 - `remote`: Connect to externally managed browser via `BROWSER_CONTROL_URL`
 
 ### Security Note

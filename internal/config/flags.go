@@ -21,7 +21,7 @@ func applyFlags(cfg *Config) error {
 	icsStoragePath := fs.String("ics-storage-path", "", "Path to main ICS file (env: ICS_STORAGE_PATH)")
 	icsOnlinePath := fs.String("ics-online-path", "", "Path to online-only ICS file (env: ICS_ONLINE_PATH)")
 	icsCampusPath := fs.String("ics-campus-path", "", "Path to campus-only ICS file (env: ICS_CAMPUS_PATH)")
-	browserMode                        := fs.String("browser-mode", "", "Browser mode (auto/system/rod/remote) (env: BROWSER_MODE)")
+	browserMode                        := fs.String("browser-mode", "", "Browser mode (auto/system/managed/remote) (env: BROWSER_MODE)")
 	browserExecutable                  := fs.String("browser-executable", "", "Browser executable path (env: BROWSER_EXECUTABLE)")
 	browserRemoteHost                  := fs.String("browser-remote-host", "", "Remote browser host (IP or FQDN) (env: BROWSER_REMOTE_HOST)")
 	browserRemotePort                  := fs.Int("browser-remote-port", 0, "Remote browser port (env: BROWSER_REMOTE_PORT)")
