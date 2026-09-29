@@ -27,9 +27,6 @@ type Alert struct {
 }
 
 func EventID(e Event) string {
-	dtStart := e.DTStart.UTC()
-	dtEnd := e.DTEnd.UTC()
-
 	var uidStr string
 	if e.Source != "" {
 		if e.RecurrenceIndex > 0 {
@@ -37,8 +34,8 @@ func EventID(e Event) string {
 				e.Source,
 				e.Summary,
 				e.Location,
-				dtStart.Format("2006-01-02"),
-				dtStart.Format("15:04"),
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
 				e.RecurrenceIndex,
 			)
 		} else {
@@ -46,9 +43,9 @@ func EventID(e Event) string {
 				e.Source,
 				e.Summary,
 				e.Location,
-				dtStart.Format("2006-01-02"),
-				dtStart.Format("15:04"),
-				dtEnd.Format("15:04"),
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
+				e.DTEnd.Format("15:04"),
 			)
 		}
 	} else {
@@ -56,17 +53,17 @@ func EventID(e Event) string {
 			uidStr = fmt.Sprintf("%s-%s-%s-%s-%d",
 				e.Summary,
 				e.Location,
-				dtStart.Format("2006-01-02"),
-				dtStart.Format("15:04"),
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
 				e.RecurrenceIndex,
 			)
 		} else {
 			uidStr = fmt.Sprintf("%s-%s-%s-%s-%s",
 				e.Summary,
 				e.Location,
-				dtStart.Format("2006-01-02"),
-				dtStart.Format("15:04"),
-				dtEnd.Format("15:04"),
+				e.DTStart.Format("2006-01-02"),
+				e.DTStart.Format("15:04"),
+				e.DTEnd.Format("15:04"),
 			)
 		}
 	}
