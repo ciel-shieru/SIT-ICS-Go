@@ -153,7 +153,32 @@ func (b *LocalBrowser) Close() {
 func (b *LocalBrowser) launchBrowser(ctx context.Context) (string, error) {
 	debug(b.cfg, "launching browser")
 
-	launcherInst := launcher.New()
+	var launcherInst *launcher.Launcher
+
+	switch b.cfg.Mode {
+	case BrowserModeSystem:
+		path, found := launcher.LookPath()
+		if !found {
+			return "", fmt.Errorf("no system browser found: %w", ErrBrowserLaunch)
+		}
+		debug(b.cfg, "using system browser: %s", path)
+		launcherInst = launcher.New().Bin(path)
+
+	case BrowserModeAuto:
+		if path, found := launcher.LookPath(); found {
+			debug(b.cfg, "using system browser: %s", path)
+			launcherInst = launcher.New().Bin(path)
+		} else {
+			debug(b.cfg, "no system browser found, using Rod-bundled Chromium")
+			launcherInst = launcher.New()
+		}
+
+	case BrowserModeRod:
+		launcherInst = launcher.New()
+
+	default:
+		return "", fmt.Errorf("unsupported browser mode %s: %w", b.cfg.Mode, ErrBrowserLaunch)
+	}
 
 	if b.cfg.Executable != "" {
 		debug(b.cfg, "using executable: %s", b.cfg.Executable)
