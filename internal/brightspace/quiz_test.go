@@ -248,9 +248,8 @@ func TestEntriesToEvents_EmptyStartUsesEnd(t *testing.T) {
 	if !event.DTEnd.Equal(expectedEnd) {
 		t.Errorf("DTEnd = %v, want %v", event.DTEnd, expectedEnd)
 	}
-	expectedStart := expectedEnd.Add(-1 * time.Hour)
-	if !event.DTStart.Equal(expectedStart) {
-		t.Errorf("DTStart = %v, want %v", event.DTStart, expectedStart)
+	if !event.DTStart.Equal(event.DTEnd) {
+		t.Errorf("DTStart = %v, want equal to DTEnd (%v)", event.DTStart, event.DTEnd)
 	}
 }
 
@@ -279,9 +278,8 @@ func TestEntriesToEvents_CalendarEmptyStart(t *testing.T) {
 	event := events[0]
 	expectedEnd, _ := time.Parse(time.RFC3339, "2026-10-01T14:00:00Z")
 	expectedEnd = expectedEnd.In(loc)
-	expectedStart := expectedEnd.Add(-1 * time.Hour)
-	if !event.DTStart.Equal(expectedStart) {
-		t.Errorf("DTStart = %v, want %v", event.DTStart, expectedStart)
+	if !event.DTStart.Equal(expectedEnd) {
+		t.Errorf("DTStart = %v, want equal to DTEnd (%v)", event.DTStart, expectedEnd)
 	}
 	if event.Source != "brightspace-calendar" {
 		t.Errorf("Source = %q, want %q", event.Source, "brightspace-calendar")

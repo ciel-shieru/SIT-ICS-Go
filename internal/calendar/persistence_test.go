@@ -792,3 +792,61 @@ func TestParseICS_DTSTAMP_MultipleEvents(t *testing.T) {
 		t.Errorf("Event 2 DTStamp should be zero, got %v", events[2].DTStamp)
 	}
 }
+
+func TestParseICS_MissingDTEND(t *testing.T) {
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"BEGIN:VEVENT",
+		"UID:test-uid-no-dtend",
+		"DTSTART;TZID=Asia/Singapore:20260915T140000",
+		"SUMMARY:Zero Duration Event",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	expected := time.Date(2026, 9, 15, 14, 0, 0, 0, loc)
+	if !events[0].DTStart.Equal(expected) {
+		t.Errorf("DTStart = %v, want %v", events[0].DTStart, expected)
+	}
+	if !events[0].DTEnd.Equal(expected) {
+		t.Errorf("DTEnd = %v, want equal to DTSTART (%v)", events[0].DTEnd, expected)
+	}
+}
+
+func TestParseICS_PresentDTEND(t *testing.T) {
+	ics := strings.Join([]string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"BEGIN:VEVENT",
+		"UID:test-uid-with-dtend",
+		"DTSTART;TZID=Asia/Singapore:20260915T100000",
+		"DTEND;TZID=Asia/Singapore:20260915T110000",
+		"SUMMARY:Normal Event",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}, "\r\n") + "\r\n"
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	events := parseICS([]byte(ics), loc)
+
+	if len(events) != 1 {
+		t.Fatalf("Expected 1 event, got %d", len(events))
+	}
+
+	expectedStart := time.Date(2026, 9, 15, 10, 0, 0, 0, loc)
+	expectedEnd := time.Date(2026, 9, 15, 11, 0, 0, 0, loc)
+	if !events[0].DTStart.Equal(expectedStart) {
+		t.Errorf("DTStart = %v, want %v", events[0].DTStart, expectedStart)
+	}
+	if !events[0].DTEnd.Equal(expectedEnd) {
+		t.Errorf("DTEnd = %v, want %v", events[0].DTEnd, expectedEnd)
+	}
+}

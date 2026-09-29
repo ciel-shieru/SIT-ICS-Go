@@ -89,7 +89,9 @@ func Render(events []Event, opts RenderOptions) ([]byte, error) {
 		sb.WriteString(fmt.Sprintf("UID:%s\r\n", event.UID))
 		sb.WriteString(fmt.Sprintf("DTSTAMP:%s\r\n", event.DTStamp.UTC().Format("20060102T150405Z")))
 		sb.WriteString(fmt.Sprintf("DTSTART;TZID=%s:%s\r\n", opts.Timezone.String(), toICSTime(event.DTStart, opts.Timezone)))
-		sb.WriteString(fmt.Sprintf("DTEND;TZID=%s:%s\r\n", opts.Timezone.String(), toICSTime(event.DTEnd, opts.Timezone)))
+		if !event.DTStart.Equal(event.DTEnd) {
+			sb.WriteString(fmt.Sprintf("DTEND;TZID=%s:%s\r\n", opts.Timezone.String(), toICSTime(event.DTEnd, opts.Timezone)))
+		}
 		sb.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", FoldText(EscapeText(event.Summary))))
 		if event.Location != "" {
 			sb.WriteString(fmt.Sprintf("LOCATION:%s\r\n", FoldText(EscapeText(event.Location))))

@@ -785,3 +785,54 @@ func TestRender_NoMalformedEntities(t *testing.T) {
 		}
 	}
 }
+
+func TestRender_ZeroDurationOmitsDTEND(t *testing.T) {
+	events := []Event{
+		{
+			Summary:  "Zero Duration Event",
+			Location: "Room 101",
+			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
+		},
+	}
+
+	data, err := Render(events, RenderOptions{
+		Timezone:        time.UTC,
+		RefreshInterval: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "DTSTART;TZID=UTC:20260907T140000") {
+		t.Error("Rendered ICS missing DTSTART")
+	}
+	if strings.Contains(content, "DTEND;TZID=UTC:20260907T140000") {
+		t.Error("Rendered ICS should NOT contain DTEND for zero-duration event")
+	}
+}
+
+func TestRender_NonZeroDurationIncludesDTEND(t *testing.T) {
+	events := []Event{
+		{
+			Summary:  "Normal Event",
+			Location: "Room 101",
+			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+	}
+
+	data, err := Render(events, RenderOptions{
+		Timezone:        time.UTC,
+		RefreshInterval: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "DTEND;TZID=UTC:20260907T110000") {
+		t.Error("Rendered ICS missing DTEND for non-zero-duration event")
+	}
+}

@@ -91,6 +91,11 @@ func parseICS(data []byte, loc *time.Location) []Event {
 					}
 				}
 			}
+
+		// RFC 5545 section 3.6.1: If DTEND is not specified, event ends at DTSTART.
+		if !event.DTStart.IsZero() && event.DTEnd.IsZero() {
+			event.DTEnd = event.DTStart
+		}
 		}
 
 		if event.UID != "" {

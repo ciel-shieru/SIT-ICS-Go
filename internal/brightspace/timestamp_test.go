@@ -658,11 +658,8 @@ func TestParseEntryTimes_ZeroDuration(t *testing.T) {
 		t.Fatalf("parseEntryTimes() error = %v", err)
 	}
 
-	if !dtStart.Equal(dtEnd.Add(-1 * time.Hour)) {
-		t.Errorf("DTSTART = %v, want DTEND - 1h (%v)", dtStart, dtEnd.Add(-1*time.Hour))
-	}
-	if !dtEnd.Equal(dtStart.Add(1 * time.Hour)) {
-		t.Errorf("DTEnd = %v, want DTSTART + 1h (%v)", dtEnd, dtStart.Add(1*time.Hour))
+	if !dtStart.Equal(dtEnd) {
+		t.Errorf("DTSTART = %v, want equal to DTEND (%v)", dtStart, dtEnd)
 	}
 }
 
@@ -728,8 +725,8 @@ func TestParseEntryTimes_EmptyDTStartUsesDTEnd(t *testing.T) {
 	if !dtEnd.Equal(expectedEnd) {
 		t.Errorf("DTEnd = %v, want %v", dtEnd, expectedEnd)
 	}
-	if !dtStart.Equal(dtEnd.Add(-1 * time.Hour)) {
-		t.Errorf("DTSTART = %v, want DTEND - 1h (%v)", dtStart, dtEnd.Add(-1*time.Hour))
+	if !dtStart.Equal(dtEnd) {
+		t.Errorf("DTSTART = %v, want equal to DTEND (%v)", dtStart, dtEnd)
 	}
 }
 
