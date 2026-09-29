@@ -47,6 +47,46 @@ func (f *RodFetcher) Navigate(ctx context.Context, page *rod.Page, url string) e
 	return nil
 }
 
+// NavigateFast navigates to a URL without waiting for page stability.
+// Use this for JSON API endpoints that return immediately with no JS rendering.
+func (f *RodFetcher) NavigateFast(ctx context.Context, page *rod.Page, url string) error {
+	debug(f.cfg, "brightspace fetching (fast) %s", url)
+	if err := Do(ctx, func() error {
+		return page.Navigate(url)
+	}, f.cfg.MaxRetries, f.cfg.RetryInterval); err != nil {
+		return fmt.Errorf("navigate %q: %w", url, err)
+	}
+
+	page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+	return nil
+}
+
+// DecodeJSONFast decodes a JSON response without waiting for page stability.
+// Use this for JSON API endpoints that return immediately with no JS rendering.
+func (f *RodFetcher) DecodeJSONFast(url string, v interface{}) error {
+	page, cancel := f.requestPage()
+	defer cancel()
+
+	if err := f.NavigateFast(f.ctx, page, url); err != nil {
+		return fmt.Errorf("decode JSON fast %q: %w", url, err)
+	}
+
+	text, err := extractPageText(f.ctx, page, f.cfg.MaxRetries, f.cfg.RetryInterval)
+	if err != nil {
+		return fmt.Errorf("decode JSON fast %q: extract response: %w", url, err)
+	}
+
+	if text == "" {
+		return nil
+	}
+
+	if err := json.Unmarshal([]byte(text), v); err != nil {
+		return fmt.Errorf("decode JSON fast %q: %w (body=%q)", url, err, text)
+	}
+
+	return nil
+}
+
 func (f *RodFetcher) DecodeJSON(url string, v interface{}) error {
 	page, cancel := f.requestPage()
 	defer cancel()

@@ -10,6 +10,7 @@ import (
 // Fetcher abstracts browser page operations for BrightSpace fetching.
 type Fetcher interface {
 	DecodeJSON(url string, v interface{}) error
+	DecodeJSONFast(url string, v interface{}) error
 }
 
 // Client owns BrightSpace endpoint paths, URL construction, and API fetching through browser.
@@ -29,7 +30,7 @@ func NewClient(baseURL string, fetcher Fetcher) *Client {
 // CheckVersion returns the latest BrightSpace API version.
 func (c *Client) CheckVersion(ctx context.Context) (string, error) {
 	var vr VersionResponse
-	if err := c.fetcher.DecodeJSON(fmt.Sprintf("%s/d2l/api/le/versions/", c.baseURL), &vr); err != nil {
+	if err := c.fetcher.DecodeJSONFast(fmt.Sprintf("%s/d2l/api/le/versions/", c.baseURL), &vr); err != nil {
 		return "", fmt.Errorf("check version: %w", err)
 	}
 	if vr.LatestVersion == "" {
@@ -41,7 +42,7 @@ func (c *Client) CheckVersion(ctx context.Context) (string, error) {
 // FetchCourses returns all courses accessible to the authenticated user.
 func (c *Client) FetchCourses(ctx context.Context) ([]Course, error) {
 	var cr MyCoursesResponse
-	if err := c.fetcher.DecodeJSON(fmt.Sprintf("%s/d2l/le/manageCourses/api/mycourses", c.baseURL), &cr); err != nil {
+	if err := c.fetcher.DecodeJSONFast(fmt.Sprintf("%s/d2l/le/manageCourses/api/mycourses", c.baseURL), &cr); err != nil {
 		return nil, fmt.Errorf("fetch courses: %w", err)
 	}
 	return cr.Courses, nil
@@ -51,7 +52,7 @@ func (c *Client) FetchCourses(ctx context.Context) ([]Course, error) {
 func (c *Client) FetchCalendarEvents(ctx context.Context, version, orgUnitID string) ([]CalendarEventAPI, error) {
 	var events []CalendarEventAPI
 	url := fmt.Sprintf("%s/d2l/api/le/%s/%s/calendar/events/", c.baseURL, version, orgUnitID)
-	if err := c.fetcher.DecodeJSON(url, &events); err != nil {
+	if err := c.fetcher.DecodeJSONFast(url, &events); err != nil {
 		return nil, fmt.Errorf("fetch calendar events: %w", err)
 	}
 	return events, nil
@@ -61,7 +62,7 @@ func (c *Client) FetchCalendarEvents(ctx context.Context, version, orgUnitID str
 func (c *Client) FetchDropboxFolders(ctx context.Context, version, orgUnitID string) ([]DropboxFolderAPI, error) {
 	var folders []DropboxFolderAPI
 	url := fmt.Sprintf("%s/d2l/api/le/%s/%s/dropbox/folders/", c.baseURL, version, orgUnitID)
-	if err := c.fetcher.DecodeJSON(url, &folders); err != nil {
+	if err := c.fetcher.DecodeJSONFast(url, &folders); err != nil {
 		return nil, fmt.Errorf("fetch dropbox folders: %w", err)
 	}
 	return folders, nil
@@ -71,7 +72,7 @@ func (c *Client) FetchDropboxFolders(ctx context.Context, version, orgUnitID str
 func (c *Client) FetchQuizzes(ctx context.Context, version, orgUnitID string) ([]QuizAPI, error) {
 	var resp QuizzesResponse
 	url := fmt.Sprintf("%s/d2l/api/le/%s/%s/quizzes/", c.baseURL, version, orgUnitID)
-	if err := c.fetcher.DecodeJSON(url, &resp); err != nil {
+	if err := c.fetcher.DecodeJSONFast(url, &resp); err != nil {
 		return nil, fmt.Errorf("fetch quizzes: %w", err)
 	}
 	return resp.Objects, nil
