@@ -49,6 +49,7 @@ func APIToStringEntry(ev CalendarEventAPI, source string) BrightSpaceStringEntry
 		Source:                source,
 		CalendarEventID:       ev.CalendarEventId,
 		QuizID:                quizID,
+		EventType:             ev.EventType,
 		IsRecurring:           ev.IsRecurring,
 		RepeatType: func() int {
 			if ev.RecurrenceInfo != nil {
@@ -259,6 +260,7 @@ type BrightSpaceStringEntry struct {
 	Source                string
 	CalendarEventID       int
 	QuizID                int
+	EventType             int
 	IsRecurring           bool
 	RepeatType            int
 	RepeatEvery           int
@@ -346,6 +348,7 @@ func buildEvent(entry BrightSpaceStringEntry, dtStart, dtEnd time.Time, recurren
 		Source:          entry.Source,
 		CalendarEventID: entry.CalendarEventID,
 		QuizID:          entry.QuizID,
+		EventType:       entry.EventType,
 		RecurrenceIndex: recurrenceIndex,
 	}
 }

@@ -123,6 +123,10 @@ func Fetch(ctx context.Context, client *Client) ([]CalendarEventAPI, []DropboxFo
 	}
 
 	log.Printf("brightspace: extracted %d events, %d dropbox folders", len(allEvents), len(allFolders))
+
+	allEvents = DeduplicateCalendarEntries(allEvents)
+
+	log.Printf("brightspace: after deduplication %d events", len(allEvents))
 	return allEvents, allFolders, nil
 }
 
