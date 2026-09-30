@@ -20,8 +20,6 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	// Desktop builds: prompt for credentials interactively.
-	// Container builds: this is a no-op (build-tagged stub).
 	if err := credprompt.PromptIfNeeded(cfg, cfg.OverrideCredentials); err != nil {
 		log.Fatalf("credential prompt: %v", err)
 	}
@@ -38,38 +36,10 @@ func main() {
 		log.Printf("ics: failed to load from disk: %v", err)
 	}
 
-	authBrowser := createBrowser(cfg)
-	provider := auth.NewADFSProvider(authBrowser)
-
-	a := app.New(cfg, cache, authBrowser, provider, loc)
-
-	if err := a.Run(); err != nil {
-		log.Fatalf("app: %v", err)
-	}
-}
-
-func createBrowser(cfg *config.Config) browser.AuthBrowser {
-	switch cfg.BrowserMode {
-	case config.BrowserSystem, config.BrowserAuto, config.BrowserManaged:
-		authBrowser, err := browser.NewLocalBrowser(browser.BrowserConfig{
-			Mode:              cfg.BrowserMode,
-			Executable:        cfg.BrowserExecutable,
-			Headless:          cfg.BrowserHeadless,
-			Incognito:         true,
-			ProxyURL:          cfg.ProxyURL,
-			Debug:             cfg.BrowserDebug,
-			ConnectTimeout:    10 * time.Second,
-			NavigationTimeout: 30 * time.Second,
-			AuthTimeout:       app.FetchTimeout,
-			RetryInterval:     cfg.BrowserRetryInterval,
-			MaxRetries:        cfg.BrowserMaxRetries,
-		})
-		if err != nil {
-			log.Fatalf("browser: %v", err)
-		}
-		return authBrowser
-	case config.BrowserRemote:
-		authBrowser, err := browser.NewRemoteBrowser(browser.BrowserConfig{
+	var authBrowser browser.AuthBrowser
+	if cfg.BrowserMode == config.BrowserRemote {
+		var err error
+		authBrowser, err = browser.NewRemoteBrowser(browser.BrowserConfig{
 			Mode:              cfg.BrowserMode,
 			RemoteHost:        cfg.BrowserRemoteHost,
 			RemotePort:        cfg.BrowserRemotePort,
@@ -86,9 +56,12 @@ func createBrowser(cfg *config.Config) browser.AuthBrowser {
 		if err != nil {
 			log.Fatalf("browser: %v", err)
 		}
-		return authBrowser
-	default:
-		log.Fatalf("unsupported browser mode: %s", cfg.BrowserMode)
-		return nil
+	}
+	provider := auth.NewADFSProvider(authBrowser)
+
+	a := app.New(cfg, cache, provider, authBrowser, loc)
+
+	if err := a.Run(); err != nil {
+		log.Fatalf("app: %v", err)
 	}
 }

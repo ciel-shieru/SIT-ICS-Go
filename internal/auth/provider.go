@@ -31,6 +31,14 @@ func NewADFSProvider(b browser.AuthBrowser) *ADFSProvider {
 	}
 }
 
+// SetBrowser replaces the wrapped browser and returns the previous browser
+// for cleanup. Used to create a fresh browser instance for each fetch cycle.
+func (a *ADFSProvider) SetBrowser(b browser.AuthBrowser) browser.AuthBrowser {
+	old := a.browser
+	a.browser = b
+	return old
+}
+
 // Authenticate performs ADFS authentication using the wrapped browser
 // and returns the redirect URL after successful authentication.
 func (a *ADFSProvider) Authenticate(ctx context.Context, req AuthRequest) (browser.AuthResult, error) {

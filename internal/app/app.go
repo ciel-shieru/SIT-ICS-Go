@@ -18,45 +18,39 @@ import (
 )
 
 const (
-	// FetchTimeout is the maximum duration of an individual browser-backed
-	// operation. Authentication and subsequent data fetches must not share one
-	// already-running deadline.
 	FetchTimeout = 5 * time.Minute
 
-	// TimetableFetchTimeout is independent of the authentication timeout. The
-	// browser itself applies the tighter NavigationTimeout to the actual
-	// PeopleSoft navigation.
 	TimetableFetchTimeout = 5 * time.Minute
 
 	BrightSpaceFetchTimeout = 5 * time.Minute
 )
 
 type App struct {
-	cfg      *config.Config
-	cache    *calendar.ICSCache
-	browser  browser.AuthBrowser
-	provider *auth.ADFSProvider
-	loc      *time.Location
-	sched    *scheduler.Scheduler
-	srv      *server.Server
-	mu       sync.Mutex
-	fetching bool
-	done     chan struct{}
-	ctx      context.Context
-	cancel   context.CancelFunc
+	cfg           *config.Config
+	cache         *calendar.ICSCache
+	provider      *auth.ADFSProvider
+	loc           *time.Location
+	sched         *scheduler.Scheduler
+	srv           *server.Server
+	remoteBrowser browser.AuthBrowser
+	mu            sync.Mutex
+	fetching      bool
+	done          chan struct{}
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
-func New(cfg *config.Config, cache *calendar.ICSCache, browser browser.AuthBrowser, provider *auth.ADFSProvider, loc *time.Location) *App {
+func New(cfg *config.Config, cache *calendar.ICSCache, provider *auth.ADFSProvider, remoteBrowser browser.AuthBrowser, loc *time.Location) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &App{
-		cfg:      cfg,
-		cache:    cache,
-		browser:  browser,
-		provider: provider,
-		loc:      loc,
-		done:     make(chan struct{}),
-		ctx:      ctx,
-		cancel:   cancel,
+		cfg:           cfg,
+		cache:         cache,
+		provider:      provider,
+		loc:           loc,
+		remoteBrowser: remoteBrowser,
+		done:          make(chan struct{}),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 
@@ -114,7 +108,50 @@ func (a *App) Fetch() {
 		a.mu.Unlock()
 	}()
 
+	b, err := a.spawnBrowser()
+	if err != nil {
+		log.Printf("scheduler: failed to spawn browser: %v", err)
+		a.mu.Lock()
+		a.fetching = false
+		a.mu.Unlock()
+		select {
+		case a.done <- struct{}{}:
+		default:
+		}
+		return
+	}
+
+	if b != nil {
+		defer b.Close()
+		old := a.provider.SetBrowser(b)
+		defer a.provider.SetBrowser(old)
+	}
+
 	runFetch(a.ctx, a.cfg, a.provider, a.cache, a.loc)
+}
+
+func (a *App) spawnBrowser() (browser.AuthBrowser, error) {
+	if a.cfg.BrowserMode == config.BrowserRemote {
+		return nil, nil
+	}
+
+	b, err := browser.NewLocalBrowser(browser.BrowserConfig{
+		Mode:              a.cfg.BrowserMode,
+		Executable:        a.cfg.BrowserExecutable,
+		Headless:          a.cfg.BrowserHeadless,
+		Incognito:         true,
+		ProxyURL:          a.cfg.ProxyURL,
+		Debug:             a.cfg.BrowserDebug,
+		ConnectTimeout:    10 * time.Second,
+		NavigationTimeout: 30 * time.Second,
+		AuthTimeout:       FetchTimeout,
+		RetryInterval:     a.cfg.BrowserRetryInterval,
+		MaxRetries:        a.cfg.BrowserMaxRetries,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func (a *App) Shutdown() {
@@ -143,8 +180,8 @@ func (a *App) Shutdown() {
 		a.sched.Stop()
 	}
 
-	if a.browser != nil {
-		a.browser.Close()
+	if a.remoteBrowser != nil {
+		a.remoteBrowser.Close()
 	}
 
 	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
