@@ -10,6 +10,7 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
+	"github.com/ciel-shieru/sit-ics-go/internal/credretry"
 	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 	"github.com/ciel-shieru/sit-ics-go/internal/smartmerge"
 )
@@ -37,7 +38,26 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 
 	if err != nil {
 		log.Printf("scheduler: auth failed: %v", err)
-		return
+
+		// Desktop builds: allow interactive credential retry on invalid credentials.
+		if retryErr := credretry.PromptIfAuthFailed(cfg, err); retryErr != nil {
+			log.Printf("scheduler: credential prompt failed: %v", retryErr)
+			return
+		}
+
+		// Retry authentication with potentially new credentials.
+		log.Printf("scheduler: retrying authentication with new credentials")
+		_, err = provider.Authenticate(authCtx, auth.AuthRequest{
+			Username:      cfg.Username,
+			Password:      cfg.Password,
+			TOTPSecret:    cfg.TOTPSecret,
+			PeopleSoftURL: "https://in4sit.singaporetech.edu.sg/",
+		})
+		if err != nil {
+			log.Printf("scheduler: auth retry failed: %v", err)
+			return
+		}
+		log.Printf("scheduler: auth retry successful, fetching timetable")
 	}
 
 	log.Printf("scheduler: auth successful after %s, fetching timetable", time.Since(started).Round(time.Millisecond))
