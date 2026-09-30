@@ -22,7 +22,7 @@ func main() {
 
 	// Desktop builds: prompt for credentials interactively.
 	// Container builds: this is a no-op (build-tagged stub).
-	if err := credprompt.PromptIfNeeded(cfg); err != nil {
+	if err := credprompt.PromptIfNeeded(cfg, cfg.OverrideCredentials); err != nil {
 		log.Fatalf("credential prompt: %v", err)
 	}
 

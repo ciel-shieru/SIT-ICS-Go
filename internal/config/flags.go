@@ -46,6 +46,7 @@ func applyFlags(cfg *Config) error {
 	xsiteDropboxAlerts                 := fs.String("xsite-dropbox-alerts", "", "Comma-separated ICS duration strings for xsite dropbox VALARM (env: XSITE_DROPBOX_ALERTS)")
 	xsiteQuizzesPath                   := fs.String("xsite-quizzes-path", "", "Path to xsite quizzes ICS file (env: XSITE_QUIZZES_PATH)")
 	timetableAlerts                    := fs.String("timetable-alerts", "", "Comma-separated ICS duration strings for main timetable VALARM (e.g. -P2D,-P1D) (env: TIMETABLE_ALERTS)")
+	overrideCredentials                := fs.Bool("override-credentials", false, "Force credential prompt even if credentials exist in keyring (desktop builds only) (env: OVERRIDE_CREDENTIALS)")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return err
@@ -167,6 +168,9 @@ func applyFlags(cfg *Config) error {
 	}
 	if fs.Lookup("timetable-alerts").Changed {
 		cfg.TimetableAlerts = *timetableAlerts
+	}
+	if fs.Lookup("override-credentials").Changed {
+		cfg.OverrideCredentials = *overrideCredentials
 	}
 
 	return nil

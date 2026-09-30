@@ -21,12 +21,12 @@ var ErrNonInteractive = fmt.Errorf("interactive credential prompt requires a ter
 // PromptIfNeeded prompts the user for credentials interactively if stdin is a
 // terminal. Each secret is immediately stored to the OS keyring and the raw
 // input buffers are zeroed from memory.
-func PromptIfNeeded(cfg *config.Config) error {
+func PromptIfNeeded(cfg *config.Config, overrideCredentials bool) error {
 	store := credentialstore.NewStore()
 
-	// Skip prompting if all three credentials already exist in the store,
-	// even if stdin is not a terminal (e.g., piped input, CI).
-	if hasAllCredentials(store) {
+	// Skip prompting if all three credentials already exist in the store and
+	// override is not requested, even if stdin is not a terminal (e.g., piped input, CI).
+	if hasAllCredentials(store) && !overrideCredentials {
 		return nil
 	}
 

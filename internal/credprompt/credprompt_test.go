@@ -80,7 +80,7 @@ func TestPromptIfNeeded_RequiresTerminal(t *testing.T) {
 	os.Stdin = r
 	defer func() { os.Stdin = oldStdin }()
 
-	err = PromptIfNeeded(cfg)
+	err = PromptIfNeeded(cfg, false)
 	if err == nil {
 		t.Fatal("expected error from PromptIfNeeded with non-terminal stdin")
 	}
@@ -157,6 +157,87 @@ func TestHasAllCredentials_GetError(t *testing.T) {
 	}
 }
 
+func TestPromptIfNeeded_OverrideCredentials_AllPresent(t *testing.T) {
+	credentialstore.ResetForTesting()
+	store := credentialstore.NewStore()
+	if !store.IsOpen() {
+		t.Skip("credential store unavailable in this environment")
+	}
+	store.Delete()
+
+	// Pre-populate all 3 credentials
+	if err := store.SetUsername("testuser"); err != nil {
+		t.Fatalf("set username: %v", err)
+	}
+	if err := store.SetPassword("testpass"); err != nil {
+		t.Fatalf("set password: %v", err)
+	}
+	if err := store.SetTOTPSecret("testtotp"); err != nil {
+		t.Fatalf("set totp: %v", err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+	defer r.Close()
+	defer w.Close()
+
+	cfg := &config.Config{}
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	err = PromptIfNeeded(cfg, true)
+
+	if err == nil {
+		t.Fatal("expected error from PromptIfNeeded with override-credentials=true and non-terminal stdin")
+	}
+	if err != ErrNonInteractive {
+		t.Errorf("error = %v, want ErrNonInteractive", err)
+	}
+}
+
+func TestPromptIfNeeded_NoOverride_AllPresent(t *testing.T) {
+	credentialstore.ResetForTesting()
+	store := credentialstore.NewStore()
+	if !store.IsOpen() {
+		t.Skip("credential store unavailable in this environment")
+	}
+	store.Delete()
+
+	// Pre-populate all 3 credentials
+	if err := store.SetUsername("testuser"); err != nil {
+		t.Fatalf("set username: %v", err)
+	}
+	if err := store.SetPassword("testpass"); err != nil {
+		t.Fatalf("set password: %v", err)
+	}
+	if err := store.SetTOTPSecret("testtotp"); err != nil {
+		t.Fatalf("set totp: %v", err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+	defer r.Close()
+	defer w.Close()
+
+	cfg := &config.Config{}
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	err = PromptIfNeeded(cfg, false)
+
+	if err != nil {
+		t.Errorf("PromptIfNeeded() error = %v, want nil (should skip prompt when all credentials present and no override)", err)
+	}
+}
+
 func TestPromptIfNeeded_NonInteractive(t *testing.T) {
 	credentialstore.ResetForTesting()
 	// Ensure store has no credentials so we reach the TTY check.
@@ -175,7 +256,7 @@ func TestPromptIfNeeded_NonInteractive(t *testing.T) {
 	defer func() { os.Stdin = oldStdin }()
 
 	cfg := &config.Config{}
-	err = PromptIfNeeded(cfg)
+	err = PromptIfNeeded(cfg, false)
 
 	if err != ErrNonInteractive {
 		t.Errorf("PromptIfNeeded() error = %v, want ErrNonInteractive", err)
