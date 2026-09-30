@@ -62,7 +62,7 @@ func TestLoadCredentialsFromStore_EnvVarPriority(t *testing.T) {
 		credStore:    store,
 		BrowserMode:  BrowserAuto,
 		TZ:           "Asia/Singapore",
-		ServerPort:   8080,
+		ServerPort:   42748,
 	}
 
 	if err := cfg.loadCredentialsFromStore(); err != nil {
@@ -97,7 +97,7 @@ func TestLoadCredentialsFromStore_StoreFallback(t *testing.T) {
 		credStore:    store,
 		BrowserMode:  BrowserAuto,
 		TZ:           "Asia/Singapore",
-		ServerPort:   8080,
+		ServerPort:   42748,
 	}
 
 	if err := cfg.loadCredentialsFromStore(); err != nil {
@@ -137,7 +137,7 @@ func TestLoadCredentialsFromStore_PartialFallback(t *testing.T) {
 		credStore:    store,
 		BrowserMode:  BrowserAuto,
 		TZ:           "Asia/Singapore",
-		ServerPort:   8080,
+		ServerPort:   42748,
 	}
 
 	if err := cfg.loadCredentialsFromStore(); err != nil {
@@ -168,7 +168,7 @@ func TestLoadCredentialsFromStore_StoreNotFound(t *testing.T) {
 		credStore:    store,
 		BrowserMode:  BrowserAuto,
 		TZ:           "Asia/Singapore",
-		ServerPort:   8080,
+		ServerPort:   42748,
 	}
 
 	if err := cfg.loadCredentialsFromStore(); err != nil {
@@ -190,7 +190,7 @@ func TestLoadCredentialsFromStore_NilStore(t *testing.T) {
 	cfg := &Config{
 		BrowserMode: BrowserAuto,
 		TZ:          "Asia/Singapore",
-		ServerPort:  8080,
+		ServerPort:  42748,
 	}
 
 	if err := cfg.loadCredentialsFromStore(); err != nil {

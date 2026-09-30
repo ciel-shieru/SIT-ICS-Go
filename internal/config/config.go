@@ -14,7 +14,7 @@ type Config struct {
 	EndDate                           time.Time     `env:"END_DATE" envDefault:""`
 	TZ                                string        `env:"TZ" envDefault:"Asia/Singapore"`
 	FetchCron                         string        `env:"FETCH_CRON" envDefault:"0 1 * * *"`
-	ServerPort                        int           `env:"SERVER_PORT" envDefault:"8080"`
+	ServerPort                        int           `env:"SERVER_PORT" envDefault:"42748"`
 	ServerAddr                        string        `env:"SERVER_ADDR" envDefault:""`
 	ICSStoragePath                    string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
 	ICSOnlinePath                     string        `env:"ICS_ONLINE_PATH" envDefault:"./timetable-online.ics"`
@@ -50,6 +50,7 @@ type Config struct {
 	XsiteDropboxAlerts                 string        `env:"XSITE_DROPBOX_ALERTS" envDefault:""`
 	ServerTrustedProxies               string        `env:"SERVER_TRUSTED_PROXIES" envDefault:""`
 	ServerDisableCaching               bool          `env:"SERVER_DISABLE_CACHING" envDefault:"false"`
+	OverrideCredentials                bool          `env:"OVERRIDE_CREDENTIALS" envDefault:"false"`
 
 	credStore credentialstore.Store
 }

@@ -34,6 +34,10 @@ internal/browser/                # AuthBrowser interface + Rod impl
 internal/auth/                   # ADFSProvider (wraps AuthBrowser)
   provider.go  # Authenticate(), FetchTimetable(), FetchBrightSpace()
 
+internal/credretry/              # Interactive credential retry on auth failure (desktop only)
+  credretry.go     # PromptIfAuthFailed(), isCredentialError()
+  credretry_container.go # No-op stub for container builds
+
 internal/peoplesoft/             # Entry struct + HTML parser
   peoplesoft.go  # Entry: CourseCode, ClassName, Section, Type, Day, StartTime, EndTime, Location
   parser.go      # ParseTimetableHTML(html, year, loc) → []Entry — parses SSR_SSENRL_LIST.GBL HTML
@@ -82,9 +86,10 @@ All via env vars with CLI flag override (flags take priority):
 | `USERNAME` | — | ADFS username (desktop: keyring fallback, container: env var only) |
 | `PASSWORD` | — | ADFS password (desktop: keyring fallback, container: env var only) |
 | `TOTP_SECRET` | — | Azure MFA TOTP secret (desktop: keyring fallback, container: env var only) |
+| `OVERRIDE_CREDENTIALS` | false | Force credential prompt even if credentials exist in keyring (desktop builds only) |
 | `TZ` | Asia/Singapore | IANA timezone |
 | `FETCH_CRON` | `0 1 * * *` | Cron schedule for fetches |
-| `SERVER_PORT` | 8080 | HTTP listen port |
+| `SERVER_PORT` | 42748 | HTTP listen port |
 | `SERVER_ADDR` | `127.0.0.1` (desktop) / `0.0.0.0` (container) | HTTP server bind address |
 | `ICS_STORAGE_PATH` | ./timetable.ics | Main ICS file (for disk load) |
 | `ICS_ONLINE_PATH` | ./timetable-online.ics | Online-only events ICS |
@@ -116,6 +121,8 @@ All via env vars with CLI flag override (flags take priority):
 - **No third-party ICS library** — custom writer in `internal/calendar/render.go` for full RFC 5545 control.
 - **Rod is the only browser dep** — rest of codebase never imports `github.com/go-rod/rod`.
 - **Credentials sourcing**: Desktop builds (`!container`) source credentials from OS keyring (`sit-ics-go` service) with env var fallback. Container builds (`-tags container`) source from env vars only. CLI flags `--username`, `--password`, `--totp-secret` are removed.
+- **Override credentials**: --override-credentials CLI flag (or OVERRIDE_CREDENTIALS env var) forces interactive credential prompt on desktop builds regardless of keyring state. Container builds ignore this flag.
+- **Credential retry (desktop only)**: On desktop builds (`!container`), when `runFetch()` encounters a credential-related auth error (invalid password, wrong TOTP), it prompts the user with `[Y/n]` to re-enter credentials. If confirmed, calls `credprompt.PromptIfNeeded()` to overwrite stored credentials, then retries authentication once. Container builds are no-op. Network/browser errors do not trigger credential prompt.
 - **ICS upsert semantics** — non-destructive merge by UID. Events absent from new data are retained. Changing the UID formula breaks idempotency.
 - **Timezone** — all time ops use `TZ` env var (default `Asia/Singapore`). `time.Local` is set at startup.
 - **Browser modes** — `auto`, `system`, `managed` all use `LocalBrowser`; `remote` uses `RemoteBrowser`. Controlled by `BROWSER_MODE`.
@@ -141,6 +148,7 @@ All via env vars with CLI flag override (flags take priority):
 - **ICS UID format**: `SHA-256(summary-location-date-start-end)` for PeopleSoft events; `SHA-256(source-summary-location-date-start-end)` for BrightSpace events (source prefix). Changing any component breaks idempotency.
 - **App.Fetch() is reentrant-guarded**: Uses mutex + `fetching` flag to prevent concurrent fetches.
 - **Events sorted deterministically**: Primary by DTStart, secondary by Location, tiebreaker by UID.
+- **Credential retry vs automatic retry**: `isRetriable()` returns `false` for auth errors, so the browser-level retry loop does not retry auth failures. The user-facing retry in `runFetch()` is a separate, single-attempt interactive flow (desktop only).
 
 ## Data privacy — no sensitive data in the repo
 
@@ -190,3 +198,4 @@ All decisions in `docs/adr/`. Index with status in `docs/adr/README.md`.
 - 0013: BrightSpace D2L event integration
 - 0014: xsite ICS HTTP endpoints (5 endpoints)
 - 0015: Codebase restructuring for production readiness
+- 0019: Interactive credential retry on desktop when authentication fails with invalid credentials or TOTP error

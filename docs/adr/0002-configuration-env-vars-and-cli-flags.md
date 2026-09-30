@@ -15,7 +15,7 @@ The application needs a configuration mechanism to accept user settings includin
 - Date range: `START_DATE`, `END_DATE`
 - Timezone: `TZ` (default `Asia/Singapore`)
 - Cron schedule: `FETCH_CRON` (default `0 1 * * *`)
-- Server port: `SERVER_PORT` (default `8080`)
+- Server port: `SERVER_PORT` (default `42748`)
 - ICS storage path: `ICS_STORAGE_PATH` (default `./timetable.ics`)
 - Browser mode: `BROWSER_MODE` (default `auto`)
 - Browser executable: `BROWSER_EXECUTABLE` (optional, for explicit browser path)
@@ -102,7 +102,7 @@ type Config struct {
     EndDate         time.Time     `env:"END_DATE" envDefault:""`
     TZ              string        `env:"TZ" envDefault:"Asia/Singapore"`
     FetchCron       string        `env:"FETCH_CRON" envDefault:"0 1 * * *"`
-    ServerPort      int           `env:"SERVER_PORT" envDefault:"8080"`
+    ServerPort      int           `env:"SERVER_PORT" envDefault:"42748"`
     ICSStoragePath  string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
     
     // Browser configuration (see ADR-0005)

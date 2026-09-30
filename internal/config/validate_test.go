@@ -20,7 +20,7 @@ func TestValidate_BrowserMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{BrowserMode: tt.mode, TZ: "Asia/Singapore", ServerPort: 8080}
+			cfg := &Config{BrowserMode: tt.mode, TZ: "Asia/Singapore", ServerPort: 42748}
 			err := Validate(cfg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -35,7 +35,7 @@ func TestValidate_ServerPort(t *testing.T) {
 		port    int
 		wantErr bool
 	}{
-		{"valid", 8080, false},
+		{"valid", 42748, false},
 		{"min", 1, false},
 		{"max", 65535, false},
 		{"too_low", 0, true},
@@ -69,7 +69,7 @@ func TestValidate_Timezone(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{BrowserMode: BrowserAuto, TZ: tt.tz, ServerPort: 8080}
+			cfg := &Config{BrowserMode: BrowserAuto, TZ: tt.tz, ServerPort: 42748}
 			err := Validate(cfg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -89,15 +89,15 @@ func TestValidate_ServerAddr(t *testing.T) {
 		{"all_interfaces", "0.0.0.0", false},
 		{"ipv6_loopback", "::1", false},
 		{"ipv6_all", "::", false},
-		{"with_port", "127.0.0.1:8080", false},
-		{"ipv6_with_port", "[::1]:8080", false},
+		{"with_port", "127.0.0.1:42748", false},
+		{"ipv6_with_port", "[::1]:42748", false},
 		{"invalid_ip", "not_an_ip", true},
 		{"hostname", "localhost", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{BrowserMode: BrowserAuto, TZ: "Asia/Singapore", ServerPort: 8080, ServerAddr: tt.addr}
+			cfg := &Config{BrowserMode: BrowserAuto, TZ: "Asia/Singapore", ServerPort: 42748, ServerAddr: tt.addr}
 			err := Validate(cfg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -110,7 +110,7 @@ func TestValidate_ValidConfig(t *testing.T) {
 	cfg := &Config{
 		BrowserMode: BrowserAuto,
 		TZ:          "Asia/Singapore",
-		ServerPort:  8080,
+		ServerPort:  42748,
 	}
 	if err := Validate(cfg); err != nil {
 		t.Errorf("Validate() = %v, want nil", err)
@@ -143,7 +143,7 @@ func TestValidateServerTrustedProxies(t *testing.T) {
 			cfg := &Config{
 				BrowserMode:        BrowserAuto,
 				TZ:                 "Asia/Singapore",
-				ServerPort:         8080,
+				ServerPort:         42748,
 				ServerTrustedProxies: tt.proxies,
 			}
 			err := Validate(cfg)

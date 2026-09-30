@@ -20,7 +20,7 @@ RUN go build \
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=release-build --chown=65534:65534 --chmod=555 /out/sit-ics /sit-ics
 USER 65534:65534
-EXPOSE 8080
+EXPOSE 42748
 CMD ["/sit-ics"]
 
 # # ── Debug build ──
@@ -40,6 +40,6 @@ CMD ["/sit-ics"]
 #     rm -rf /var/lib/apt/lists/*
 # USER 65534:65534
 # COPY --from=debug-build --chown=65534:65534 --chmod=555 /out/sit-ics /sit-ics
-# EXPOSE 8080
+# EXPOSE 42748
 # ENTRYPOINT ["tini", "--"]
 # CMD ["/sit-ics"]
