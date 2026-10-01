@@ -12,6 +12,11 @@ import (
 	"golang.org/x/net/html"
 )
 
+// pageHTML is a minimal interface for extracting page HTML, enabling testability.
+type pageHTML interface {
+	HTML() (string, error)
+}
+
 func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthRequest, waitNavigation bool, cfg BrowserConfig, isAllowedOrigin func(string) bool) (*rod.Page, error) {
 	initialURL := req.URL
 	debug(cfg, "navigating to %s", initialURL)
@@ -122,6 +127,15 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 		debug(cfg, "wait stable after submit failed: %v", err)
 	}
 
+	debug(cfg, "checking for pre-MFA credential error")
+	isCredErr, err := IsADFSCredentialError(page)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to check for credential error: %v", ErrAuthentication, err)
+	}
+	if isCredErr {
+		return nil, fmt.Errorf("%w: incorrect user ID or password", ErrAuthentication)
+	}
+
 	debug(cfg, "checking for MFA field")
 	var mfaEl *rod.Element
 	mfaVisible := false
@@ -204,8 +218,8 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	return page.Context(context.Background()), nil
 }
 
-func ExtractADFSLoginError(page *rod.Page) (string, error) {
-	htmlStr, err := page.HTML()
+func ExtractADFSLoginError(p pageHTML) (string, error) {
+	htmlStr, err := p.HTML()
 	if err != nil {
 		return "", fmt.Errorf("get page HTML: %w", err)
 	}
@@ -217,16 +231,10 @@ func ExtractADFSLoginError(page *rod.Page) (string, error) {
 
 	var findErrorText func(*html.Node) string
 	findErrorText = func(n *html.Node) string {
-		if n.Type == html.ElementNode && n.Data == "p" {
+		if n.Type == html.ElementNode {
 			for _, a := range n.Attr {
 				if a.Key == "id" && a.Val == "errorText" {
-					var sb strings.Builder
-					for c := n.FirstChild; c != nil; c = c.NextSibling {
-						if c.Type == html.TextNode {
-							sb.WriteString(c.Data)
-						}
-					}
-					return strings.TrimSpace(sb.String())
+					return strings.TrimSpace(nodeText(n))
 				}
 			}
 		}
@@ -239,4 +247,62 @@ func ExtractADFSLoginError(page *rod.Page) (string, error) {
 	}
 
 	return findErrorText(doc), nil
+}
+
+// nodeText extracts all text content from a node and its children.
+func nodeText(n *html.Node) string {
+	var text string
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		if node.Type == html.TextNode {
+			text += node.Data
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(n)
+	return text
+}
+
+// hasADFSCredentialError checks if the HTML contains a credential error message.
+func hasADFSCredentialError(htmlStr string) bool {
+	doc, err := html.Parse(strings.NewReader(htmlStr))
+	if err != nil {
+		return false
+	}
+
+	var errorText string
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		if errorText != "" {
+			return
+		}
+		for _, attr := range node.Attr {
+			if attr.Key == "id" && attr.Val == "errorText" {
+				errorText = strings.TrimSpace(nodeText(node))
+				return
+			}
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+
+	if errorText == "" {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(errorText), "incorrect user id or password")
+}
+
+// IsADFSCredentialError checks if the ADFS login page shows a credential error
+// (incorrect username or password) before the MFA stage.
+func IsADFSCredentialError(p pageHTML) (bool, error) {
+	htmlStr, err := p.HTML()
+	if err != nil {
+		return false, fmt.Errorf("%w: failed to extract page HTML: %v", ErrAuthentication, err)
+	}
+	return hasADFSCredentialError(htmlStr), nil
 }
