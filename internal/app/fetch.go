@@ -2,12 +2,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/auth"
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
+	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
 	"github.com/ciel-shieru/sit-ics-go/internal/credretry"
@@ -66,29 +69,35 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	// the PeopleSoft page must not inherit an authentication deadline that may
 	// already be expired or nearly expired.
 	timetableCtx, timetableCancel := context.WithTimeout(ctx, TimetableFetchTimeout)
+	icsEvents := make([]calendar.Event, 0)
+	psFetchFailed := false
+
 	entries, err := provider.FetchTimetable(timetableCtx, "", loc)
 	timetableCancel()
 	if err != nil {
-		log.Printf("scheduler: fetch failed: %v", err)
-		return
-	}
-	allEntries := entries
-
-	icsEvents := make([]calendar.Event, 0, len(allEntries))
-	for _, entry := range allEntries {
-		dtStart, dtEnd, err := peoplesoft.ParseEntryDateTime(entry, loc)
-		if err != nil {
-			log.Printf("scheduler: skipping entry %s: %v", entry.CourseCode, err)
-			continue
+		if isFatalPostAuth(err) || ctx.Err() != nil {
+			log.Printf("scheduler: fetch failed: %v", err)
+			return
 		}
-		icsEvents = append(icsEvents, calendar.Event{
-			CourseCode:  entry.CourseCode,
-			Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
-			Location:    entry.Location,
-			Description: fmt.Sprintf("Course: %s\nClass: %s\nSection: %s\nType: %s", entry.CourseCode, entry.ClassName, entry.Section, entry.Type),
-			DTStart:     dtStart,
-			DTEnd:       dtEnd,
-		})
+		psFetchFailed = true
+		log.Printf("scheduler: peoplesoft timetable fetch failed: %v — continuing with brightspace fetches, existing timetable events retained by UID upsert", err)
+	} else {
+		allEntries := entries
+		for _, entry := range allEntries {
+			dtStart, dtEnd, err := peoplesoft.ParseEntryDateTime(entry, loc)
+			if err != nil {
+				log.Printf("scheduler: skipping entry %s: %v", entry.CourseCode, err)
+				continue
+			}
+			icsEvents = append(icsEvents, calendar.Event{
+				CourseCode:  entry.CourseCode,
+				Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
+				Location:    entry.Location,
+				Description: fmt.Sprintf("Course: %s\nClass: %s\nSection: %s\nType: %s", entry.CourseCode, entry.ClassName, entry.Section, entry.Type),
+				DTStart:     dtStart,
+				DTEnd:       dtEnd,
+			})
+		}
 	}
 
 	if cfg.XsiteEnabled {
@@ -103,6 +112,9 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		blocklist.CompilePatterns()
 
 		deleted := cache.RemoveWhere(func(e calendar.Event) bool {
+			if psFetchFailed && !strings.HasPrefix(e.Source, "brightspace-") {
+				return false
+			}
 			return blocklist.Matches(e.OrgUnitID, e.OrgUnitName, e.OrgUnitCode, e.Title, e.Location)
 		})
 		if deleted > 0 {
@@ -117,7 +129,10 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
 			bsEvents = brightspace.EntriesToEvents(bsEntries, blocklist, loc)
-			if cfg.XsiteSmartMergeEnabled {
+			if psFetchFailed {
+				icsEvents = append(icsEvents, bsEvents...)
+				log.Printf("scheduler: smart merge skipped — peoplesoft fetch failed, keeping brightspace events standalone")
+			} else if cfg.XsiteSmartMergeEnabled {
 				psEvents, mergedCount, matchedCalendarEventIDs := smartmerge.MergeEvents(icsEvents, bsEvents)
 				if mergedCount > 0 {
 					log.Printf("smartmerge: merged %d brightspace events into timetable events", mergedCount)
@@ -249,4 +264,28 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	}
 
 	log.Printf("scheduler: fetch complete, %d events cached", len(icsEvents))
+	if psFetchFailed {
+		log.Printf("scheduler: warning: timetable events are stale (peoplesoft fetch failed this cycle)")
+	}
+}
+
+// isFatalPostAuth reports whether err is rooted at a browser-lifecycle or
+// authentication sentinel (via the %w chain). The browser session is shared
+// by all fetch steps, so these failures abort the whole fetch; other post-auth
+// failures (such as a flaky PeopleSoft page) are recoverable and the remaining
+// sources are still fetched (ADR-0020).
+func isFatalPostAuth(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch {
+	case errors.Is(err, browser.ErrBrowserUnavailable),
+		errors.Is(err, browser.ErrBrowserLaunch),
+		errors.Is(err, browser.ErrBrowserConnect),
+		errors.Is(err, browser.ErrAuthentication),
+		errors.Is(err, browser.ErrAuthenticationTimeout),
+		errors.Is(err, browser.ErrCredentialExtraction):
+		return true
+	}
+	return false
 }

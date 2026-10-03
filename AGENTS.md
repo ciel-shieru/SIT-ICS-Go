@@ -57,11 +57,18 @@ internal/server/                 # stdlib net/http, 7 ICS endpoints
 internal/scheduler/              # robfig/cron/v3 with configured TZ
   scheduler.go # Scheduler: New(tz) → error, Start(), Stop(), AddJob()
 
+internal/smartmerge/             # Smart merge of BrightSpace into PeopleSoft events
+  smartmerge.go  # MergeEvents(), DedupQuizzes() — module+time+location matching, Zoom extraction
+
 internal/brightspace/            # BrightSpace D2L integration
-  models.go    # API response structs, BrightSpaceEntry
+  models.go    # API response structs, BrightSpaceEntry, BrightSpaceStringEntry, QuizAPI
   fetch.go     # Client: CheckVersion, FetchCourses, FetchCalendarEvents, FetchDropboxFolders
-  filter.go    # Blocklist: course name/id/title/location pattern matching
+  filter.go    # Blocklist: course name/id/title/location/quiz pattern matching
   timestamp.go # Time parsing utilities
+  dedup.go     # Deduplication helpers
+  recurrence.go # Recurring event handling
+  quiz_removal.go # Quiz removal based on attempt tracking
+  quiz_attempt.go # Quiz submission page HTML parsing
 ```
 
 Module path: `github.com/ciel-shieru/sit-ics-go`
@@ -70,13 +77,19 @@ Module path: `github.com/ciel-shieru/sit-ics-go`
 ```
 Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   1. provider.Authenticate(ctx) → browser.AuthBrowser.Authenticate()
-  2. provider.FetchTimetable(ctx, "", loc) → browser.FetchTimetable() → SSR_SSENRL_LIST.GBL HTML
-  3. peoplesoft.ParseTimetableHTML(html, year, loc) → []Entry
-  4. peoplesoft.ParseEntryDateTime(entry, loc) → DTStart, DTEnd → calendar.Event
-  5. (if BrightSpace enabled) provider.FetchBrightSpace(ctx, baseURL) → []BrightSpaceEntry → calendar.Event
-  6. (if BrightSpace enabled) cache.RemoveWhere(blocklist.Matches) — delete blocked events
-  7. cache.Update(icsEvents, tz) — non-destructive merge by UID
-   8. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite
+     — auth has separate 5-min deadline; timetable fetch gets fresh deadline (context isolation)
+  2. provider.FetchTimetable(ctx, "", loc) → browser.FetchTimetable() → SSR_SSENRL_LIST.GBL HTML (recoverable — BrightSpace still runs on failure)
+  3. peoplesoft.ParseTimetableHTML(html, year, loc) → []Entry (recoverable — BrightSpace still runs on failure)
+  4. peoplesoft.ParseEntryDateTime(entry, loc) → DTStart, DTEnd → calendar.Event (recoverable — BrightSpace still runs on failure)
+  5. (if xsite enabled) cache.RemoveWhere(blocklist.Matches) — delete blocked brightspace events
+  6. (if xsite enabled) provider.FetchBrightSpace(ctx, baseURL) → []BrightSpaceEntry → calendar.Event
+  7. (if smart merge enabled) smartmerge.MergeEvents(psEvents, bsEvents) — module+time+location match, extracts Zoom details into PS event description
+  8. (if xsite enabled) provider.FetchBrightSpaceQuizzesAPI(ctx, baseURL) → []QuizAPI
+  9. (if xsite enabled) brightspace.QuizEntriesToEvents() → quiz calendar events
+ 10. (if smart merge enabled) smartmerge.DedupQuizzes(calendarEvents, quizEvents) — replaces quiz-associated calendar events with quiz entries
+ 11. (if quiz attempt tracking enabled) FetchQuizSubmissionPage() + ParseQuizSubmissionHTML() — remove completed quizzes
+ 12. cache.Update(icsEvents, tz) — non-destructive merge by UID
+ 13. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite (with alerts)
 ```
 
 ## Configuration
@@ -102,6 +115,8 @@ All via env vars with CLI flag override (flags take priority):
 | `BROWSER_EXECUTABLE` | — | Explicit browser binary path |
 | `BROWSER_REMOTE_HOST` | — | Remote browser host (IP or FQDN) |
 | `BROWSER_REMOTE_PORT` | 9222 | Remote browser HTTP port |
+| `BROWSER_RETRY_INTERVAL` | 5s | Retry interval between browser auth attempts |
+| `BROWSER_MAX_RETRIES` | 3 | Max retries for browser auth attempts |
 | `BROWSER_HEADLESS` | true | Headless mode |
 | `BROWSER_DEBUG` | false | Enable debug logging for browser actions |
 | `PROXY_URL` | — | SOCKS5 proxy URL |
@@ -113,6 +128,16 @@ All via env vars with CLI flag override (flags take priority):
 | `XSITE_EVENT_TITLE_BLOCKLIST` | — | Comma-separated event title patterns to block |
 | `XSITE_EVENT_LOCATION_BLOCKLIST` | — | Comma-separated event location patterns to block |
 | `XSITE_SMART_MERGE_ENABLED` | `true` | Enable smart merge of BrightSpace events into PeopleSoft timetable events |
+| `XSITE_QUIZ_TITLE_BLOCKLIST` | — | Comma-separated quiz title patterns to block |
+| `XSITE_QUIZ_ATTEMPT_TRACKING_ENABLED` | false | Enable quiz attempt tracking to auto-remove completed quizzes |
+| `TIMETABLE_ALERTS` | — | Alert config for main timetable ICS |
+| `TIMETABLE_ONLINE_ALERTS` | — | Alert config for online-only ICS |
+| `TIMETABLE_CAMPUS_ALERTS` | — | Alert config for campus-only ICS |
+| `XSITE_EVENTS_ALERTS` | — | Alert config for xsite events ICS |
+| `XSITE_DROPBOX_ALERTS` | — | Alert config for xsite dropbox ICS |
+| `XSITE_QUIZZES_ALERTS` | — | Alert config for xsite quizzes ICS |
+| `SERVER_TRUSTED_PROXIES` | — | Comma-separated trusted proxy CIDRs for logging |
+| `SERVER_DISABLE_CACHING` | false | Disable HTTP caching headers on server responses |
 
 `START_DATE` and `END_DATE` are parsed by config but no longer drive the fetch loop.
 
@@ -133,6 +158,8 @@ All via env vars with CLI flag override (flags take priority):
 - **7 ICS output files** — main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite. `IsCampus` excludes BrightSpace events (ADR-0013).
 - **Server endpoints** — 7 HTTP handlers match the 7 output files (ADR-0014).
 - **Server bind address**: Desktop builds (`!container`) default to `127.0.0.1` (loopback only). Container builds (`container`) default to `0.0.0.0` (all interfaces). Override via `SERVER_ADDR` env var or `--server-addr` CLI flag.
+- **Smart merge** — when enabled (`XSITE_SMART_MERGE_ENABLED=true`), BrightSpace events with matching module code, overlapping time, and "Online"/"TBD" PS location + "Zoom Online Meeting" BS location are merged into PeopleSoft events. Zoom meeting details (link, meeting ID, passcode) are extracted from BrightSpace HTML description and appended to PS event description. Matched BrightSpace calendar events are removed from cache (not retained by upsert).
+- **Quiz attempt tracking** — when enabled (`XSITE_QUIZ_ATTEMPT_TRACKING_ENABLED=true`), fetches each quiz's submission page, parses attempt count and best score, removes quizzes that are fully attempted (reached max attempts or unlimited with a completed attempt).
 
 ## Gotchas
 - **"BrightSpace" == "Xsite"** — Codebase internals (package names, config keys, function names like `FetchBrightSpace`) use "BrightSpace". User-facing names (env var prefixes like `XSITE_*`, HTTP endpoints like `/xsite-events.ics`, file names like `xsite.ics`) use "Xsite". They refer to the same thing: BrightSpace D2L content extraction.
@@ -149,6 +176,10 @@ All via env vars with CLI flag override (flags take priority):
 - **App.Fetch() is reentrant-guarded**: Uses mutex + `fetching` flag to prevent concurrent fetches.
 - **Events sorted deterministically**: Primary by DTStart, secondary by Location, tiebreaker by UID.
 - **Credential retry vs automatic retry**: `isRetriable()` returns `false` for auth errors, so the browser-level retry loop does not retry auth failures. The user-facing retry in `runFetch()` is a separate, single-attempt interactive flow (desktop only).
+- **Degraded fetch cycle (PeopleSoft failure, ADR-0020)**: A non-fatal PeopleSoft timetable fetch failure does not abort `runFetch()`. BrightSpace fetches, quiz dedup/attempts, `cache.Update()`, and `SaveOutputs()` still run; existing PeopleSoft events are retained by non-destructive UID upsert. During a degraded cycle the blocklist `RemoveWhere` predicate additionally skips non-BrightSpace events (source not prefixed `brightspace-`), and smart merge is skipped (BrightSpace events appended standalone). Only errors rooted at the six browser sentinels (`ErrBrowserUnavailable`, `ErrBrowserLaunch`, `ErrBrowserConnect`, `ErrAuthentication`, `ErrAuthenticationTimeout`, `ErrCredentialExtraction`) remain fatal.
+- **Smart merge**: Only matches events where PS location is "Online"/"TBD"/"To Be Advised"/"TBA" AND BS location contains "Zoom Online Meeting". Extracts Zoom link, meeting ID, and passcode from BS HTML description via regex. Matched BS calendar events are explicitly removed from cache before upsert (otherwise non-destructive merge would retain them).
+- **Quiz attempt tracking**: Fetches each quiz's D2L submission page, parses attempt count and best score. Removes quizzes where attempts reached max or unlimited with a completed attempt. Uses `brightspace.ParseQuizSubmissionHTML()` and `brightspace.ShouldRemoveQuiz()`.
+- **IsCampus filter**: Returns true for non-online events that are NOT sourced from BrightSpace (`source` does not start with `brightspace-`). Used for the campus-only ICS projection.
 
 ## Data privacy — no sensitive data in the repo
 
@@ -172,13 +203,18 @@ When data is needed for tests, configuration examples, or documentation, use **f
 - `go test -v -count=1 -race ./...` — runs all unit tests, no browser or Chromium required.
 - `internal/browser/browser_test.go` — sentinel errors, wrapping, `MockAuthBrowser`, `ErrAuthenticationTimeout`.
 - `internal/calendar/cache_test.go` — upsert, load/save, dirty tracking, filter online/campus, BrightSpace exclusion, deterministic output, event retention, idempotency.
+- `internal/calendar/alerts_test.go` — alert rendering in ICS output.
+- `internal/calendar/persistence_test.go` — atomic write, ICS round-trip parsing.
 - `internal/peoplesoft/parser_test.go` — HTML parsing for the list endpoint layout, time parsing, date computation.
 - `internal/totp/totp_test.go` — TOTP generation determinism and time-window behavior.
 - `internal/config/validate_test.go` — config validation.
+- `internal/smartmerge/smartmerge_test.go` — module matching, time overlap, location conditions, Zoom extraction.
+- `internal/brightspace/` — filter, dedup, recurrence, quiz removal, timestamp tests.
+- `internal/server/middleware_test.go`, `handlers_test.go` — HTTP middleware and handler tests.
 - Browser integration and E2E tests are excluded (require Chromium / staging ADFS).
 
 ## CI/CD
-- **CI** (`.github/workflows/ci.yaml`): External PR gate (requires `ci-approved` label or collaborator), `go vet`, `go test -v -count=1 -race ./...`, cross-arch build (linux/amd64 + linux/arm64), debug Docker image push to GHCR.
+- **CI** (`.github/workflows/ci.yaml`): External PR gate (requires `ci-approved` label or collaborator), `go vet`, `go test -v -count=1 -race ./...`, cross-arch build (linux/amd64 + linux/arm64 with `-ldflags="-s -w"` + `CGO_ENABLED="0"`), debug Docker image push to GHCR.
 - **Release** (`.github/workflows/release.yaml`): Semver tag gate, builds 5 platforms (windows/amd64, linux/amd64, linux/arm64, darwin/amd64, darwin/arm64), generates SBOM (spdx-json), creates GitHub Release, builds+pushes production Docker image, signs with Cosign.
 
 ## ADRs
@@ -198,4 +234,7 @@ All decisions in `docs/adr/`. Index with status in `docs/adr/README.md`.
 - 0013: BrightSpace D2L event integration
 - 0014: xsite ICS HTTP endpoints (5 endpoints)
 - 0015: Codebase restructuring for production readiness
+- 0016: Secure domain validation for cookie and redirect filtering
+- 0017: xsite rebranding (BrightSpace → Xsite user-facing names)
+- 0018: JSON request logging and trusted proxy support
 - 0019: Interactive credential retry on desktop when authentication fails with invalid credentials or TOTP error
