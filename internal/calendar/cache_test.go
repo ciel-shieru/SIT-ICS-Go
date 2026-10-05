@@ -1068,6 +1068,54 @@ func TestParseICS_XPropertySpecialCharacters(t *testing.T) {
 	}
 }
 
+func TestICSCacheGetEventsReturnsSortedCopy(t *testing.T) {
+	cache := NewICSCache()
+	events := []Event{
+		{
+			Summary:   "Later Event",
+			Location:  "Room 102",
+			DTStart:   time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:     time.Date(2026, 9, 8, 11, 0, 0, 0, time.UTC),
+		},
+		{
+			Summary:   "Earlier Event",
+			Location:  "Room 101",
+			DTStart:   time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:     time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+		},
+	}
+
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	got := cache.GetEvents()
+	if len(got) != 2 {
+		t.Fatalf("GetEvents() returned %d events, want 2", len(got))
+	}
+	if got[0].Summary != "Earlier Event" {
+		t.Errorf("GetEvents()[0].Summary = %q, want %q (sorted by DTStart)", got[0].Summary, "Earlier Event")
+	}
+	if got[1].Summary != "Later Event" {
+		t.Errorf("GetEvents()[1].Summary = %q, want %q (sorted by DTStart)", got[1].Summary, "Later Event")
+	}
+
+	got[0].Summary = "mutated"
+	got[0].UID = "mutated"
+	again := cache.GetEvents()
+	if again[0].Summary != "Earlier Event" {
+		t.Errorf("GetEvents() returned a shared slice, not a copy: cache mutated by caller (Summary = %q)", again[0].Summary)
+	}
+}
+
+func TestICSCacheGetEventsEmpty(t *testing.T) {
+	cache := NewICSCache()
+	got := cache.GetEvents()
+	if len(got) != 0 {
+		t.Errorf("GetEvents() on empty cache returned %d events, want 0", len(got))
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
 }

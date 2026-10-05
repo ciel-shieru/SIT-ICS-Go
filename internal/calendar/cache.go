@@ -172,6 +172,18 @@ func (c *ICSCache) EventCount() int {
 	return len(c.events)
 }
 
+// GetEvents returns a deterministic copy of all cached events, sorted by
+// DTStart, then Location, then UID. The returned slice is safe to modify.
+func (c *ICSCache) GetEvents() []Event {
+	c.mu.RLock()
+	events := make([]Event, len(c.events))
+	copy(events, c.events)
+	c.mu.RUnlock()
+
+	sortEvents(events)
+	return events
+}
+
 // RemoveWhere removes events matching the predicate and returns the count removed.
 // This is an explicit deletion operation, distinct from merge retention semantics.
 func (c *ICSCache) RemoveWhere(predicate func(Event) bool) int {
