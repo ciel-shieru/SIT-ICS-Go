@@ -119,6 +119,7 @@ All via env vars with CLI flag override (flags take priority):
 | `BROWSER_MAX_RETRIES` | 3 | Max retries for browser auth attempts |
 | `BROWSER_HEADLESS` | true | Headless mode |
 | `BROWSER_DEBUG` | false | Enable debug logging for browser actions |
+| `BROWSER_ALLOWED_HOSTS` | — | Comma-separated domain suffixes added to the built-in browser request whitelist (which always includes `singaporetech.edu.sg` and the Microsoft Entra ID login-flow domains) |
 | `PROXY_URL` | — | SOCKS5 proxy URL |
 | `ICS_REFRESH_INTERVAL` | 1h | ICS REFRESH-INTERVAL property (RFC 7986 DURATION) |
 | `XSITE_ENABLED` | true | Enable xsite D2L extraction (opt-out) |
@@ -155,6 +156,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Cookie extraction** — extracts cookies from `*.singaporetech.edu.sg` domains. Tries current page first, falls back to `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.
 - **Browser-based fetch** — `fetchTimetable()` navigates to `SSR_SSENRL_LIST.GBL`, waits for stable, extracts full HTML via `page.HTML()`. Returns all scheduled classes in one response (ADR-0012).
 - **Browser lifecycle** — browser stays open after `Authenticate()` for `FetchTimetable()` and `FetchBrightSpace()`. Always call `browser.Close()` on shutdown.
+- **Browser egress control** — every request made by the automated browser is intercepted (go-rod per-page `HijackRequests`) and aborted unless its host matches the domain-suffix whitelist (ADR-0021). `BROWSER_ALLOWED_HOSTS` is additive; the built-in default can never be disabled.
 - **7 ICS output files** — main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite. `IsCampus` excludes BrightSpace events (ADR-0013).
 - **Server endpoints** — 7 HTTP handlers match the 7 output files (ADR-0014).
 - **Server bind address**: Desktop builds (`!container`) default to `127.0.0.1` (loopback only). Container builds (`container`) default to `0.0.0.0` (all interfaces). Override via `SERVER_ADDR` env var or `--server-addr` CLI flag.
