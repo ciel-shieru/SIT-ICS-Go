@@ -18,6 +18,7 @@ type LocalBrowser struct {
 	browser       *rod.Browser
 	incognito     *rod.Browser
 	page          *rod.Page
+	hijackRouter  *rod.HijackRouter
 	browserCancel context.CancelFunc
 }
 
@@ -80,7 +81,7 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 		incognito = b.browser
 	}
 
-	page, err := AuthenticateADFS(authCtx, incognito, req, true, b.cfg, isAllowedOrigin)
+	page, router, err := AuthenticateADFS(authCtx, incognito, req, true, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
 		browserCancel()
@@ -88,6 +89,7 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 		return AuthResult{}, err
 	}
 	b.page = page
+	b.hijackRouter = router
 
 	return AuthResult{
 		RedirectURL: getPageURL(ctx, page, b.cfg),
@@ -131,6 +133,10 @@ func (b *LocalBrowser) FetchQuizSubmissionPage(ctx context.Context, quizURL stri
 }
 
 func (b *LocalBrowser) Close() {
+	if b.hijackRouter != nil {
+		safeRod(func() { b.hijackRouter.Stop() })
+		b.hijackRouter = nil
+	}
 	if b.incognito != nil {
 		safeRod(func() {
 			b.incognito.Close()
