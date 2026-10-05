@@ -109,56 +109,56 @@ jobs:
           retention-days: 30
 
   # ── Generate SBOM for each binary ──
-  generate-sbom:
-    name: SBOM (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    needs: [gate-semver, build-binaries]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: windows-amd64
-            os: windows-latest
-            goos: windows
-            goarch: amd64
-            ext: .exe
-          - name: linux-amd64
-            os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            ext: ""
-          - name: linux-arm64
-            os: ubuntu-26.04-arm
-            goos: linux
-            goarch: arm64
-            ext: ""
-          - name: darwin-amd64
-            os: macos-26-intel
-            goos: darwin
-            goarch: amd64
-            ext: ""
-          - name: darwin-arm64
-            os: macos-latest
-            goos: darwin
-            goarch: arm64
-            ext: ""
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          path: .
-          format: spdx-json
-          output-file: sit-ics-${{ matrix.name }}.spdx.json
-
-      - name: Upload SBOM artifact (${{ matrix.name }})
-        uses: actions/upload-artifact@v4
-        with:
-          name: sit-ics-sbom-${{ matrix.name }}
-          path: sit-ics-${{ matrix.name }}.spdx.json
-          retention-days: 30
+  # generate-sbom:
+  #   name: SBOM (${{ matrix.name }})
+  #   runs-on: ${{ matrix.os }}
+  #   needs: [gate-semver, build-binaries]
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - name: windows-amd64
+  #           os: windows-latest
+  #           goos: windows
+  #           goarch: amd64
+  #           ext: .exe
+  #         - name: linux-amd64
+  #           os: ubuntu-latest
+  #           goos: linux
+  #           goarch: amd64
+  #           ext: ""
+  #         - name: linux-arm64
+  #           os: ubuntu-26.04-arm
+  #           goos: linux
+  #           goarch: arm64
+  #           ext: ""
+  #         - name: darwin-amd64
+  #           os: macos-26-intel
+  #           goos: darwin
+  #           goarch: amd64
+  #           ext: ""
+  #         - name: darwin-arm64
+  #           os: macos-latest
+  #           goos: darwin
+  #           goarch: arm64
+  #           ext: ""
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Generate SBOM
+  #       uses: anchore/sbom-action@v0
+  #       with:
+  #         path: .
+  #         format: spdx-json
+  #         output-file: sit-ics-${{ matrix.name }}.spdx.json
+  #
+  #     - name: Upload SBOM artifact (${{ matrix.name }})
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: sit-ics-sbom-${{ matrix.name }}
+  #         path: sit-ics-${{ matrix.name }}.spdx.json
+  #         retention-days: 30
 
   # ── Create GitHub Release ──
   create-release:
