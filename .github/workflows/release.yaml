@@ -164,7 +164,7 @@ jobs:
   create-release:
     name: Create release
     runs-on: ubuntu-latest
-    needs: [gate-semver, build-binaries, generate-sbom]
+    needs: [gate-semver, build-binaries]
     permissions:
       contents: write
     steps:
