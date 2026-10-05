@@ -29,6 +29,7 @@ type Config struct {
 	BrowserDebug                      bool          `env:"BROWSER_DEBUG" envDefault:"false"`
 	BrowserRetryInterval              time.Duration `env:"BROWSER_RETRY_INTERVAL" envDefault:"5s"`
 	BrowserMaxRetries                 int           `env:"BROWSER_MAX_RETRIES" envDefault:"3"`
+	BrowserAllowedHosts               string        `env:"BROWSER_ALLOWED_HOSTS" envDefault:""`
 	ProxyURL                          string        `env:"PROXY_URL" envDefault:""`
 	ICSRefreshInterval                time.Duration `env:"ICS_REFRESH_INTERVAL" envDefault:"1h"`
 	XsiteEnabled                       bool          `env:"XSITE_ENABLED" envDefault:"true"`

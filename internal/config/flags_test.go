@@ -58,3 +58,34 @@ func TestOverrideCredentialsFlagExists(t *testing.T) {
 		t.Error("OverrideCredentials should be true when --override-credentials is passed")
 	}
 }
+
+func TestApplyFlags_BrowserAllowedHosts(t *testing.T) {
+	t.Run("flag_sets_field", func(t *testing.T) {
+		os.Args = []string{"test", "--browser-allowed-hosts", "example.com, cdn.example.org"}
+		cfg := &Config{BrowserMode: BrowserAuto, TZ: "Asia/Singapore", ServerPort: 42748}
+		if err := applyFlags(cfg); err != nil {
+			t.Fatalf("applyFlags: %v", err)
+		}
+		os.Args = []string{"test"}
+		if cfg.BrowserAllowedHosts != "example.com, cdn.example.org" {
+			t.Errorf("BrowserAllowedHosts = %q, want %q", cfg.BrowserAllowedHosts, "example.com, cdn.example.org")
+		}
+	})
+
+	t.Run("unchanged_flag_leaves_env_value", func(t *testing.T) {
+		os.Args = []string{"test"}
+		cfg := &Config{
+			BrowserMode:         BrowserAuto,
+			TZ:                  "Asia/Singapore",
+			ServerPort:          42748,
+			BrowserAllowedHosts: "envvalue.com",
+		}
+		if err := applyFlags(cfg); err != nil {
+			t.Fatalf("applyFlags: %v", err)
+		}
+		os.Args = []string{"test"}
+		if cfg.BrowserAllowedHosts != "envvalue.com" {
+			t.Errorf("BrowserAllowedHosts = %q, want %q (unchanged flag should leave env value)", cfg.BrowserAllowedHosts, "envvalue.com")
+		}
+	})
+}
