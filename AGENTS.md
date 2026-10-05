@@ -51,7 +51,7 @@ internal/calendar/               # RFC 5545 writer + in-memory cache with disk u
   projection.go  # IsOnline, IsNotOnline, IsCampus (excludes BrightSpace), filterEvents
 
 internal/server/                 # stdlib net/http, 7 ICS endpoints
-  server.go    # NewServer() — registers /timetable.ics, /timetable-online.ics, /timetable-campus.ics, /xsite-events.ics, /xsite-dropbox.ics, /xsite-quizzes.ics, /xsite.ics
+  server.go    # NewServer() — registers /timetable.ics, /timetable-online.ics, /timetable-campus.ics, /xsite-events.ics, /xsite-dropbox.ics, /xsite-quizzes.ics, /xsite.ics, /wakey-sitizen/timetable.json
   handlers.go  # newFilteredHandler() — nil filter = all events
 
 internal/scheduler/              # robfig/cron/v3 with configured TZ
@@ -156,7 +156,8 @@ All via env vars with CLI flag override (flags take priority):
 - **Browser-based fetch** — `fetchTimetable()` navigates to `SSR_SSENRL_LIST.GBL`, waits for stable, extracts full HTML via `page.HTML()`. Returns all scheduled classes in one response (ADR-0012).
 - **Browser lifecycle** — browser stays open after `Authenticate()` for `FetchTimetable()` and `FetchBrightSpace()`. Always call `browser.Close()` on shutdown.
 - **7 ICS output files** — main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite. `IsCampus` excludes BrightSpace events (ADR-0013).
-- **Server endpoints** — 7 HTTP handlers match the 7 output files (ADR-0014).
+- **Server endpoints** — 8 HTTP handlers: 7 ICS handlers matching the 7 output files (ADR-0014) + `/wakey-sitizen/timetable.json` (ADR-0021).
+- **Wakey-SITizen JSON endpoint** (ADR-0021) — `GET /wakey-sitizen/timetable.json` serves the timetable as JSON for the companion mobile app. Excludes `brightspace-*` sources; `event_type` is `"online"` (case-insensitive `Online` location) else `"campus"`; timestamps are RFC 3339 in `TZ` (e.g. `+08:00`); `schema_version` starts at 1 (bump on schema change); `generated_at` is the cache last-modified time; always 200 OK — empty result is `"events":[]`, never 204.
 - **Server bind address**: Desktop builds (`!container`) default to `127.0.0.1` (loopback only). Container builds (`container`) default to `0.0.0.0` (all interfaces). Override via `SERVER_ADDR` env var or `--server-addr` CLI flag.
 - **Smart merge** — when enabled (`XSITE_SMART_MERGE_ENABLED=true`), BrightSpace events with matching module code, overlapping time, and "Online"/"TBD" PS location + "Zoom Online Meeting" BS location are merged into PeopleSoft events. Zoom meeting details (link, meeting ID, passcode) are extracted from BrightSpace HTML description and appended to PS event description. Matched BrightSpace calendar events are removed from cache (not retained by upsert).
 - **Quiz attempt tracking** — when enabled (`XSITE_QUIZ_ATTEMPT_TRACKING_ENABLED=true`), fetches each quiz's submission page, parses attempt count and best score, removes quizzes that are fully attempted (reached max attempts or unlimited with a completed attempt).
@@ -210,7 +211,7 @@ When data is needed for tests, configuration examples, or documentation, use **f
 - `internal/config/validate_test.go` — config validation.
 - `internal/smartmerge/smartmerge_test.go` — module matching, time overlap, location conditions, Zoom extraction.
 - `internal/brightspace/` — filter, dedup, recurrence, quiz removal, timestamp tests.
-- `internal/server/middleware_test.go`, `handlers_test.go` — HTTP middleware and handler tests.
+- `internal/server/middleware_test.go`, `handlers_test.go`, `wakey_test.go` — HTTP middleware, handler, and Wakey-SITizen JSON endpoint tests.
 - Browser integration and E2E tests are excluded (require Chromium / staging ADFS).
 
 ## CI/CD
@@ -238,3 +239,5 @@ All decisions in `docs/adr/`. Index with status in `docs/adr/README.md`.
 - 0017: xsite rebranding (BrightSpace → Xsite user-facing names)
 - 0018: JSON request logging and trusted proxy support
 - 0019: Interactive credential retry on desktop when authentication fails with invalid credentials or TOTP error
+- 0020: Resilient fetch — BrightSpace still runs when PeopleSoft fetch fails
+- 0021: Wakey-SITizen JSON timetable endpoint for the companion mobile app
