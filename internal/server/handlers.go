@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -79,6 +80,113 @@ func newXsiteHandler(cache *calendar.ICSCache, tz string, refreshInterval time.D
 			}
 			w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", int(refreshInterval.Seconds())))
 		}
+		w.Write(data)
+	}
+}
+
+// wakeySchemaVersion is the JSON schema version served by the
+// /wakey-sitizen/timetable.json endpoint. Bump when the schema changes;
+// the client app validates it before deserializing.
+const wakeySchemaVersion = 1
+
+// WakeyResponse is the JSON payload served to the Wakey-SITizen companion app.
+type WakeyResponse struct {
+	SchemaVersion int          `json:"schema_version"`
+	GeneratedAt   time.Time    `json:"generated_at"`
+	Timezone      string       `json:"timezone"`
+	Events        []WakeyEvent `json:"events"`
+}
+
+// WakeyEvent is a single timetable entry in the Wakey-SITizen JSON payload.
+type WakeyEvent struct {
+	CourseCode string `json:"course_code"`
+	Title      string `json:"title"`
+	Summary    string `json:"summary"`
+	Dtstart    string `json:"dtstart"`
+	Dtend      string `json:"dtend"`
+	Location   string `json:"location"`
+	EventType  string `json:"event_type"`
+}
+
+// newWakeySitizenHandler serves the timetable as JSON for the Wakey-SITizen
+// companion app. Events sourced from BrightSpace (Source prefix "brightspace-")
+// are excluded. Always returns 200 OK, including for an empty result set.
+func newWakeySitizenHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, disableCaching bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		loc, err := time.LoadLocation(tz)
+		if err != nil {
+			loc = time.UTC
+		}
+
+		wakeyEvents := make([]WakeyEvent, 0)
+		for _, e := range cache.GetEvents() {
+			if strings.HasPrefix(e.Source, "brightspace-") {
+				continue
+			}
+			eventType := "campus"
+			if strings.EqualFold(e.Location, "Online") {
+				eventType = "online"
+			}
+			wakeyEvents = append(wakeyEvents, WakeyEvent{
+				CourseCode: e.CourseCode,
+				Title:      e.Title,
+				Summary:    e.Summary,
+				Dtstart:    e.DTStart.In(loc).Format(time.RFC3339),
+				Dtend:      e.DTEnd.In(loc).Format(time.RFC3339),
+				Location:   e.Location,
+				EventType:  eventType,
+			})
+		}
+
+		resp := WakeyResponse{
+			SchemaVersion: wakeySchemaVersion,
+			GeneratedAt:   cache.GetLastModified(),
+			Timezone:      tz,
+			Events:        wakeyEvents,
+		}
+
+		data, err := json.Marshal(resp)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+
+		if disableCaching {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		} else {
+			etag := calendar.ComputeETag(data)
+			lastMod := cache.GetLastModified()
+
+			if inm := r.Header.Get("If-None-Match"); inm != "" {
+				if strings.TrimSpace(inm) == "*" {
+					writeNotModified(w, etag, lastMod, refreshInterval)
+					return
+				}
+				serverETagHash := strings.TrimPrefix(etag, `W/"`)
+				serverETagHash = strings.TrimSuffix(serverETagHash, `"`)
+				if etagMatches(inm, serverETagHash) {
+					writeNotModified(w, etag, lastMod, refreshInterval)
+					return
+				}
+			}
+
+			if ims := r.Header.Get("If-Modified-Since"); ims != "" {
+				if modTime, parseErr := time.Parse(time.RFC1123, ims); parseErr == nil {
+					if !lastMod.IsZero() && !modTime.Add(time.Second).Before(lastMod) {
+						writeNotModified(w, etag, lastMod, refreshInterval)
+						return
+					}
+				}
+			}
+
+			w.Header().Set("ETag", etag)
+			if !lastMod.IsZero() {
+				w.Header().Set("Last-Modified", lastMod.UTC().Format(time.RFC1123))
+			}
+			w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d, immutable", int(refreshInterval.Seconds())))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
 		w.Write(data)
 	}
 }

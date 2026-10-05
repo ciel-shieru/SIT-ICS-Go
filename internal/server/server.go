@@ -52,6 +52,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/xsite-dropbox.ics", newXsiteDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts, s.disableCaching))
 	mux.HandleFunc("/xsite-quizzes.ics", newXsiteQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts, s.disableCaching))
 	mux.HandleFunc("/xsite.ics", newXsiteHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts, s.bsDropboxAlerts, s.bsQuizzesAlerts, s.disableCaching))
+	mux.HandleFunc("/wakey-sitizen/timetable.json", newWakeySitizenHandler(s.cache, s.tz, s.refreshInterval, s.disableCaching))
 
 	handler, err := NewLoggingMiddleware(mux, s.trustedProxies)
 	if err != nil {
