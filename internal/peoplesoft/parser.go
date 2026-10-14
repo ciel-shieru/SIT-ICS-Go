@@ -175,7 +175,7 @@ func findCourseHeader(row *html.Node, courseCode, className *string) {
 		if n.Type == html.ElementNode && n.Data == "td" {
 			hasClass := false
 			for _, a := range n.Attr {
-				if a.Key == "class" && a.Val == "PAGROUPDIVIDER" {
+				if a.Key == "class" && strings.Contains(a.Val, "PAGROUPDIVIDER") {
 					hasClass = true
 					break
 				}

@@ -92,6 +92,7 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 			icsEvents = append(icsEvents, calendar.Event{
 				CourseCode:  entry.CourseCode,
 				Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
+				Title:       entry.ClassName,
 				Location:    entry.Location,
 				Description: fmt.Sprintf("Course: %s\nClass: %s\nSection: %s\nType: %s", entry.CourseCode, entry.ClassName, entry.Section, entry.Type),
 				DTStart:     dtStart,
