@@ -11,6 +11,22 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
+type termPage interface {
+	Context(ctx context.Context) termPage
+	Element(selector string) (*rod.Element, error)
+	Elements(selector string) (rod.Elements, error)
+	WaitStable(timeout time.Duration) error
+	Wait(fn *rod.EvalOptions) error
+}
+
+type pageAdapter struct {
+	*rod.Page
+}
+
+func (a *pageAdapter) Context(ctx context.Context) termPage {
+	return &pageAdapter{a.Page.Context(ctx)}
+}
+
 func getPageURL(ctx context.Context, page *rod.Page, cfg BrowserConfig) string {
 	var url string
 	_ = Do(ctx, func() error {
@@ -73,7 +89,7 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 		}
 	}
 
-	if err := handleTermSelection(fetchCtx, page, cfg); err != nil {
+	if err := handleTermSelection(fetchCtx, &pageAdapter{page}, cfg); err != nil {
 		return "", fmt.Errorf("handle term selection: %w", err)
 	}
 
@@ -92,7 +108,7 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 	}
 }
 
-func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig) error {
+func handleTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) error {
 	debug(cfg, "checking for term selection screen")
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("term selection context already expired: %w", err)
@@ -103,6 +119,32 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 	termCtx, termCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer termCancel()
 	termPage := page.Context(termCtx)
+
+	return handleTermSelectionWithPage(ctx, page, termCtx, termPage, cfg)
+}
+
+func handleTermSelectionWithPage(ctx context.Context, page termPage, termCtx context.Context, termPage termPage, cfg BrowserConfig) error {
+	var changeTermEl *rod.Element
+	if err := Do(termCtx, func() error {
+		var err error
+		changeTermEl, err = termPage.Element("input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval); err == nil {
+		debug(cfg, "clicking change term button")
+		if err := Do(termCtx, func() error {
+			return clickElement(changeTermEl)
+		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+			debug(cfg, "failed to click change term button: %v", err)
+		}
+
+		debug(cfg, "waiting for term selection screen to load after clicking change term")
+		if err := Do(termCtx, func() error {
+			_, err := termPage.Element("input.PSRADIOBUTTON")
+			return err
+		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+			debug(cfg, "term selection radio button not found after change term click: %v", err)
+		}
+	}
 
 	if err := Do(termCtx, func() error {
 		_, err := termPage.Element("input.PSRADIOBUTTON")
@@ -130,7 +172,7 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 	lastRadio := radioButtons[len(radioButtons)-1]
 	debug(cfg, "selecting last radio button (index %d of %d)", len(radioButtons)-1, len(radioButtons))
 	if err := Do(termCtx, func() error {
-		return lastRadio.Click(proto.InputMouseButtonLeft, 1)
+		return clickElement(lastRadio)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("click term selection radio button: %w", err)
 	}
@@ -146,7 +188,7 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 
 	debug(cfg, "clicking continue button")
 	if err := Do(ctx, func() error {
-		return continueEl.Click(proto.InputMouseButtonLeft, 1)
+		return clickElement(continueEl)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("click continue button: %w", err)
 	}
@@ -175,6 +217,11 @@ func handleTermSelection(ctx context.Context, page *rod.Page, cfg BrowserConfig)
 
 	debug(cfg, "term selection handled successfully")
 	return nil
+}
+
+func clickElement(el *rod.Element) error {
+	defer func() { recover() }()
+	return el.Click(proto.InputMouseButtonLeft, 1)
 }
 
 func extractPageText(ctx context.Context, page *rod.Page, maxRetries int, interval time.Duration) (result string, err error) {
