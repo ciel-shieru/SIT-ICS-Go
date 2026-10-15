@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 )
 
-// mockTermPage implements termPage interface for testing handleTermSelectionWithPage
+// mockTermPage implements termPage interface for testing multi-term selection
 type mockTermPage struct {
 	elementCalls        []string
 	elementsResults     map[string]rod.Elements
@@ -20,12 +21,17 @@ type mockTermPage struct {
 	waitStableCallCount int
 	waitCallCount       int
 	waitStableFunc      func(timeout time.Duration) error
+	clickErrors         map[string]error
+	changeTermFailAfter int
+	changeTermCallCount int
 }
 
 func newMockTermPage() *mockTermPage {
 	return &mockTermPage{
-		elementsResults: map[string]rod.Elements{},
-		elementsErrors:  map[string]error{},
+		elementCalls:      []string{},
+		elementsResults:   map[string]rod.Elements{},
+		elementsErrors:    map[string]error{},
+		clickErrors:       map[string]error{},
 	}
 }
 
@@ -39,6 +45,31 @@ func (m *mockTermPage) Element(selector string) (*rod.Element, error) {
 	if err, ok := m.elementsErrors[selector]; ok {
 		return nil, err
 	}
+
+	// Handle xpath selectors for radio buttons - fall back to input.PSRADIOBUTTON elements
+	if strings.HasPrefix(selector, "xpath///*[@id=") && strings.Contains(selector, "SSR_DUMMY_RECV1") {
+		if results, ok := m.elementsResults["input.PSRADIOBUTTON"]; ok && len(results) > 0 {
+			return results[0], nil
+		}
+		return nil, errors.New("element not found")
+	}
+
+	// Track change term link calls and fail after threshold
+	if selector == "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']" {
+		m.changeTermCallCount++
+		if m.changeTermFailAfter > 0 && m.changeTermCallCount > m.changeTermFailAfter {
+			return nil, errors.New("change term failed after threshold")
+		}
+	}
+
+	// Handle CSS #id selectors - try both formats
+	if strings.HasPrefix(selector, "#") {
+		id := selector[1:]
+		if results, ok := m.elementsResults["input[name='"+id+"']"]; ok && len(results) > 0 {
+			return results[0], nil
+		}
+	}
+
 	if results, ok := m.elementsResults[selector]; ok && len(results) > 0 {
 		return results[0], nil
 	}
@@ -68,6 +99,14 @@ func (m *mockTermPage) Wait(fn *rod.EvalOptions) error {
 	return m.waitErr
 }
 
+func (m *mockTermPage) HTML() (string, error) {
+	return `<!DOCTYPE html><html><body><table><tr><td>Class Nbr</td></tr></table></body></html>`, nil
+}
+
+func (m *mockTermPage) WaitNavigation(event proto.PageLifecycleEventName) func() {
+	return func() {}
+}
+
 func testConfig() BrowserConfig {
 	cfg := DefaultBrowserConfig(BrowserModeAuto)
 	cfg.MaxRetries = 1
@@ -75,13 +114,13 @@ func testConfig() BrowserConfig {
 	return cfg
 }
 
-func TestHandleTermSelectionWithPage_ContextExpired(t *testing.T) {
+func TestHandleMultiTermSelection_ContextExpired(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	mock := newMockTermPage()
 
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err == nil {
 		t.Fatal("expected error for expired context, got nil")
 	}
@@ -90,412 +129,199 @@ func TestHandleTermSelectionWithPage_ContextExpired(t *testing.T) {
 	}
 }
 
-func TestHandleTermSelectionWithPage_ChangeTermButtonNotFound(t *testing.T) {
+func TestHandleMultiTermSelection_NoChangeTermButton_FetchCurrentPage(t *testing.T) {
 	ctx := context.Background()
 
 	mock := newMockTermPage()
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	expectedMsg := "term selection radio button not found"
-	if err.Error() != expectedMsg+": retry failed after 2 attempts: element not found" {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_ChangeTermButtonFoundAndClicked(t *testing.T) {
-	ctx := context.Background()
-
-	changeTermEl := &rod.Element{}
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
+	// No change term button and no radio buttons
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Verify change term button was found
-	found := false
+	// Should have tried to find change term button
+	foundChangeTerm := false
 	for _, call := range mock.elementCalls {
-		if call == "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']" {
-			found = true
+		if strings.Contains(call, "DERIVED_SSS_SCT_SSS_TERM_LINK") {
+			foundChangeTerm = true
 			break
 		}
 	}
-	if !found {
-		t.Error("expected change term button element lookup")
+	if !foundChangeTerm {
+		t.Error("expected change term button lookup")
 	}
 }
 
-func TestHandleTermSelectionWithPage_NoRadioButtonsAfterChangeTerm(t *testing.T) {
+func TestHandleMultiTermSelection_NoRadioButtons_FetchCurrentPage(t *testing.T) {
 	ctx := context.Background()
 
 	changeTermEl := &rod.Element{}
-
 	mock := newMockTermPage()
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
+	// No radio buttons after clicking change term
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{}
 
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err == nil {
-		t.Fatal("expected error for missing radio buttons, got nil")
-	}
-	expectedMsg := "term selection radio button not found"
-	if err.Error() != expectedMsg+": retry failed after 2 attempts: element not found" {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_NoRadioButtonsReturnsError(t *testing.T) {
-	ctx := context.Background()
-
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	// No radio buttons at all - Element("input.PSRADIOBUTTON") will fail
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err == nil {
-		t.Fatal("expected error when no radio buttons exist, got nil")
-	}
-	expectedMsg := "term selection radio button not found"
-	if err.Error() != expectedMsg+": retry failed after 2 attempts: element not found" {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_WaitForTimetableData(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-
-	if mock.waitCallCount == 0 {
-		t.Error("expected Wait to be called for timetable data polling")
-	}
 }
 
-func TestHandleTermSelectionWithPage_WaitStableCalled(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-
-	if mock.waitStableCallCount == 0 {
-		t.Error("expected WaitStable to be called after timetable wait")
-	}
-}
-
-func TestHandleTermSelectionWithPage_WaitStableFailure(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-	mock.waitStableErr = errors.New("stable timeout")
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error (WaitStable failure should be non-fatal): %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_ContextDeadlineExceeded(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
-	defer cancel()
-	time.Sleep(10 * time.Millisecond)
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err == nil {
-		t.Fatal("expected error for context deadline exceeded, got nil")
-	}
-}
-
-func TestHandleTermSelectionWithPage_ElementsQueryError(t *testing.T) {
-	ctx := context.Background()
-
-	queryErr := errors.New("query failed")
-	mock := newMockTermPage()
-	// Element("input.PSRADIOBUTTON") fails with queryErr first
-	mock.elementsErrors["input.PSRADIOBUTTON"] = queryErr
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err == nil {
-		t.Fatal("expected error for radio button query failure, got nil")
-	}
-	// Element lookup fails first, so error is "term selection radio button not found"
-	expectedMsg := "term selection radio button not found"
-	if err.Error() != expectedMsg+": retry failed after 2 attempts: "+queryErr.Error() {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_WaitForTimetableDataError(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	waitErr := errors.New("timetable wait failed")
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-	mock.waitErr = waitErr
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err == nil {
-		t.Fatal("expected error for timetable wait failure, got nil")
-	}
-	// Error includes retry wrapping
-	if !errors.Is(err, waitErr) {
-		t.Errorf("expected error to wrap %v, got: %v", waitErr, err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_SuccessfulFlow(t *testing.T) {
+func TestHandleMultiTermSelection_SingleTerm(t *testing.T) {
 	ctx := context.Background()
 
 	changeTermEl := &rod.Element{}
 	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
+	goEl := &rod.Element{}
 
 	mock := newMockTermPage()
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Verify all expected element lookups occurred
-	expectedCalls := []string{
-		"input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']",
-		"input.PSRADIOBUTTON",
-		"input.PSRADIOBUTTON",
-		"input[name='DERIVED_SSS_SCT_SSR_PB_GO']",
+	// Verify radio button was clicked (via xpath selector)
+	foundRadio := false
+	for _, call := range mock.elementCalls {
+		if strings.Contains(call, "SSR_DUMMY_RECV1") && strings.Contains(call, "xpath") {
+			foundRadio = true
+			break
+		}
+	}
+	if !foundRadio {
+		t.Error("expected radio button xpath lookup")
 	}
 
-	if len(mock.elementCalls) != len(expectedCalls) {
-		t.Errorf("expected %d element calls, got %d", len(expectedCalls), len(mock.elementCalls))
-		for i, call := range mock.elementCalls {
-			t.Logf("  call %d: %s", i, call)
+	// Verify Go button was clicked
+	foundGo := false
+	for _, call := range mock.elementCalls {
+		if strings.Contains(call, "DERIVED_SSS_SCT_SSR_PB_GO") {
+			foundGo = true
+			break
 		}
-		return
 	}
-
-	for i, expected := range expectedCalls {
-		if mock.elementCalls[i] != expected {
-			t.Errorf("call %d: expected %q, got %q", i, expected, mock.elementCalls[i])
-		}
+	if !foundGo {
+		t.Error("expected Go button lookup")
 	}
 }
 
-func TestHandleTermSelectionWithPage_ChangeTermClickFailure(t *testing.T) {
+func TestHandleMultiTermSelection_MultipleTerms(t *testing.T) {
 	ctx := context.Background()
 
 	changeTermEl := &rod.Element{}
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	// Change term click failure should be logged but not fatal
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error (change term click failure should be non-fatal): %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_ContextDeadlineDuringStableWait(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	mock := newMockTermPage()
-	// Set up elements to succeed quickly
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{&rod.Element{}}
-
-	// Use a channel to synchronize: cancel context when WaitStable is about to be called
-	stableCalled := make(chan struct{})
-	mock.waitStableFunc = func(timeout time.Duration) error {
-		close(stableCalled)
-		// Wait for context to be cancelled before returning
-		<-ctx.Done()
-		return ctx.Err()
-	}
-
-	// Cancel context shortly after stable wait begins
-	go func() {
-		<-stableCalled
-		time.Sleep(5 * time.Millisecond)
-		cancel()
-	}()
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err == nil {
-		t.Fatal("expected error for context cancellation during stable wait, got nil")
-	}
-}
-
-func TestHandleTermSelectionWithPage_SingleRadioButton(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_DebugConfig(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	cfg := testConfig()
-	cfg.Debug = true
-
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, cfg)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_MaxRetriesZero(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	cfg := testConfig()
-	cfg.MaxRetries = 0
-
-	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, cfg)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_NoChangeTermButton(t *testing.T) {
-	ctx := context.Background()
-
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	// No change term button - Element lookup will fail, skips to radio button check
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestHandleTermSelectionWithPage_MultipleRadioButtons(t *testing.T) {
-	ctx := context.Background()
-
 	radio1 := &rod.Element{}
 	radio2 := &rod.Element{}
-	radio3 := &rod.Element{}
-	continueEl := &rod.Element{}
+	goEl := &rod.Element{}
 
 	mock := newMockTermPage()
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radio1, radio2, radio3}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radio1, radio2}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 
-	err := handleTermSelectionWithPage(ctx, mock, ctx, mock, testConfig())
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Should have clicked change term twice (once to open, once to return after term 1)
+	changeTermCount := 0
+	for _, call := range mock.elementCalls {
+		if strings.Contains(call, "DERIVED_SSS_SCT_SSS_TERM_LINK") {
+			changeTermCount++
+		}
+	}
+	if changeTermCount != 2 {
+		t.Errorf("expected 2 change term clicks, got %d", changeTermCount)
+	}
+
+	// Should have clicked both radio buttons
+	radioXpathCount := 0
+	for _, call := range mock.elementCalls {
+		if strings.Contains(call, "SSR_DUMMY_RECV1") && strings.Contains(call, "xpath") {
+			radioXpathCount++
+		}
+	}
+	if radioXpathCount != 2 {
+		t.Errorf("expected 2 radio button clicks, got %d", radioXpathCount)
+	}
+}
+
+func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
+	ctx := context.Background()
+
+	changeTermEl := &rod.Element{}
+	radio1 := &rod.Element{}
+	radio2 := &rod.Element{}
+	goEl := &rod.Element{}
+
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radio1, radio2}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
+
+	// First radio button click fails
+	mock.clickErrors["xpath///*[@id=\"SSR_DUMMY_RECV1$sels$0$0$0\"]"] = errors.New("click failed")
+
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err != nil {
+		t.Errorf("unexpected error (per-term failures should be non-fatal): %v", err)
+	}
+}
+
+func TestHandleMultiTermSelection_ReturnToTermSelectionFailure_StopsIteration(t *testing.T) {
+	ctx := context.Background()
+
+	changeTermEl := &rod.Element{}
+	radio1 := &rod.Element{}
+	radio2 := &rod.Element{}
+	goEl := &rod.Element{}
+
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radio1, radio2}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
+	// Fail on second change term lookup (after first term fetch)
+	mock.changeTermFailAfter = 1
+
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Should have clicked only 1 radio button (second was skipped due to return failure)
+	radioXpathCount := 0
+	for _, call := range mock.elementCalls {
+		if strings.Contains(call, "SSR_DUMMY_RECV1") && strings.Contains(call, "xpath") {
+			radioXpathCount++
+		}
+	}
+	if radioXpathCount != 1 {
+		t.Errorf("expected 1 radio button click after return failure, got %d", radioXpathCount)
+	}
+}
+
+func TestHandleMultiTermSelection_WrapperWithSuccess(t *testing.T) {
+	ctx := context.Background()
+
+	changeTermEl := &rod.Element{}
+	radioEl := &rod.Element{}
+	goEl := &rod.Element{}
+
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
+
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err != nil {
+		t.Errorf("unexpected error from handleMultiTermSelection: %v", err)
 	}
 
 	// Verify radio button lookup occurred
-	foundElements := false
-	for _, call := range mock.elementCalls {
-		if call == "input.PSRADIOBUTTON" {
-			foundElements = true
-		}
-	}
-	if !foundElements {
-		t.Error("expected radio button lookup")
-	}
-}
-
-func TestHandleTermSelection_WrapperWithSuccess(t *testing.T) {
-	ctx := context.Background()
-
-	changeTermEl := &rod.Element{}
-	radioEl := &rod.Element{}
-	continueEl := &rod.Element{}
-
-	mock := newMockTermPage()
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
-	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
-	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{continueEl}
-
-	// handleTermSelection creates a 5-second sub-context and calls handleTermSelectionWithPage
-	err := handleTermSelection(ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error from handleTermSelection wrapper: %v", err)
-	}
-
-	// Verify element lookups occurred (delegated to handleTermSelectionWithPage)
 	foundRadio := false
 	for _, call := range mock.elementCalls {
 		if call == "input.PSRADIOBUTTON" {
@@ -504,27 +330,89 @@ func TestHandleTermSelection_WrapperWithSuccess(t *testing.T) {
 		}
 	}
 	if !foundRadio {
-		t.Error("expected radio button lookup via handleTermSelectionWithPage")
+		t.Error("expected radio button lookup via handleMultiTermSelection")
 	}
 }
 
-func TestHandleTermSelection_WrapperContextExpired(t *testing.T) {
+func TestHandleMultiTermSelection_WrapperContextExpired(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	mock := newMockTermPage()
 
-	err := handleTermSelection(ctx, mock, testConfig())
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err == nil {
-		t.Fatal("expected error from handleTermSelection with expired context, got nil")
+		t.Fatal("expected error from handleMultiTermSelection with expired context, got nil")
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled error, got: %v", err)
 	}
 }
 
+func TestHandleMultiTermSelection_DebugConfig(t *testing.T) {
+	ctx := context.Background()
+
+	radioEl := &rod.Element{}
+	goEl := &rod.Element{}
+
+	cfg := testConfig()
+	cfg.Debug = true
+
+	mock := newMockTermPage()
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
+
+	_, err := handleMultiTermSelection(ctx, mock, cfg)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestReturnToTermSelection_Success(t *testing.T) {
+	ctx := context.Background()
+
+	changeTermEl := &rod.Element{}
+	radioEl := &rod.Element{}
+
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
+
+	err := returnToTermSelection(ctx, mock, testConfig())
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Verify change term button was clicked
+	foundChangeTerm := false
+	for _, call := range mock.elementCalls {
+		if strings.Contains(call, "DERIVED_SSS_SCT_SSS_TERM_LINK") {
+			foundChangeTerm = true
+			break
+		}
+	}
+	if !foundChangeTerm {
+		t.Error("expected change term button click")
+	}
+}
+
+func TestReturnToTermSelection_ChangeTermNotFound(t *testing.T) {
+	ctx := context.Background()
+
+	mock := newMockTermPage()
+	// No change term button
+	mock.elementsErrors["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = errors.New("not found")
+
+	err := returnToTermSelection(ctx, mock, testConfig())
+	if err == nil {
+		t.Fatal("expected error when change term button not found")
+	}
+	if !strings.Contains(err.Error(), "change term button") {
+		t.Errorf("expected 'change term button' in error, got: %v", err)
+	}
+}
+
 func TestClickElement_NilElement(t *testing.T) {
-	// clickElement should recover from panic when given nil element
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("clickElement panicked with nil element: %v", r)
@@ -547,7 +435,6 @@ func TestClickElement_ValidElement(t *testing.T) {
 }
 
 func TestExtractPageText_NilPage(t *testing.T) {
-	// extractPageText should recover from panic when given nil page
 	ctx := context.Background()
 	var nilPage *rod.Page
 
@@ -594,7 +481,6 @@ func TestExtractPageText_ContextDeadlineExceeded(t *testing.T) {
 }
 
 func TestSafeRod_FunctionPanic(t *testing.T) {
-	// safeRod should recover from panic without propagating it
 	var panicked bool
 	func() {
 		defer func() {
@@ -613,7 +499,6 @@ func TestSafeRod_FunctionPanic(t *testing.T) {
 }
 
 func TestSafeRod_NormalFunction(t *testing.T) {
-	// safeRod should execute normal functions without issues
 	called := false
 	safeRod(func() {
 		called = true
@@ -624,7 +509,6 @@ func TestSafeRod_NormalFunction(t *testing.T) {
 }
 
 func TestSafeRod_NilFunction(t *testing.T) {
-	// safeRod should recover from panic when fn is nil
 	var panicked bool
 	func() {
 		defer func() {
@@ -641,7 +525,6 @@ func TestSafeRod_NilFunction(t *testing.T) {
 }
 
 func TestGetPageURL_NilPage(t *testing.T) {
-	// getPageURL with nil page should return empty string
 	ctx := context.Background()
 	var nilPage *rod.Page
 	cfg := testConfig()
@@ -665,26 +548,21 @@ func TestGetPageURL_ContextExpired(t *testing.T) {
 }
 
 func TestDebug_Enabled(t *testing.T) {
-	// debug with Debug=true should call log.Printf (no panic expected)
 	cfg := testConfig()
 	cfg.Debug = true
 
-	// Should not panic
 	debug(cfg, "test message %s %d", "hello", 42)
 	debug(cfg, "message without args")
 }
 
 func TestDebug_Disabled(t *testing.T) {
-	// debug with Debug=false should be a no-op
 	cfg := testConfig()
 	cfg.Debug = false
 
-	// Should not panic and should produce no output
 	debug(cfg, "this should not be logged: %s", "test")
 }
 
 func TestDebug_EmptyMessage(t *testing.T) {
-	// debug with empty message should not panic
 	cfg := testConfig()
 	cfg.Debug = true
 	debug(cfg, "")

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
 	"github.com/ciel-shieru/sit-ics-go/internal/environment"
+	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 )
@@ -94,9 +95,9 @@ func (b *LocalBrowser) Authenticate(ctx context.Context, req AuthRequest) (AuthR
 	}, nil
 }
 
-func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) (string, error) {
+func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
 	if b.browser == nil {
-		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
 	return fetchTimetable(ctx, b.page, b.cfg)
 }

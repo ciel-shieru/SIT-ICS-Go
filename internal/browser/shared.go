@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 )
@@ -17,6 +18,8 @@ type termPage interface {
 	Elements(selector string) (rod.Elements, error)
 	WaitStable(timeout time.Duration) error
 	Wait(fn *rod.EvalOptions) error
+	HTML() (string, error)
+	WaitNavigation(event proto.PageLifecycleEventName) func()
 }
 
 type pageAdapter struct {
@@ -25,6 +28,14 @@ type pageAdapter struct {
 
 func (a *pageAdapter) Context(ctx context.Context) termPage {
 	return &pageAdapter{a.Page.Context(ctx)}
+}
+
+func (a *pageAdapter) HTML() (string, error) {
+	return a.Page.HTML()
+}
+
+func (a *pageAdapter) WaitNavigation(event proto.PageLifecycleEventName) func() {
+	return a.Page.WaitNavigation(event)
 }
 
 func getPageURL(ctx context.Context, page *rod.Page, cfg BrowserConfig) string {
@@ -40,12 +51,12 @@ func getPageURL(ctx context.Context, page *rod.Page, cfg BrowserConfig) string {
 	return url
 }
 
-func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (string, error) {
+func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
 	if page == nil {
-		return "", fmt.Errorf("no active page: authenticate first")
+		return nil, fmt.Errorf("no active page: authenticate first")
 	}
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("timetable fetch context already expired: %w", err)
+		return nil, fmt.Errorf("timetable fetch context already expired: %w", err)
 	}
 
 	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
@@ -60,7 +71,7 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 	if err := Do(fetchCtx, func() error {
 		return page.Navigate(timetableURL)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return "", fmt.Errorf("navigate to timetable: %w", err)
+		return nil, fmt.Errorf("navigate to timetable: %w", err)
 	}
 
 	navDone := make(chan struct{})
@@ -71,7 +82,7 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 
 	select {
 	case <-fetchCtx.Done():
-		return "", fmt.Errorf("navigate to timetable: %w", fetchCtx.Err())
+		return nil, fmt.Errorf("navigate to timetable: %w", fetchCtx.Err())
 	case <-navDone:
 	}
 
@@ -82,24 +93,14 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) (str
 
 	select {
 	case <-fetchCtx.Done():
-		return "", fmt.Errorf("wait for stable: %w", fetchCtx.Err())
+		return nil, fmt.Errorf("wait for stable: %w", fetchCtx.Err())
 	case err := <-stableDone:
 		if err != nil {
 			debug(cfg, "wait stable failed: %v", err)
 		}
 	}
 
-	if err := handleTermSelection(fetchCtx, &pageAdapter{page}, cfg); err != nil {
-		return "", fmt.Errorf("handle term selection: %w", err)
-	}
-
-	htmlStr, err := page.HTML()
-	if err != nil {
-		return "", fmt.Errorf("get page HTML: %w", err)
-	}
-
-	debug(cfg, "timetable HTML extracted, length: %d", len(htmlStr))
-	return htmlStr, nil
+	return handleMultiTermSelection(fetchCtx, &pageAdapter{page}, cfg)
 }
 
 func debug(cfg BrowserConfig, msg string, args ...any) {
@@ -108,97 +109,164 @@ func debug(cfg BrowserConfig, msg string, args ...any) {
 	}
 }
 
-func handleTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) error {
+func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
 	debug(cfg, "checking for term selection screen")
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("term selection context already expired: %w", err)
+		return nil, fmt.Errorf("term selection context already expired: %w", err)
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		debug(cfg, "term selection context deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
 	}
-	termCtx, termCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer termCancel()
-	termPage := page.Context(termCtx)
 
-	return handleTermSelectionWithPage(ctx, page, termCtx, termPage, cfg)
-}
+	var allEntries []peoplesoft.Entry
 
-func handleTermSelectionWithPage(ctx context.Context, page termPage, termCtx context.Context, termPage termPage, cfg BrowserConfig) error {
-	var changeTermEl *rod.Element
-	if err := Do(termCtx, func() error {
-		var err error
-		changeTermEl, err = termPage.Element("input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']")
-		return err
-	}, cfg.MaxRetries, cfg.RetryInterval); err == nil {
-		debug(cfg, "clicking change term button")
-		if err := Do(termCtx, func() error {
-			return clickElement(changeTermEl)
-		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-			debug(cfg, "failed to click change term button: %v", err)
-		}
-
-		debug(cfg, "waiting for term selection screen to load after clicking change term")
-		if err := Do(termCtx, func() error {
-			_, err := termPage.Element("input.PSRADIOBUTTON")
-			return err
-		}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-			debug(cfg, "term selection radio button not found after change term click: %v", err)
-		}
-	}
-
-	if err := Do(termCtx, func() error {
-		_, err := termPage.Element("input.PSRADIOBUTTON")
-		return err
-	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return fmt.Errorf("term selection radio button not found: %w", err)
+	if err := returnToTermSelection(ctx, page, cfg); err != nil {
+		debug(cfg, "failed to navigate to term selection: %v — fetching from current page", err)
+		return fetchFromCurrentPage(ctx, page, cfg)
 	}
 
 	var radioButtons []*rod.Element
-	if err := Do(termCtx, func() error {
+	if err := Do(ctx, func() error {
 		var err error
-		radioButtons, err = termPage.Elements("input.PSRADIOBUTTON")
+		radioButtons, err = page.Elements("input.PSRADIOBUTTON")
 		return err
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return fmt.Errorf("query term selection radio buttons: %w", err)
+		return nil, fmt.Errorf("query term selection radio buttons: %w", err)
 	}
 
 	if len(radioButtons) == 0 {
-		debug(cfg, "no term selection radio buttons found, skipping")
-		return nil
+		debug(cfg, "no term selection radio buttons found, fetching from current page")
+		return fetchFromCurrentPage(ctx, page, cfg)
 	}
 
 	debug(cfg, "found %d term selection radio button(s)", len(radioButtons))
 
-	lastRadio := radioButtons[len(radioButtons)-1]
-	debug(cfg, "selecting last radio button (index %d of %d)", len(radioButtons)-1, len(radioButtons))
-	if err := Do(termCtx, func() error {
-		return clickElement(lastRadio)
-	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return fmt.Errorf("click term selection radio button: %w", err)
+	for i := 0; i < len(radioButtons); i++ {
+		debug(cfg, "fetching term %d of %d", i+1, len(radioButtons))
+
+		entries, err := navigateToTerm(ctx, i, page, cfg)
+		if err != nil {
+			debug(cfg, "failed to fetch term %d: %v — continuing to next term", i+1, err)
+			continue
+		}
+
+		allEntries = append(allEntries, entries...)
+		debug(cfg, "fetched %d entries from term %d", len(entries), i+1)
+
+		if i < len(radioButtons)-1 {
+			if err := returnToTermSelection(ctx, page, cfg); err != nil {
+				debug(cfg, "failed to return to term selection after term %d: %v — stopping term iteration", i+1, err)
+				break
+			}
+
+			if err := Do(ctx, func() error {
+				_, err := page.Element("input.PSRADIOBUTTON")
+				return err
+			}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+				debug(cfg, "term selection radio button not visible after returning: %v", err)
+			}
+		}
 	}
 
-	var continueEl *rod.Element
+	if len(allEntries) == 0 && len(radioButtons) > 0 {
+		debug(cfg, "no entries fetched from any term")
+	}
+
+	debug(cfg, "multi-term fetch complete, total entries: %d", len(allEntries))
+	return allEntries, nil
+}
+
+func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
+	radioID := fmt.Sprintf("SSR_DUMMY_RECV1$sels$0$%d$0", index)
+	xpathSelector := fmt.Sprintf("xpath///*[@id=\"%s\"]", radioID)
+
+	debug(cfg, "clicking radio button: %s", xpathSelector)
 	if err := Do(ctx, func() error {
-		var err error
-		continueEl, err = page.Element("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
+		el, err := page.Element(xpathSelector)
+		if err != nil {
+			return fmt.Errorf("find radio button %s: %w", xpathSelector, err)
+		}
+		return clickElement(el)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+		return nil, fmt.Errorf("click radio button %s: %w", xpathSelector, err)
+	}
+
+	goBtnID := "DERIVED_SSS_SCT_SSR_PB_GO"
+	debug(cfg, "clicking Go button: #%s", goBtnID)
+	if err := Do(ctx, func() error {
+		el, err := page.Element("#" + goBtnID)
+		if err != nil {
+			return fmt.Errorf("find go button: %w", err)
+		}
+		return clickElement(el)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+		return nil, fmt.Errorf("click go button: %w", err)
+	}
+
+	debug(cfg, "waiting for timetable data to load")
+	termCtx, termCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
+	defer termCancel()
+
+	navigationPage := page.Context(termCtx)
+	navDone := make(chan struct{})
+	go func() {
+		navigationPage.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		close(navDone)
+	}()
+
+	select {
+	case <-termCtx.Done():
+		return nil, fmt.Errorf("navigate to term: %w", termCtx.Err())
+	case <-navDone:
+	}
+
+	stableDone := make(chan error)
+	go func() {
+		stableDone <- navigationPage.WaitStable(5000)
+	}()
+
+	select {
+	case <-termCtx.Done():
+		return nil, fmt.Errorf("wait stable for term: %w", termCtx.Err())
+	case err := <-stableDone:
+		if err != nil {
+			debug(cfg, "wait stable for term failed: %v", err)
+		}
+	}
+
+	htmlStr, err := navigationPage.HTML()
+	if err != nil {
+		return nil, fmt.Errorf("get page HTML for term: %w", err)
+	}
+
+	debug(cfg, "timetable HTML extracted for term, length: %d", len(htmlStr))
+
+	entries, err := peoplesoft.ParseTimetableHTML(htmlStr, 0, time.Local)
+	if err != nil {
+		return nil, fmt.Errorf("parse timetable HTML for term: %w", err)
+	}
+
+	return entries, nil
+}
+
+func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) error {
+	debug(cfg, "clicking change term button to return to term selection")
+	if err := Do(ctx, func() error {
+		el, err := page.Element("input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']")
+		if err != nil {
+			return fmt.Errorf("find change term link: %w", err)
+		}
+		return clickElement(el)
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+		return fmt.Errorf("click change term button: %w", err)
+	}
+
+	debug(cfg, "waiting for term selection screen to load after clicking change term")
+	if err := Do(ctx, func() error {
+		_, err := page.Element("input.PSRADIOBUTTON")
 		return err
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return fmt.Errorf("find continue button: %w", err)
-	}
-
-	debug(cfg, "clicking continue button")
-	if err := Do(ctx, func() error {
-		return clickElement(continueEl)
-	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return fmt.Errorf("click continue button: %w", err)
-	}
-
-	debug(cfg, "waiting for timetable data to load after term selection")
-
-	if err := Do(ctx, func() error {
-		return page.Wait(rod.Eval("() => document.querySelectorAll('table.PSGROUPBOXWBO').length > 0"))
-	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return fmt.Errorf("wait for timetable data: %w", err)
+		debug(cfg, "term selection radio button not found after change term click: %v", err)
 	}
 
 	stableDone := make(chan error)
@@ -208,15 +276,35 @@ func handleTermSelectionWithPage(ctx context.Context, page termPage, termCtx con
 
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("wait stable after term selection: %w", ctx.Err())
+		return fmt.Errorf("wait stable for term selection return: %w", ctx.Err())
 	case err := <-stableDone:
 		if err != nil {
-			debug(cfg, "wait stable after term selection failed: %v", err)
+			debug(cfg, "wait stable for term selection return failed: %v", err)
 		}
 	}
 
-	debug(cfg, "term selection handled successfully")
+	debug(cfg, "returned to term selection screen")
 	return nil
+}
+
+func fetchFromCurrentPage(ctx context.Context, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
+	debug(cfg, "fetching timetable from current page without term selection")
+
+	pageCtx := page.Context(ctx)
+
+	htmlStr, err := pageCtx.HTML()
+	if err != nil {
+		return nil, fmt.Errorf("get page HTML: %w", err)
+	}
+
+	debug(cfg, "timetable HTML extracted from current page, length: %d", len(htmlStr))
+
+	entries, err := peoplesoft.ParseTimetableHTML(htmlStr, 0, time.Local)
+	if err != nil {
+		return nil, fmt.Errorf("parse timetable HTML from current page: %w", err)
+	}
+
+	return entries, nil
 }
 
 func clickElement(el *rod.Element) error {

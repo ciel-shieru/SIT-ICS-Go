@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ciel-shieru/sit-ics-go/internal/brightspace"
+	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 )
@@ -170,16 +171,16 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 	}, nil
 }
 
-func (b *RemoteBrowser) FetchTimetable(ctx context.Context, weekDate string) (string, error) {
+func (b *RemoteBrowser) FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
 	if b.browser == nil {
-		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
 	return fetchTimetable(ctx, b.page, b.cfg)
 }
 
-func (b *RemoteBrowser) NavigateTimetable(ctx context.Context) (string, error) {
+func (b *RemoteBrowser) NavigateTimetable(ctx context.Context) ([]peoplesoft.Entry, error) {
 	if b.browser == nil {
-		return "", fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
 	}
 	return fetchTimetable(ctx, b.page, b.cfg)
 }

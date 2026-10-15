@@ -57,14 +57,9 @@ func (a *ADFSProvider) Authenticate(ctx context.Context, req AuthRequest) (brows
 	return authResult, nil
 }
 
-// FetchTimetable fetches and parses the timetable from PeopleSoft.
+// FetchTimetable fetches and returns the timetable entries from PeopleSoft.
 func (a *ADFSProvider) FetchTimetable(ctx context.Context, weekDate string, loc *time.Location) ([]peoplesoft.Entry, error) {
-	html, err := a.browser.FetchTimetable(ctx, weekDate)
-	if err != nil {
-		return nil, fmt.Errorf("browser fetch timetable: %w", err)
-	}
-	year := peoplesoft.ExtractYear(weekDate)
-	return peoplesoft.ParseTimetableHTML(html, year, loc)
+	return a.browser.FetchTimetable(ctx, weekDate)
 }
 
 // FetchBrightSpace fetches BrightSpace entries using the existing authenticated session.

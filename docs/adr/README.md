@@ -25,6 +25,7 @@ This directory contains Architecture Decision Records (ADRs) for the SIT ICS Go 
 | [0019](0019-interactive-credential-retry.md) | Interactive Credential Retry on Desktop When Authentication Fails | Accepted | 2026-09-30 |
 | [0020](0020-resilient-fetch-brightspace-on-peoplesoft-failure.md) | Resilient Fetch: BrightSpace Still Runs When PeopleSoft Timetable Fetch Fails | Accepted | 2026-10-03 |
 | [0021](0021-wakey-sitizen-json-timetable-endpoint.md) | Wakey-SITizen JSON Timetable Endpoint | Accepted | 2026-10-06 |
+| [0022](0022-multi-term-peoplesoft-timetable-fetch.md) | Multi-Term PeopleSoft Timetable Fetch | Proposed | 2026-10-16 |
 
 ## Superseded ADRs
 

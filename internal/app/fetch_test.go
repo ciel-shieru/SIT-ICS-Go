@@ -15,6 +15,7 @@ import (
 	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 	"github.com/ciel-shieru/sit-ics-go/internal/calendar"
 	"github.com/ciel-shieru/sit-ics-go/internal/config"
+	"github.com/ciel-shieru/sit-ics-go/internal/peoplesoft"
 )
 
 func testLoc(t *testing.T) *time.Location {
@@ -85,8 +86,8 @@ func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{}, nil
 		},
-		FetchTimetableFunc: func(ctx context.Context, weekDate string) (string, error) {
-			return "", fmt.Errorf("peoplesoft list page flake: %w", browser.ErrNavigation)
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return nil, fmt.Errorf("peoplesoft list page flake: %w", browser.ErrNavigation)
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 			bsCalls++
@@ -161,8 +162,8 @@ func TestPeopleSoftFailureBlocklistDoesNotDeletePeopleSoft(t *testing.T) {
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{}, nil
 		},
-		FetchTimetableFunc: func(ctx context.Context, weekDate string) (string, error) {
-			return "", fmt.Errorf("peoplesoft list page flake: %w", browser.ErrNavigation)
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return nil, fmt.Errorf("peoplesoft list page flake: %w", browser.ErrNavigation)
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 			return []brightspace.BrightSpaceStringEntry{fakeBSEntry("Fake BS Event")}, nil
@@ -214,8 +215,8 @@ func TestSmartMergeSkippedOnPeopleSoftFailure(t *testing.T) {
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{}, nil
 		},
-		FetchTimetableFunc: func(ctx context.Context, weekDate string) (string, error) {
-			return "", fmt.Errorf("peoplesoft list page flake: %w", browser.ErrNavigation)
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return nil, fmt.Errorf("peoplesoft list page flake: %w", browser.ErrNavigation)
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 			// Control event: same module and overlapping time, but its location
@@ -289,8 +290,8 @@ func TestBrowserFatalOnPeopleSoftFailure(t *testing.T) {
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{}, nil
 		},
-		FetchTimetableFunc: func(ctx context.Context, weekDate string) (string, error) {
-			return "", fmt.Errorf("browser gone: %w", browser.ErrBrowserUnavailable)
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return nil, fmt.Errorf("browser gone: %w", browser.ErrBrowserUnavailable)
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 			bsCalls++
@@ -384,9 +385,9 @@ func TestAuthFailureAbortsFetch(t *testing.T) {
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{}, fmt.Errorf("launch: %w", browser.ErrBrowserLaunch)
 		},
-		FetchTimetableFunc: func(ctx context.Context, weekDate string) (string, error) {
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
 			ttCalls++
-			return "", nil
+			return nil, nil
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 			bsCalls++
