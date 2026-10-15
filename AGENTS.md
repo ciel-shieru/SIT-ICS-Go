@@ -154,6 +154,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Auth flow** — browser follows ADFS redirect naturally after MFA; no SAMLResponse extraction (ADR-0010).
 - **Cookie extraction** — extracts cookies from `*.singaporetech.edu.sg` domains. Tries current page first, falls back to `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.
 - **Browser-based fetch** — `fetchTimetable()` navigates to `SSR_SSENRL_LIST.GBL`, waits for stable, extracts full HTML via `page.HTML()`. Returns all scheduled classes in one response (ADR-0012).
+- **PeopleSoft navigation flow** — Keep `docs/peoplesoft-navigation-flow.md` accurate and update it whenever the PeopleSoft navigation flow changes.
 - **Browser lifecycle** — browser stays open after `Authenticate()` for `FetchTimetable()` and `FetchBrightSpace()`. Always call `browser.Close()` on shutdown.
 - **7 ICS output files** — main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite. `IsCampus` excludes BrightSpace events (ADR-0013).
 - **Server endpoints** — 8 HTTP handlers: 7 ICS handlers matching the 7 output files (ADR-0014) + `/wakey-sitizen/timetable.json` (ADR-0021).
