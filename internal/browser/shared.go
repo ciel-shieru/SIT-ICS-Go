@@ -169,7 +169,7 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 	}
 
 	if len(allEntries) == 0 && len(radioButtons) > 0 {
-		debug(cfg, "no entries fetched from any term")
+		return nil, fmt.Errorf("no timetable entries fetched from any of %d term(s)", len(radioButtons))
 	}
 
 	debug(cfg, "multi-term fetch complete, total entries: %d", len(allEntries))
@@ -177,18 +177,18 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 }
 
 func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
-	radioID := fmt.Sprintf("SSR_DUMMY_RECV1$sels$%d$0", index)
-	xpathSelector := fmt.Sprintf("xpath///*[@id=\"%s\"]", radioID)
+	radioID := fmt.Sprintf("SSR_DUMMY_RECV1\\$sels\\$%d\\$\\$0", index)
+	cssSelector := fmt.Sprintf("#%s", radioID)
 
-	debug(cfg, "clicking radio button: %s", xpathSelector)
+	debug(cfg, "clicking radio button: %s", cssSelector)
 	if err := Do(ctx, func() error {
-		el, err := page.Element(xpathSelector)
+		el, err := page.Element(cssSelector)
 		if err != nil {
-			return fmt.Errorf("find radio button %s: %w", xpathSelector, err)
+			return fmt.Errorf("find radio button %s: %w", cssSelector, err)
 		}
 		return clickElement(el)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return nil, fmt.Errorf("click radio button %s: %w", xpathSelector, err)
+		return nil, fmt.Errorf("click radio button %s: %w", cssSelector, err)
 	}
 
 	goBtnID := "DERIVED_SSS_SCT_SSR_PB_GO"

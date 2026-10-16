@@ -42,12 +42,18 @@ func (m *mockTermPage) Context(ctx context.Context) termPage {
 
 func (m *mockTermPage) Element(selector string) (*rod.Element, error) {
 	m.elementCalls = append(m.elementCalls, selector)
+
+	// Check clickErrors first (for simulating element lookup failures)
+	if err, ok := m.clickErrors[selector]; ok {
+		return nil, err
+	}
+
 	if err, ok := m.elementsErrors[selector]; ok {
 		return nil, err
 	}
 
-	// Handle xpath selectors for radio buttons - fall back to input.PSRADIOBUTTON elements
-	if strings.HasPrefix(selector, "xpath///*[@id=") && strings.Contains(selector, "SSR_DUMMY_RECV1") {
+	// Handle CSS #id selectors for radio buttons - fall back to input.PSRADIOBUTTON elements
+	if strings.HasPrefix(selector, "#SSR_DUMMY_RECV1") {
 		if results, ok := m.elementsResults["input.PSRADIOBUTTON"]; ok && len(results) > 0 {
 			return results[0], nil
 		}
@@ -100,7 +106,7 @@ func (m *mockTermPage) Wait(fn *rod.EvalOptions) error {
 }
 
 func (m *mockTermPage) HTML() (string, error) {
-	return `<!DOCTYPE html><html><body><table><tr><td>Class Nbr</td></tr></table></body></html>`, nil
+	return `<!DOCTYPE html><html><body><div id='win0divSTDNT_ENRL_SSV2$0'><div id='win0divDERIVED_REGFRM1_DESCR20$0'><table><tr><td class='PAGROUPDIVIDER' align='left'>MOD1001 - Sample Module</td></tr><tr><td><div id='win0divCLASS_MTG_VW$0'><table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$0'><tr><td><table border='0' cellpadding='2' cellspacing='0' cols='7' width='100%' class='PSLEVEL3GRID'><tr><th scope='col' abbr='Class Nbr' width='29' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR PSGRIDFIRSTCOLUMN'>Class Nbr</th><th scope='col' abbr='Section' width='26' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR'>Section</th><th scope='col' abbr='Component' width='51' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Component</th><th scope='col' abbr='Days &amp; Times' width='90' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Days &amp; Times</th><th scope='col' abbr='Room' width='75' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Room</th><th scope='col' abbr='Instructor' width='87' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Instructor</th><th scope='col' abbr='Start/End Date' width='80' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Start/End Date</th></tr><tr id='trCLASS_MTG_VW$0_row1' valign='center'><td><DIV id='win0divDERIVED_CLS_DTL_CLASS_NBR$0'><span class='PSEDITBOX_DISPONLY' id='DERIVED_CLS_DTL_CLASS_NBR$0'>1160</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SECTION$0'><span id='MTG_SECTION$span$0' class='PSHYPERLINK'><a name='MTG_SECTION$0' id='MTG_SECTION$0'>P1</a></span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_COMP$0'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$0'>Laboratory</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SCHED$0'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$0'>Th 9:00AM - 11:00AM</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_LOC$0'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$0'>W1-06-18</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$0'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$0'>JOHN DOE</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_DATES$0'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$0'>17/09/2026 - 17/09/2026</span></DIV></td></tr></table></td></tr></table></div></div></td></tr></table></div></body></html>`, nil
 }
 
 func (m *mockTermPage) WaitNavigation(event proto.PageLifecycleEventName) func() {
@@ -184,16 +190,16 @@ func TestHandleMultiTermSelection_SingleTerm(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	// Verify radio button was clicked (via xpath selector)
+	// Verify radio button was clicked (via CSS selector)
 	foundRadio := false
 	for _, call := range mock.elementCalls {
-		if strings.Contains(call, "SSR_DUMMY_RECV1") && strings.Contains(call, "xpath") {
+		if strings.Contains(call, "#SSR_DUMMY_RECV1") {
 			foundRadio = true
 			break
 		}
 	}
 	if !foundRadio {
-		t.Error("expected radio button xpath lookup")
+		t.Error("expected radio button CSS selector lookup")
 	}
 
 	// Verify Go button was clicked
@@ -239,14 +245,14 @@ func TestHandleMultiTermSelection_MultipleTerms(t *testing.T) {
 	}
 
 	// Should have clicked both radio buttons
-	radioXpathCount := 0
+	radioCSSCount := 0
 	for _, call := range mock.elementCalls {
-		if strings.Contains(call, "SSR_DUMMY_RECV1") && strings.Contains(call, "xpath") {
-			radioXpathCount++
+		if strings.Contains(call, "#SSR_DUMMY_RECV1") {
+			radioCSSCount++
 		}
 	}
-	if radioXpathCount != 2 {
-		t.Errorf("expected 2 radio button clicks, got %d", radioXpathCount)
+	if radioCSSCount != 2 {
+		t.Errorf("expected 2 radio button clicks, got %d", radioCSSCount)
 	}
 }
 
@@ -264,7 +270,7 @@ func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 
 	// First radio button click fails
-	mock.clickErrors["xpath///*[@id=\"SSR_DUMMY_RECV1$sels$0$0\"]"] = errors.New("click failed")
+	mock.clickErrors["#SSR_DUMMY_RECV1$sels$0$0"] = errors.New("click failed")
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err != nil {
@@ -293,14 +299,14 @@ func TestHandleMultiTermSelection_ReturnToTermSelectionFailure_StopsIteration(t 
 	}
 
 	// Should have clicked only 1 radio button (second was skipped due to return failure)
-	radioXpathCount := 0
+	radioCSSCount := 0
 	for _, call := range mock.elementCalls {
-		if strings.Contains(call, "SSR_DUMMY_RECV1") && strings.Contains(call, "xpath") {
-			radioXpathCount++
+		if strings.Contains(call, "#SSR_DUMMY_RECV1") {
+			radioCSSCount++
 		}
 	}
-	if radioXpathCount != 1 {
-		t.Errorf("expected 1 radio button click after return failure, got %d", radioXpathCount)
+	if radioCSSCount != 1 {
+		t.Errorf("expected 1 radio button click after return failure, got %d", radioCSSCount)
 	}
 }
 
