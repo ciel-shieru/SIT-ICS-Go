@@ -2,6 +2,7 @@ package peoplesoft
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -9,25 +10,39 @@ import (
 // ParseEntryDateTime converts a PeopleSoft Entry's Day/StartTime/EndTime fields
 // into concrete time.Time values in the given location.
 func ParseEntryDateTime(entry Entry, loc *time.Location) (time.Time, time.Time, error) {
-	parts := strings.Split(entry.Day, "/")
-	if len(parts) != 3 {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid day format: %s", entry.Day)
+	day, err := parseDate(entry.Day, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid timetable entry date: %w", err)
 	}
-	var day, month, year int
-	fmt.Sscanf(parts[0], "%d", &day)
-	fmt.Sscanf(parts[1], "%d", &month)
-	fmt.Sscanf(parts[2], "%d", &year)
+	startHour, startMin, err := parseHoursMinutes(entry.StartTime)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid start time %q: %w", entry.StartTime, err)
+	}
+	endHour, endMin, err := parseHoursMinutes(entry.EndTime)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid end time %q: %w", entry.EndTime, err)
+	}
 
-	startHour, startMin := parseHoursMinutes(entry.StartTime)
-	endHour, endMin := parseHoursMinutes(entry.EndTime)
-
-	dtStart := time.Date(year, time.Month(month), day, startHour, startMin, 0, 0, loc)
-	dtEnd := time.Date(year, time.Month(month), day, endHour, endMin, 0, 0, loc)
+	dtStart := time.Date(day.Year(), day.Month(), day.Day(), startHour, startMin, 0, 0, day.Location())
+	dtEnd := time.Date(day.Year(), day.Month(), day.Day(), endHour, endMin, 0, 0, day.Location())
 	return dtStart, dtEnd, nil
 }
 
-func parseHoursMinutes(s string) (int, int) {
-	var h, m int
-	fmt.Sscanf(s, "%d:%d", &h, &m)
-	return h, m
+func parseHoursMinutes(s string) (int, int, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid time format: %s", s)
+	}
+	h, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid hour: %w", err)
+	}
+	m, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid minute: %w", err)
+	}
+	if h < 0 || h > 23 || m < 0 || m > 59 {
+		return 0, 0, fmt.Errorf("time out of range: %s", s)
+	}
+	return h, m, nil
 }
