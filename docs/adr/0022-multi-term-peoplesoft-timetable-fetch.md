@@ -21,7 +21,7 @@ The current term-selection logic in `handleTermSelectionWithPage()` (shared.go:1
 ## Decision Drivers
 
 - **Complete data**: All enrolled terms' timetables must be fetched in a single fetch cycle
-- **Per-term error resilience**: A failure on one term (e.g., empty enrollment, navigation timeout) must not abort the entire multi-term fetch; remaining terms should still be processed (consistent with ADR-0020's degraded-fetch philosophy)
+- **Per-term error resilience**: A failure on one term (e.g., navigation timeout) should not stop attempts to process other terms when selector recovery succeeds; however, partial results must not be reported as a successful complete timetable fetch, so the outer retry policy can retry the whole run (ADR-0020)
 - **Minimal interface churn**: The `AuthBrowser.FetchTimetable` signature and the auth provider's `FetchTimetable` method must return parsed entries directly, since the browser layer now owns both fetching and parsing
 - **Context deadline discipline**: The per-term loop shares a single context deadline; each iteration must complete within the remaining time budget
 
@@ -108,14 +108,14 @@ If the term selection screen is not detected (no `input.PSRADIOBUTTON` elements)
 
 ### Edge Case: Per-Term Failure
 
-If parsing fails for one term's HTML (e.g., unexpected DOM structure, empty response), that term's entries are skipped with a warning log, and processing continues to the next term. This is consistent with ADR-0020's philosophy: individual data-source failures are recoverable, and the fetch continues with whatever data was successfully collected.
+If a term's navigation, HTML extraction, parsing, or selector recovery fails, the browser layer logs the term error and attempts to process remaining terms when recovery is possible. It then returns an error for the overall attempt rather than returning partial entries as success. The existing outer retry policy re-runs the complete PeopleSoft fetch. If all retries fail, ADR-0020's degraded-cycle behavior applies: BrightSpace runs, no partial PeopleSoft results from the failed attempt are cached, and the existing cached timetable remains untouched.
 
 ## Consequences
 
 ### Positive
 
 - **Complete timetable data**: All enrolled terms' schedules are fetched in a single cycle, eliminating silent data loss for multi-term students.
-- **Per-term error resilience**: A failure on one term does not abort the entire fetch. Remaining terms are still processed, and at least partial timetable data is cached.
+- **Per-term recovery attempts**: A failure on one term does not immediately prevent attempts to process remaining terms when recovery is possible. If any term fails, the complete attempt is marked failed so the outer retry can recover transient errors; partial results from the failed attempt are not accepted as current timetable data.
 - **Simplified auth provider**: The auth layer no longer performs HTML parsing; it delegates to the browser layer which returns parsed entries directly. This reduces coupling between auth and peoplesoft packages.
 - **Transparent to callers**: The app layer (`runFetch`) already iterates over `[]peoplesoft.Entry`; the multi-term accumulation is invisible to existing code.
 - **Leverages existing machinery**: The term-selection navigation primitives already exist in `handleTermSelectionWithPage()`; the change extends rather than replaces them.
