@@ -81,12 +81,13 @@ func fakeBSEntry(title string) brightspace.BrightSpaceStringEntry {
 func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 	loc := testLoc(t)
 
-	var bsCalls, quizAPICalls int
+	var timetableCalls, bsCalls, quizAPICalls int
 	mock := &browser.MockAuthBrowser{
 		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
 			return browser.AuthResult{}, nil
 		},
 		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			timetableCalls++
 			return nil, fmt.Errorf("peoplesoft list page flake: %w", browser.ErrNavigation)
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
@@ -99,7 +100,10 @@ func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 		},
 	}
 	provider := auth.NewADFSProvider(mock)
-	cfg := newTestConfig(t, nil)
+	cfg := newTestConfig(t, func(c *config.Config) {
+		c.BrowserMaxRetries = 2
+		c.BrowserRetryInterval = 0
+	})
 	cache := calendar.NewICSCache()
 	seed := seededPSEvent(loc)
 	if err := cache.Update([]calendar.Event{seed}, cfg.TZ); err != nil {
@@ -108,6 +112,9 @@ func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 
 	runFetch(context.Background(), cfg, provider, cache, loc)
 
+	if timetableCalls != 3 {
+		t.Errorf("PeopleSoft fetch attempts = %d, want 3 before proceeding to BrightSpace", timetableCalls)
+	}
 	if bsCalls == 0 {
 		t.Error("brightspace fetch was not executed after peoplesoft failure")
 	}
@@ -152,6 +159,49 @@ func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 	}
 	if !strings.Contains(string(mainData), "Fake BS Event") {
 		t.Error("main ics output missing brightspace event")
+	}
+}
+
+func TestPeopleSoftFetchRetriesAndSucceedsBeforeBrightSpace(t *testing.T) {
+	loc := testLoc(t)
+
+	var timetableCalls, bsCalls int
+	mock := &browser.MockAuthBrowser{
+		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
+			return browser.AuthResult{}, nil
+		},
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			timetableCalls++
+			if timetableCalls == 1 {
+				return nil, fmt.Errorf("temporary PeopleSoft page failure: %w", browser.ErrNavigation)
+			}
+			return []peoplesoft.Entry{}, nil
+		},
+		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+			bsCalls++
+			if timetableCalls != 2 {
+				t.Errorf("BrightSpace started after %d PeopleSoft attempts, want successful attempt 2", timetableCalls)
+			}
+			return nil, nil
+		},
+		FetchBrightSpaceQuizzesAPIFunc: func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+			return nil, nil
+		},
+	}
+	provider := auth.NewADFSProvider(mock)
+	cfg := newTestConfig(t, func(c *config.Config) {
+		c.BrowserMaxRetries = 2
+		c.BrowserRetryInterval = 0
+	})
+	cache := calendar.NewICSCache()
+
+	runFetch(context.Background(), cfg, provider, cache, loc)
+
+	if timetableCalls != 2 {
+		t.Errorf("PeopleSoft fetch attempts = %d, want 2", timetableCalls)
+	}
+	if bsCalls != 1 {
+		t.Errorf("BrightSpace fetch calls = %d, want 1", bsCalls)
 	}
 }
 
