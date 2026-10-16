@@ -11,19 +11,7 @@ import (
 )
 
 var dayAbbrevRe = regexp.MustCompile(`^(Mo|Tu|We|Th|Fr|Sa|Su)\b`)
-var timeRe = regexp.MustCompile(`(?i)^(\d{1,2}):(\d{2})(AM|PM)?package peoplesoft
-
-import (
-	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
-	"time"
-
-	"golang.org/x/net/html"
-)
-
-)
+var timeRe = regexp.MustCompile(`(?i)^(\d{1,2}):(\d{2})(AM|PM)?$`)
 
 // timetableRowPlaceholders lists cell values that mean the timetable row has no
 // schedulable data. Keep this list explicit so additional PeopleSoft placeholders
