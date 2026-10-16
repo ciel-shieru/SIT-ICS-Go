@@ -11,7 +11,36 @@ import (
 )
 
 var dayAbbrevRe = regexp.MustCompile(`^(Mo|Tu|We|Th|Fr|Sa|Su)\b`)
-var timeRe = regexp.MustCompile(`(?i)^(\d{1,2}):(\d{2})(AM|PM)?$`)
+var timeRe = regexp.MustCompile(`(?i)^(\d{1,2}):(\d{2})(AM|PM)?package peoplesoft
+
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"golang.org/x/net/html"
+)
+
+)
+
+// timetableRowPlaceholders lists cell values that mean the timetable row has no
+// schedulable data. Keep this list explicit so additional PeopleSoft placeholders
+// can be added without changing the row parser.
+var timetableRowPlaceholders = []string{"TBA"}
+
+// isTimetableRowPlaceholder reports whether a cell contains a recognized
+// placeholder value. Matching is trimmed and case-insensitive.
+func isTimetableRowPlaceholder(value string) bool {
+	value = strings.TrimSpace(value)
+	for _, placeholder := range timetableRowPlaceholders {
+		if strings.EqualFold(value, placeholder) {
+			return true
+		}
+	}
+	return false
+}
 
 func ParseTimetableHTML(htmlContent string, year int, loc *time.Location) ([]Entry, error) {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
@@ -109,6 +138,20 @@ func parseMeetingTable(table *html.Node, loc *time.Location) ([]Entry, error) {
 		}
 
 		if currentCourseCode == "" {
+			continue
+		}
+
+		// Placeholder values make the entire class-meeting row non-schedulable.
+		// Check the data cells before updating carried-forward section/component
+		// values or trying strict date/schedule parsing.
+		placeholderFound := false
+		for _, cell := range cells[1:] {
+			if isTimetableRowPlaceholder(getTextContent(cell)) {
+				placeholderFound = true
+				break
+			}
+		}
+		if placeholderFound {
 			continue
 		}
 
