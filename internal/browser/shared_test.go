@@ -28,6 +28,8 @@ type mockTermPage struct {
 	currentURLResults            []string
 	currentURLCalls              int
 	currentURLErrors             map[int]error
+	goButtonAppearAfter          int
+	goButtonChecks               int
 	simulateNavigation           bool
 	onTimetable                  bool
 	staleRadioButtonsOnTimetable bool
@@ -183,6 +185,12 @@ func (m *mockTermPage) Elements(selector string) (rod.Elements, error) {
 			return rod.Elements{}, nil
 		}
 	}
+	if selector == "input[name='DERIVED_SSS_SCT_SSR_PB_GO']" && m.goButtonAppearAfter > 0 {
+		m.goButtonChecks++
+		if m.goButtonChecks < m.goButtonAppearAfter {
+			return rod.Elements{}, nil
+		}
+	}
 	if err, ok := m.elementsErrors[selector]; ok {
 		return nil, err
 	}
@@ -309,9 +317,59 @@ func TestNavigateToTimetable_URLMismatchRetriesWholeCycle(t *testing.T) {
 	if mock.currentURLCalls != 4 {
 		t.Errorf("URL checks = %d, want 4 checks across two cycles", mock.currentURLCalls)
 	}
-	wantWaits := []time.Duration{5000, time.Second, 5000, time.Second}
+	wantWaits := []time.Duration{5000, time.Second, time.Second, time.Second}
 	if fmt.Sprint(mock.waitStableTimeouts) != fmt.Sprint(wantWaits) {
 		t.Errorf("WaitStable calls = %v, want %v", mock.waitStableTimeouts, wantWaits)
+	}
+}
+
+func TestReturnToTermSelection_RetriesGoButtonCheckWithShortStabilityWait(t *testing.T) {
+	ctx := context.Background()
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{&rod.Element{}}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}}
+	mock.goButtonAppearAfter = 3
+	cfg := testConfig()
+
+	if err := returnToTermSelection(ctx, mock, cfg); err != nil {
+		t.Fatalf("returnToTermSelection failed while Go button eventually appeared: %v", err)
+	}
+	wantWaits := []time.Duration{5000, time.Second, time.Second}
+	if fmt.Sprint(mock.waitStableTimeouts) != fmt.Sprint(wantWaits) {
+		t.Errorf("WaitStable calls = %v, want %v", mock.waitStableTimeouts, wantWaits)
+	}
+	if mock.goButtonChecks != 3 {
+		t.Errorf("Go button checks = %d, want 3", mock.goButtonChecks)
+	}
+}
+
+func TestReturnToTermSelection_GoButtonWaitEndsAtContextDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
+	mock.waitStableFunc = func(timeout time.Duration) error {
+		time.Sleep(time.Millisecond)
+		return nil
+	}
+	cfg := testConfig()
+
+	err := returnToTermSelection(ctx, mock, cfg)
+	if err == nil {
+		t.Fatal("expected absent Go button to fail when timetable context expires")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected context deadline error, got: %v", err)
+	}
+	if len(mock.waitStableTimeouts) < 2 || mock.waitStableTimeouts[0] != 5000 {
+		t.Errorf("WaitStable calls = %v, expected initial 5000 wait followed by retries", mock.waitStableTimeouts)
+	}
+	for i, wait := range mock.waitStableTimeouts[1:] {
+		if wait != time.Second {
+			t.Errorf("retry WaitStable call %d = %v, want %v", i+2, wait, time.Second)
+		}
 	}
 }
 
@@ -446,9 +504,11 @@ func TestHandleMultiTermSelection_NoRadioButtons_FetchCurrentPage(t *testing.T) 
 	ctx := context.Background()
 
 	changeTermEl := &rod.Element{}
+	goEl := &rod.Element{}
 	mock := newMockTermPage()
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
-	// No radio buttons after clicking change term
+	// Selector is present, but no term radio buttons are exposed.
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{}
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
