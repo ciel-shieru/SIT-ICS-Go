@@ -156,10 +156,10 @@ func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *test
 	}
 	parentDeadline, parentHasDeadline := mock.contexts[0].Deadline()
 	navDeadline, navHasDeadline := mock.contexts[1].Deadline()
-	if !parentHasDeadline || !navHasDeadline || !parentDeadline.Equal(navDeadline) && !navDeadline.Before(parentDeadline) {
-		t.Errorf("expected the initial navigation to use a nested deadline, parent=%v navigation=%v", parentDeadline, navDeadline)
+	if !parentHasDeadline || !navHasDeadline {
+		t.Fatalf("expected both the overall fetch and initial navigation to have deadlines")
 	}
-	if !parentHasDeadline || !navHasDeadline || navDeadline.Sub(parentDeadline) >= 0 {
+	if !navDeadline.Before(parentDeadline) {
 		t.Errorf("expected the initial navigation deadline to expire before the overall fetch deadline, parent=%v navigation=%v", parentDeadline, navDeadline)
 	}
 	if len(entries) == 0 {
