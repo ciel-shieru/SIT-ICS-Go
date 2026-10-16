@@ -194,7 +194,7 @@ func TestParseTimetableHTML(t *testing.T) {
 }
 
 func TestParseTimetableHTML_SkipsPlaceholderRows(t *testing.T) {
-	htmlContent := \`<html><body>
+	htmlContent := `<html><body>
 <div id="win0divDERIVED_REGFRM1_DESCR20$0">
 <table>
 <tr><td class="PAGROUPDIVIDER">ALT2501 - Fake Course</td></tr>
@@ -207,7 +207,7 @@ func TestParseTimetableHTML_SkipsPlaceholderRows(t *testing.T) {
 </table></td></tr>
 </table>
 </div>
-</body></html>\`
+</body></html>`
 
 	entries, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
 	if err != nil {
