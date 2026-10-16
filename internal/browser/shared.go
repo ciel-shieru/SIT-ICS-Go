@@ -355,6 +355,7 @@ func fetchFromCurrentPage(ctx context.Context, page termPage, cfg BrowserConfig)
 	if err != nil {
 		return nil, fmt.Errorf("parse timetable HTML from current page: %w", err)
 	}
+	debug(cfg, "parsed %d timetable entries from current page", len(entries))
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("no timetable entries parsed from current page")
 	}
