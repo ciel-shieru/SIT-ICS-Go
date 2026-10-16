@@ -237,7 +237,6 @@ func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *test
 	}
 }
 
-
 func TestHandleMultiTermSelection_RecoversAfterTimetableHTMLFailure(t *testing.T) {
 	ctx := context.Background()
 	mock := newMockTermPage()
