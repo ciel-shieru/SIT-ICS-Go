@@ -72,16 +72,35 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	icsEvents := make([]calendar.Event, 0)
 	psFetchFailed := false
 
-	var entries []peoplesoft.Entry
 	err = browser.Do(timetableCtx, func() error {
-		var fetchErr error
-		entries, fetchErr = provider.FetchTimetable(timetableCtx, "", loc)
+		entries, fetchErr := provider.FetchTimetable(timetableCtx, "", loc)
 		if fetchErr != nil {
 			return fetchErr
 		}
 		if len(entries) == 0 {
 			return fmt.Errorf("PeopleSoft timetable fetch returned no entries")
 		}
+
+		fetchedEvents := make([]calendar.Event, 0, len(entries))
+		for _, entry := range entries {
+			dtStart, dtEnd, parseErr := peoplesoft.ParseEntryDateTime(entry, loc)
+			if parseErr != nil {
+				return fmt.Errorf("parse timetable entry %s: %w", entry.CourseCode, parseErr)
+			}
+			fetchedEvents = append(fetchedEvents, calendar.Event{
+				CourseCode:  entry.CourseCode,
+				Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
+				Title:       entry.ClassName,
+				Location:    entry.Location,
+				Description: fmt.Sprintf("Course: %s\\nClass: %s\\nSection: %s\\nType: %s", entry.CourseCode, entry.ClassName, entry.Section, entry.Type),
+				DTStart:     dtStart,
+				DTEnd:       dtEnd,
+			})
+		}
+		if len(fetchedEvents) == 0 {
+			return fmt.Errorf("PeopleSoft timetable fetch produced no valid calendar events")
+		}
+		icsEvents = fetchedEvents
 		return nil
 	}, cfg.BrowserMaxRetries, cfg.BrowserRetryInterval)
 	timetableCancel()
@@ -92,26 +111,7 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		}
 		psFetchFailed = true
 		log.Printf("scheduler: peoplesoft timetable fetch failed: %v — continuing with brightspace fetches, existing timetable events retained by UID upsert", err)
-	} else {
-		allEntries := entries
-		for _, entry := range allEntries {
-			dtStart, dtEnd, err := peoplesoft.ParseEntryDateTime(entry, loc)
-			if err != nil {
-				log.Printf("scheduler: skipping entry %s: %v", entry.CourseCode, err)
-				continue
-			}
-			icsEvents = append(icsEvents, calendar.Event{
-				CourseCode:  entry.CourseCode,
-				Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
-				Title:       entry.ClassName,
-				Location:    entry.Location,
-				Description: fmt.Sprintf("Course: %s\nClass: %s\nSection: %s\nType: %s", entry.CourseCode, entry.ClassName, entry.Section, entry.Type),
-				DTStart:     dtStart,
-				DTEnd:       dtEnd,
-			})
-		}
 	}
-
 	if cfg.XsiteEnabled {
 		blocklist := &brightspace.Blocklist{
 			CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteCourseNameBlocklist),
