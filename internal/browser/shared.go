@@ -14,6 +14,7 @@ import (
 
 type termPage interface {
 	Context(ctx context.Context) termPage
+	Navigate(url string) error
 	Element(selector string) (*rod.Element, error)
 	Elements(selector string) (rod.Elements, error)
 	WaitStable(timeout time.Duration) error
@@ -28,6 +29,10 @@ type pageAdapter struct {
 
 func (a *pageAdapter) Context(ctx context.Context) termPage {
 	return &pageAdapter{a.Page.Context(ctx)}
+}
+
+func (a *pageAdapter) Navigate(url string) error {
+	return a.Page.Navigate(url)
 }
 
 func (a *pageAdapter) HTML() (string, error) {
@@ -55,52 +60,69 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) ([]p
 	if page == nil {
 		return nil, fmt.Errorf("no active page: authenticate first")
 	}
+	return fetchTimetablePage(ctx, &pageAdapter{page}, cfg)
+}
+
+// fetchTimetablePage keeps the initial endpoint navigation timeout separate
+// from term selection and the subsequent per-term navigations.
+func fetchTimetablePage(ctx context.Context, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("timetable fetch context already expired: %w", err)
 	}
+	if err := navigateToTimetable(ctx, page, cfg); err != nil {
+		return nil, err
+	}
 
-	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	defer fetchCancel()
-	page = page.Context(fetchCtx)
-	if deadline, ok := fetchCtx.Deadline(); ok {
+	return handleMultiTermSelection(ctx, page, cfg)
+}
+
+// navigateToTimetable applies NavigationTimeout only to the initial timetable
+// endpoint navigation. The page passed by the caller remains bound to its
+// original browser context for the rest of the fetch.
+func navigateToTimetable(ctx context.Context, page termPage, cfg BrowserConfig) error {
+	navigationCtx, navigationCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
+	defer navigationCancel()
+
+	navigationPage := page.Context(navigationCtx)
+	if deadline, ok := navigationCtx.Deadline(); ok {
 		debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
 	}
 
 	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
 	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
-	if err := Do(fetchCtx, func() error {
-		return page.Navigate(timetableURL)
+	if err := Do(navigationCtx, func() error {
+		return navigationPage.Navigate(timetableURL)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return nil, fmt.Errorf("navigate to timetable: %w", err)
+		return fmt.Errorf("navigate to timetable: %w", err)
 	}
 
 	navDone := make(chan struct{})
 	go func() {
-		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
+		navigationPage.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
 		close(navDone)
 	}()
 
 	select {
-	case <-fetchCtx.Done():
-		return nil, fmt.Errorf("navigate to timetable: %w", fetchCtx.Err())
+	case <-navigationCtx.Done():
+		return fmt.Errorf("navigate to timetable: %w", navigationCtx.Err())
 	case <-navDone:
 	}
 
 	stableDone := make(chan error)
 	go func() {
-		stableDone <- page.WaitStable(5000)
+		stableDone <- navigationPage.WaitStable(5000)
 	}()
 
 	select {
-	case <-fetchCtx.Done():
-		return nil, fmt.Errorf("wait for stable: %w", fetchCtx.Err())
+	case <-navigationCtx.Done():
+		return fmt.Errorf("wait for stable: %w", navigationCtx.Err())
 	case err := <-stableDone:
 		if err != nil {
 			debug(cfg, "wait stable failed: %v", err)
 		}
 	}
 
-	return handleMultiTermSelection(fetchCtx, &pageAdapter{page}, cfg)
+	return nil
 }
 
 func debug(cfg BrowserConfig, msg string, args ...any) {
@@ -289,6 +311,9 @@ func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig
 
 func fetchFromCurrentPage(ctx context.Context, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
 	debug(cfg, "fetching timetable from current page without term selection")
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("fetch timetable from current page: %w", err)
+	}
 
 	pageCtx := page.Context(ctx)
 

@@ -21,6 +21,9 @@ type mockTermPage struct {
 	waitStableCallCount int
 	waitCallCount       int
 	waitStableFunc      func(timeout time.Duration) error
+	elementDelay        time.Duration
+	navigateErr         error
+	navigateCallCount   int
 	clickErrors         map[string]error
 	changeTermFailAfter int
 	changeTermCallCount int
@@ -40,8 +43,16 @@ func (m *mockTermPage) Context(ctx context.Context) termPage {
 	return m
 }
 
+func (m *mockTermPage) Navigate(url string) error {
+	m.navigateCallCount++
+	return m.navigateErr
+}
+
 func (m *mockTermPage) Element(selector string) (*rod.Element, error) {
 	m.elementCalls = append(m.elementCalls, selector)
+	if m.elementDelay > 0 {
+		time.Sleep(m.elementDelay)
+	}
 
 	// Check clickErrors first (for simulating element lookup failures)
 	if err, ok := m.clickErrors[selector]; ok {
@@ -118,6 +129,30 @@ func testConfig() BrowserConfig {
 	cfg.MaxRetries = 1
 	cfg.RetryInterval = 1 * time.Millisecond
 	return cfg
+}
+
+func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	cfg := testConfig()
+	cfg.NavigationTimeout = 100 * time.Millisecond
+
+	mock := newMockTermPage()
+	// Make term-selection lookups take longer than the initial-navigation
+	// budget. They should still run under the caller's timetable-fetch context.
+	mock.elementDelay = 120 * time.Millisecond
+
+	entries, err := fetchTimetablePage(ctx, mock, cfg)
+	if err != nil {
+		t.Fatalf("fetchTimetablePage failed after initial navigation succeeded: %v", err)
+	}
+	if mock.navigateCallCount != 1 {
+		t.Errorf("expected one initial timetable navigation, got %d", mock.navigateCallCount)
+	}
+	if len(entries) == 0 {
+		t.Fatal("expected timetable entries to be fetched from the current page")
+	}
 }
 
 func TestHandleMultiTermSelection_ContextExpired(t *testing.T) {
