@@ -15,6 +15,7 @@ import (
 type termPage interface {
 	Context(ctx context.Context) termPage
 	Navigate(url string) error
+	CurrentURL() (string, error)
 	Click(selector string, index int) error
 	Elements(selector string) (rod.Elements, error)
 	WaitStable(timeout time.Duration) error
@@ -31,6 +32,14 @@ func (a *pageAdapter) Context(ctx context.Context) termPage {
 
 func (a *pageAdapter) Navigate(url string) error {
 	return a.Page.Navigate(url)
+}
+
+func (a *pageAdapter) CurrentURL() (string, error) {
+	result, err := a.Page.Eval("() => window.location.href")
+	if err != nil {
+		return "", err
+	}
+	return result.Value.Str(), nil
 }
 
 func (a *pageAdapter) Click(selector string, index int) error {
@@ -85,36 +94,72 @@ func fetchTimetablePage(ctx context.Context, page termPage, cfg BrowserConfig) (
 	return handleMultiTermSelection(ctx, page, cfg)
 }
 
-// navigateToTimetable applies NavigationTimeout only to the initial timetable
-// endpoint navigation. The page passed by the caller remains bound to its
-// original browser context for the rest of the fetch.
-// navigateToTimetable bounds the endpoint request, then waits for page stability
-// on the caller's context. The short-lived navigation context must not be reused
-// for later operations on the same page.
+const timetableEndpointURL = "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
+
+// urlWithoutQuery removes the query string from a URL for endpoint comparison.
+func urlWithoutQuery(rawURL string) string {
+	if query := strings.IndexByte(rawURL, '?'); query >= 0 {
+		return rawURL[:query]
+	}
+	return rawURL
+}
+
+// navigateToTimetable retries the complete navigation cycle. Each cycle gets
+// its own navigation timeout, then waits for stability and verifies that the
+// browser actually landed on the timetable endpoint before allowing the fetch
+// to continue.
 func navigateToTimetable(ctx context.Context, page termPage, cfg BrowserConfig) error {
-	navigationCtx, navigationCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	navigationPage := page.Context(navigationCtx)
-	if deadline, ok := navigationCtx.Deadline(); ok {
-		debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
-	}
-
-	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
-	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
-	err := Do(navigationCtx, func() error {
-		return navigationPage.Navigate(timetableURL)
-	}, cfg.MaxRetries, cfg.RetryInterval)
-	navigationCancel()
-	if err != nil {
-		return fmt.Errorf("navigate to timetable: %w", err)
-	}
-
-	if err := page.WaitStable(5000); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("wait for timetable page stability: %w", ctx.Err())
+	return Do(ctx, func() error {
+		navigationCtx, navigationCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
+		navigationPage := page.Context(navigationCtx)
+		if deadline, ok := navigationCtx.Deadline(); ok {
+			debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
 		}
-		return fmt.Errorf("wait for timetable page stability: %w", err)
-	}
-	return nil
+
+		debug(cfg, "navigating to timetable endpoint: %s", timetableEndpointURL)
+		err := Do(navigationCtx, func() error {
+			return navigationPage.Navigate(timetableEndpointURL)
+		}, 0, cfg.RetryInterval)
+		navigationCancel()
+		if err != nil {
+			return fmt.Errorf("navigate to timetable: %w", err)
+		}
+
+		if err := page.WaitStable(5000); err != nil {
+			if ctx.Err() != nil {
+				return fmt.Errorf("wait for timetable page stability: %w", ctx.Err())
+			}
+			return fmt.Errorf("wait for timetable page stability: %w", err)
+		}
+
+		currentURL, err := page.CurrentURL()
+		if err != nil {
+			return fmt.Errorf("check URL after timetable navigation: %w", err)
+		}
+		if urlWithoutQuery(currentURL) == timetableEndpointURL {
+			debug(cfg, "timetable endpoint URL verified: %s", currentURL)
+			return nil
+		}
+		debug(cfg, "URL after timetable navigation does not match endpoint (got %q, want %q); waiting one more second", currentURL, timetableEndpointURL)
+
+		if err := page.WaitStable(time.Second); err != nil {
+			if ctx.Err() != nil {
+				return fmt.Errorf("wait for timetable page stability after URL mismatch: %w", ctx.Err())
+			}
+			return fmt.Errorf("wait for timetable page stability after URL mismatch: %w", err)
+		}
+
+		currentURL, err = page.CurrentURL()
+		if err != nil {
+			return fmt.Errorf("recheck URL after timetable navigation: %w", err)
+		}
+		if urlWithoutQuery(currentURL) != timetableEndpointURL {
+			return fmt.Errorf("timetable endpoint URL mismatch after additional stability wait: got %q, want %q", urlWithoutQuery(currentURL), timetableEndpointURL)
+		}
+
+		debug(cfg, "timetable endpoint URL verified after additional stability wait: %s", currentURL)
+		return nil
+	}, cfg.MaxRetries, cfg.RetryInterval)
 }
 
 func debug(cfg BrowserConfig, msg string, args ...any) {
