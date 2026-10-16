@@ -69,6 +69,10 @@ func fetchTimetablePage(ctx context.Context, page termPage, cfg BrowserConfig) (
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("timetable fetch context already expired: %w", err)
 	}
+
+	// Keep page operations bound to the overall timetable context. The initial
+	// navigation gets a nested timeout without shortening this page's lifetime.
+	page = page.Context(ctx)
 	if err := navigateToTimetable(ctx, page, cfg); err != nil {
 		return nil, err
 	}

@@ -22,6 +22,7 @@ type mockTermPage struct {
 	waitCallCount       int
 	waitStableFunc      func(timeout time.Duration) error
 	elementDelay        time.Duration
+	contexts            []context.Context
 	navigateErr         error
 	navigateCallCount   int
 	clickErrors         map[string]error
@@ -39,7 +40,7 @@ func newMockTermPage() *mockTermPage {
 }
 
 func (m *mockTermPage) Context(ctx context.Context) termPage {
-	_ = ctx
+	m.contexts = append(m.contexts, ctx)
 	return m
 }
 
@@ -149,6 +150,17 @@ func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *test
 	}
 	if mock.navigateCallCount != 1 {
 		t.Errorf("expected one initial timetable navigation, got %d", mock.navigateCallCount)
+	}
+	if len(mock.contexts) < 2 {
+		t.Fatalf("expected overall and navigation contexts to be applied, got %d", len(mock.contexts))
+	}
+	parentDeadline, parentHasDeadline := mock.contexts[0].Deadline()
+	navDeadline, navHasDeadline := mock.contexts[1].Deadline()
+	if !parentHasDeadline || !navHasDeadline || !parentDeadline.Equal(navDeadline) && !navDeadline.Before(parentDeadline) {
+		t.Errorf("expected the initial navigation to use a nested deadline, parent=%v navigation=%v", parentDeadline, navDeadline)
+	}
+	if !parentHasDeadline || !navHasDeadline || navDeadline.Sub(parentDeadline) >= 0 {
+		t.Errorf("expected the initial navigation deadline to expire before the overall fetch deadline, parent=%v navigation=%v", parentDeadline, navDeadline)
 	}
 	if len(entries) == 0 {
 		t.Fatal("expected timetable entries to be fetched from the current page")
