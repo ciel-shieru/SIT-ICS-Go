@@ -97,6 +97,9 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 				DTEnd:       dtEnd,
 			})
 		}
+		if contextErr := timetableCtx.Err(); contextErr != nil {
+			return fmt.Errorf("PeopleSoft timetable attempt context expired: %w", contextErr)
+		}
 		if len(fetchedEvents) == 0 {
 			return fmt.Errorf("PeopleSoft timetable fetch produced no valid calendar events")
 		}
