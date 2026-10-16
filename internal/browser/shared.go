@@ -112,7 +112,7 @@ func navigateToTimetable(ctx context.Context, page termPage, cfg BrowserConfig) 
 		if ctx.Err() != nil {
 			return fmt.Errorf("wait for timetable page stability: %w", ctx.Err())
 		}
-		debug(cfg, "wait stable failed for timetable endpoint: %v", err)
+		return fmt.Errorf("wait for timetable page stability: %w", err)
 	}
 	return nil
 }
@@ -136,7 +136,11 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 
 	if err := returnToTermSelection(ctx, page, cfg); err != nil {
 		debug(cfg, "failed to navigate to term selection: %v — fetching from current page", err)
-		return fetchFromCurrentPage(ctx, page, cfg)
+		entries, fallbackErr := fetchFromCurrentPage(ctx, page, cfg)
+		if fallbackErr != nil {
+			return nil, fmt.Errorf("term selection failed (%v); current-page fallback failed: %w", err, fallbackErr)
+		}
+		return entries, nil
 	}
 
 	radioButtons, err := queryTermRadioButtons(ctx, page, cfg)
@@ -148,28 +152,34 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 		return fetchFromCurrentPage(ctx, page, cfg)
 	}
 
-	debug(cfg, "found %d term selection radio button(s)", len(radioButtons))
+	initialTermCount := len(radioButtons)
+	var firstTermErr error
 
 	for i := 0; i < len(radioButtons); i++ {
 		debug(cfg, "fetching term %d of %d", i+1, len(radioButtons))
 
-		entries, err := navigateToTerm(ctx, i, page, cfg)
-		if err != nil {
-			debug(cfg, "failed to fetch term %d: %v — continuing to next term", i+1, err)
+		entries, termErr := navigateToTerm(ctx, i, page, cfg)
+		if termErr != nil {
+			debug(cfg, "failed to fetch term %d: %v — attempting to restore term selection", i+1, termErr)
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("timetable fetch interrupted after term %d: %w", i+1, ctx.Err())
+			}
+			if firstTermErr == nil {
+				firstTermErr = fmt.Errorf("fetch term %d: %w", i+1, termErr)
 			}
 			if i == len(radioButtons)-1 {
 				continue
 			}
 
-			// A failed term attempt can still leave the browser on its timetable
-			// page. Restore the selector before trying another term.
-			radioButtons, err = restoreTermSelection(ctx, page, cfg)
-			if err != nil {
-				debug(cfg, "failed to restore term selection after term %d: %v — stopping term iteration", i+1, err)
+			// A failed term attempt can leave the browser on its timetable page.
+			// Restore the selector to finish diagnosing this attempt, but never
+			// report success if any term failed; runFetch must retry the full run.
+			restoredButtons, restoreErr := restoreTermSelection(ctx, page, cfg)
+			if restoreErr != nil {
+				debug(cfg, "failed to restore term selection after term %d: %v — stopping term iteration", i+1, restoreErr)
 				break
 			}
+			radioButtons = restoredButtons
 			if i+1 >= len(radioButtons) {
 				debug(cfg, "no further term radio button available after term %d", i+1)
 				break
@@ -182,23 +192,36 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 
 		if i < len(radioButtons)-1 {
 			if err := returnToTermSelection(ctx, page, cfg); err != nil {
+				if firstTermErr == nil {
+					firstTermErr = fmt.Errorf("return to term selection after term %d: %w", i+1, err)
+				}
 				debug(cfg, "failed to return to term selection after term %d: %v — stopping term iteration", i+1, err)
 				break
 			}
-			radioButtons, err = queryTermRadioButtons(ctx, page, cfg)
+			nextRadioButtons, err := queryTermRadioButtons(ctx, page, cfg)
 			if err != nil {
+				if firstTermErr == nil {
+					firstTermErr = fmt.Errorf("query term selection after term %d: %w", i+1, err)
+				}
 				debug(cfg, "failed to query term selection after term %d: %v — stopping term iteration", i+1, err)
 				break
 			}
-			if i+1 >= len(radioButtons) {
+			if i+1 >= len(nextRadioButtons) {
+				if firstTermErr == nil {
+					firstTermErr = fmt.Errorf("term selection no longer contains term %d after fetching term %d", i+2, i+1)
+				}
 				debug(cfg, "no further term radio button available after term %d", i+1)
 				break
 			}
+			radioButtons = nextRadioButtons
 		}
 	}
 
-	if len(allEntries) == 0 && len(radioButtons) > 0 {
-		return nil, fmt.Errorf("no timetable entries fetched from any of %d term(s)", len(radioButtons))
+	if firstTermErr != nil {
+		return nil, fmt.Errorf("incomplete PeopleSoft timetable fetch: %w", firstTermErr)
+	}
+	if len(allEntries) == 0 {
+		return nil, fmt.Errorf("no timetable entries fetched from any of %d term(s)", initialTermCount)
 	}
 
 	debug(cfg, "multi-term fetch complete, total entries: %d", len(allEntries))
@@ -266,7 +289,7 @@ func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserCo
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("wait for timetable stability: %w", ctx.Err())
 		}
-		debug(cfg, "wait stable for term failed: %v", err)
+		return nil, fmt.Errorf("wait for timetable stability: %w", err)
 	}
 
 	htmlStr, err := page.HTML()
@@ -295,7 +318,7 @@ func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig
 		if ctx.Err() != nil {
 			return fmt.Errorf("wait stable for term selection return: %w", ctx.Err())
 		}
-		debug(cfg, "wait stable for term selection return failed: %v", err)
+		return fmt.Errorf("wait stable for term selection return: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("return to term selection: %w", err)
@@ -332,12 +355,22 @@ func fetchFromCurrentPage(ctx context.Context, page termPage, cfg BrowserConfig)
 	if err != nil {
 		return nil, fmt.Errorf("parse timetable HTML from current page: %w", err)
 	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("no timetable entries parsed from current page")
+	}
 
 	return entries, nil
 }
 
-func clickElement(el *rod.Element) error {
-	defer func() { recover() }()
+func clickElement(el *rod.Element) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("click element panicked: %v", recovered)
+		}
+	}()
+	if el == nil {
+		return fmt.Errorf("cannot click a nil element")
+	}
 	return el.Click(proto.InputMouseButtonLeft, 1)
 }
 
