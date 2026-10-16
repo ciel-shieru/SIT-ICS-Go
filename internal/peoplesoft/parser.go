@@ -93,12 +93,18 @@ func parseMeetingTable(table *html.Node, loc *time.Location) ([]Entry, error) {
 	for rowIndex, row := range rows {
 		cells := getCells(row)
 		if len(cells) < 7 {
+			if currentCourseCode != "" && len(cells) > 0 {
+				return nil, fmt.Errorf("row %d has %d cells; expected at least 7", rowIndex+1, len(cells))
+			}
 			continue
 		}
 
 		firstCellText := getTextContent(cells[0])
 		if strings.Contains(firstCellText, "Class Nbr") {
 			findCourseHeader(row, &currentCourseCode, &currentClassName)
+			if currentCourseCode == "" {
+				return nil, fmt.Errorf("row %d has a timetable header but no recognizable course header", rowIndex+1)
+			}
 			continue
 		}
 
