@@ -241,28 +241,39 @@ func queryTermRadioButtons(ctx context.Context, page termPage, cfg BrowserConfig
 	return radioButtons, err
 }
 
-// restoreTermSelection recovers after a failed term navigation. It first checks
-// whether the selector is already present, and otherwise returns from the
-// timetable page before allowing the loop to select the next term.
+// restoreTermSelection recovers after a failed term navigation. Hidden/stale
+// radio buttons can remain in the timetable DOM, so the selector is considered
+// active only when its Go button is present. Otherwise explicitly click Change
+// Term before selecting the next term.
 func restoreTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) (rod.Elements, error) {
+	goButtons, err := queryTermGoButtons(ctx, page, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("query term selection Go button: %w", err)
+	}
+	if len(goButtons) == 0 {
+		if err := returnToTermSelection(ctx, page, cfg); err != nil {
+			return nil, err
+		}
+	}
+
 	radioButtons, err := queryTermRadioButtons(ctx, page, cfg)
 	if err != nil {
 		return nil, err
 	}
-	if len(radioButtons) > 0 {
-		return radioButtons, nil
-	}
-	if err := returnToTermSelection(ctx, page, cfg); err != nil {
-		return nil, err
-	}
-	radioButtons, err = queryTermRadioButtons(ctx, page, cfg)
-	if err != nil {
-		return nil, err
-	}
 	if len(radioButtons) == 0 {
-		return nil, fmt.Errorf("term selection screen has no radio buttons after returning")
+		return nil, fmt.Errorf("term selection screen has no radio buttons after recovery")
 	}
 	return radioButtons, nil
+}
+
+func queryTermGoButtons(ctx context.Context, page termPage, cfg BrowserConfig) (rod.Elements, error) {
+	var goButtons rod.Elements
+	err := Do(ctx, func() error {
+		var err error
+		goButtons, err = page.Elements("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval)
+	return goButtons, err
 }
 
 func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
@@ -324,6 +335,13 @@ func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig
 		return fmt.Errorf("return to term selection: %w", err)
 	}
 
+	goButtons, err := queryTermGoButtons(ctx, page, cfg)
+	if err != nil {
+		return fmt.Errorf("query Go button after returning to term selection: %w", err)
+	}
+	if len(goButtons) == 0 {
+		return fmt.Errorf("term selection Go button not present after returning")
+	}
 	radioButtons, err := queryTermRadioButtons(ctx, page, cfg)
 	if err != nil {
 		return fmt.Errorf("query term selection after returning: %w", err)
