@@ -145,7 +145,7 @@ func parseMeetingTable(table *html.Node, loc *time.Location) ([]Entry, error) {
 		// Check the data cells before updating carried-forward section/component
 		// values or trying strict date/schedule parsing.
 		placeholderFound := false
-		for _, cell := range cells[1:] {
+		for _, cell := range cells {
 			if isTimetableRowPlaceholder(getTextContent(cell)) {
 				placeholderFound = true
 				break
