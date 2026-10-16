@@ -21,9 +21,13 @@ type mockTermPage struct {
 	waitStableErr       error
 	waitErr             error
 	waitStableCallCount int
+	waitStableTimeouts []time.Duration
 	waitCallCount       int
 	waitStableFunc      func(timeout time.Duration) error
 	elementDelay        time.Duration
+	currentURLResults   []string
+	currentURLCalls     int
+	currentURLErrors    map[int]error
 	simulateNavigation  bool
 	onTimetable         bool
 	staleRadioButtonsOnTimetable bool
@@ -44,7 +48,8 @@ func newMockTermPage() *mockTermPage {
 		clickCalls:      []string{},
 		elementsResults: map[string]rod.Elements{},
 		elementsErrors:  map[string]error{},
-		clickErrors:     map[string]error{},
+		clickErrors:      map[string]error{},
+		currentURLErrors: map[int]error{},
 	}
 }
 
@@ -56,6 +61,21 @@ func (m *mockTermPage) Context(ctx context.Context) termPage {
 func (m *mockTermPage) Navigate(url string) error {
 	m.navigateCallCount++
 	return m.navigateErr
+}
+
+func (m *mockTermPage) CurrentURL() (string, error) {
+	m.currentURLCalls++
+	if err, ok := m.currentURLErrors[m.currentURLCalls]; ok {
+		return "", err
+	}
+	if len(m.currentURLResults) == 0 {
+		return timetableEndpointURL, nil
+	}
+	index := m.currentURLCalls - 1
+	if index >= len(m.currentURLResults) {
+		index = len(m.currentURLResults) - 1
+	}
+	return m.currentURLResults[index], nil
 }
 
 func (m *mockTermPage) Click(selector string, index int) error {
@@ -174,6 +194,7 @@ func (m *mockTermPage) Elements(selector string) (rod.Elements, error) {
 
 func (m *mockTermPage) WaitStable(timeout time.Duration) error {
 	m.waitStableCallCount++
+	m.waitStableTimeouts = append(m.waitStableTimeouts, timeout)
 	if m.waitStableFunc != nil {
 		return m.waitStableFunc(timeout)
 	}
@@ -219,6 +240,78 @@ func TestNavigateToTimetable_StabilityFailureReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "wait for timetable page stability") {
 		t.Errorf("unexpected stability error: %v", err)
+	}
+}
+
+func TestNavigateToTimetable_URLWithQueryMatchesEndpoint(t *testing.T) {
+	mock := newMockTermPage()
+	mock.currentURLResults = []string{timetableEndpointURL + "?ICType=Panel"}
+	cfg := testConfig()
+
+	if err := navigateToTimetable(context.Background(), mock, cfg); err != nil {
+		t.Fatalf("navigateToTimetable returned error for endpoint URL with query parameters: %v", err)
+	}
+	if mock.navigateCallCount != 1 {
+		t.Errorf("navigation calls = %d, want 1", mock.navigateCallCount)
+	}
+	if mock.currentURLCalls != 1 {
+		t.Errorf("URL checks = %d, want 1", mock.currentURLCalls)
+	}
+	if len(mock.waitStableTimeouts) != 1 || mock.waitStableTimeouts[0] != 5000 {
+		t.Errorf("WaitStable calls = %v, want only [5000]", mock.waitStableTimeouts)
+	}
+}
+
+func TestNavigateToTimetable_URLMatchesAfterAdditionalStabilityWait(t *testing.T) {
+	mock := newMockTermPage()
+	mock.currentURLResults = []string{
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL?redirect=working",
+		timetableEndpointURL + "?ICType=Panel",
+	}
+	cfg := testConfig()
+
+	if err := navigateToTimetable(context.Background(), mock, cfg); err != nil {
+		t.Fatalf("navigateToTimetable returned error after delayed redirect: %v", err)
+	}
+	if mock.navigateCallCount != 1 {
+		t.Errorf("navigation calls = %d, want 1", mock.navigateCallCount)
+	}
+	if mock.currentURLCalls != 2 {
+		t.Errorf("URL checks = %d, want 2", mock.currentURLCalls)
+	}
+	wantWaits := []time.Duration{5000, time.Second}
+	if fmt.Sprint(mock.waitStableTimeouts) != fmt.Sprint(wantWaits) {
+		t.Errorf("WaitStable calls = %v, want %v", mock.waitStableTimeouts, wantWaits)
+	}
+}
+
+func TestNavigateToTimetable_URLMismatchRetriesWholeCycle(t *testing.T) {
+	mock := newMockTermPage()
+	mock.currentURLResults = []string{
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL",
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL?retry=1",
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL",
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL?retry=2",
+	}
+	cfg := testConfig()
+	cfg.MaxRetries = 1
+
+	err := navigateToTimetable(context.Background(), mock, cfg)
+	if err == nil {
+		t.Fatal("expected URL mismatch after both checks to fail each navigation cycle")
+	}
+	if !strings.Contains(err.Error(), "timetable endpoint URL mismatch") {
+		t.Errorf("expected endpoint mismatch error, got: %v", err)
+	}
+	if mock.navigateCallCount != 2 {
+		t.Errorf("navigation calls = %d, want 2 whole-cycle attempts", mock.navigateCallCount)
+	}
+	if mock.currentURLCalls != 4 {
+		t.Errorf("URL checks = %d, want 4 checks across two cycles", mock.currentURLCalls)
+	}
+	wantWaits := []time.Duration{5000, time.Second, 5000, time.Second}
+	if fmt.Sprint(mock.waitStableTimeouts) != fmt.Sprint(wantWaits) {
+		t.Errorf("WaitStable calls = %v, want %v", mock.waitStableTimeouts, wantWaits)
 	}
 }
 
