@@ -42,3 +42,6 @@ Thumbs.db
 # Go build artifacts
 *.a
 *.lib
+
+# clankers
+.opencode/

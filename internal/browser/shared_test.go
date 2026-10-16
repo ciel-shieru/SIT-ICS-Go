@@ -28,10 +28,10 @@ type mockTermPage struct {
 
 func newMockTermPage() *mockTermPage {
 	return &mockTermPage{
-		elementCalls:      []string{},
-		elementsResults:   map[string]rod.Elements{},
-		elementsErrors:    map[string]error{},
-		clickErrors:       map[string]error{},
+		elementCalls:    []string{},
+		elementsResults: map[string]rod.Elements{},
+		elementsErrors:  map[string]error{},
+		clickErrors:     map[string]error{},
 	}
 }
 
@@ -264,7 +264,7 @@ func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 
 	// First radio button click fails
-	mock.clickErrors["xpath///*[@id=\"SSR_DUMMY_RECV1$sels$0$0$0\"]"] = errors.New("click failed")
+	mock.clickErrors["xpath///*[@id=\"SSR_DUMMY_RECV1$sels$0$0\"]"] = errors.New("click failed")
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err != nil {

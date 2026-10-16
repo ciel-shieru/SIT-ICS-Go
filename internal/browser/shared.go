@@ -177,7 +177,7 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 }
 
 func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
-	radioID := fmt.Sprintf("SSR_DUMMY_RECV1$sels$0$%d$0", index)
+	radioID := fmt.Sprintf("SSR_DUMMY_RECV1$sels$%d$0", index)
 	xpathSelector := fmt.Sprintf("xpath///*[@id=\"%s\"]", radioID)
 
 	debug(cfg, "clicking radio button: %s", xpathSelector)
