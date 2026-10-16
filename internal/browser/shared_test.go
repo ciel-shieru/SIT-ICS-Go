@@ -570,10 +570,12 @@ func TestReturnToTermSelection_Success(t *testing.T) {
 
 	changeTermEl := &rod.Element{}
 	radioEl := &rod.Element{}
+	goEl := &rod.Element{}
 
 	mock := newMockTermPage()
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 
 	err := returnToTermSelection(ctx, mock, testConfig())
 	if err != nil {
