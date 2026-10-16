@@ -3,6 +3,7 @@ package browser
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 // mockTermPage implements termPage interface for testing multi-term selection
 type mockTermPage struct {
 	elementCalls        []string
+	clickCalls          []string
 	elementsResults     map[string]rod.Elements
 	elementsErrors      map[string]error
 	waitStableErr       error
@@ -33,6 +35,7 @@ type mockTermPage struct {
 func newMockTermPage() *mockTermPage {
 	return &mockTermPage{
 		elementCalls:    []string{},
+		clickCalls:      []string{},
 		elementsResults: map[string]rod.Elements{},
 		elementsErrors:  map[string]error{},
 		clickErrors:     map[string]error{},
@@ -47,6 +50,31 @@ func (m *mockTermPage) Context(ctx context.Context) termPage {
 func (m *mockTermPage) Navigate(url string) error {
 	m.navigateCallCount++
 	return m.navigateErr
+}
+
+func (m *mockTermPage) Click(selector string, index int) error {
+	call := fmt.Sprintf("%s[%d]", selector, index)
+	m.clickCalls = append(m.clickCalls, call)
+	if m.elementDelay > 0 {
+		time.Sleep(m.elementDelay)
+	}
+	if selector == "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']" {
+		m.changeTermCallCount++
+		if m.changeTermFailAfter > 0 && m.changeTermCallCount > m.changeTermFailAfter {
+			return errors.New("change term failed after threshold")
+		}
+	}
+	if err, ok := m.clickErrors[call]; ok {
+		return err
+	}
+	if err, ok := m.elementsErrors[selector]; ok {
+		return err
+	}
+	elements, ok := m.elementsResults[selector]
+	if !ok || index < 0 || index >= len(elements) {
+		return errors.New("element not found")
+	}
+	return nil
 }
 
 func (m *mockTermPage) Element(selector string) (*rod.Element, error) {
@@ -95,6 +123,9 @@ func (m *mockTermPage) Element(selector string) (*rod.Element, error) {
 }
 
 func (m *mockTermPage) Elements(selector string) (rod.Elements, error) {
+	if m.elementDelay > 0 {
+		time.Sleep(m.elementDelay)
+	}
 	if err, ok := m.elementsErrors[selector]; ok {
 		return nil, err
 	}
@@ -194,7 +225,7 @@ func TestHandleMultiTermSelection_NoChangeTermButton_FetchCurrentPage(t *testing
 
 	// Should have tried to find change term button
 	foundChangeTerm := false
-	for _, call := range mock.elementCalls {
+	for _, call := range mock.clickCalls {
 		if strings.Contains(call, "DERIVED_SSS_SCT_SSS_TERM_LINK") {
 			foundChangeTerm = true
 			break
@@ -239,8 +270,8 @@ func TestHandleMultiTermSelection_SingleTerm(t *testing.T) {
 
 	// Verify radio button was clicked (via CSS selector)
 	foundRadio := false
-	for _, call := range mock.elementCalls {
-		if strings.Contains(call, "#SSR_DUMMY_RECV1") {
+	for _, call := range mock.clickCalls {
+		if strings.HasPrefix(call, "input.PSRADIOBUTTON[") {
 			foundRadio = true
 			break
 		}
@@ -251,7 +282,7 @@ func TestHandleMultiTermSelection_SingleTerm(t *testing.T) {
 
 	// Verify Go button was clicked
 	foundGo := false
-	for _, call := range mock.elementCalls {
+	for _, call := range mock.clickCalls {
 		if strings.Contains(call, "DERIVED_SSS_SCT_SSR_PB_GO") {
 			foundGo = true
 			break
@@ -282,7 +313,7 @@ func TestHandleMultiTermSelection_MultipleTerms(t *testing.T) {
 
 	// Should have clicked change term twice (once to open, once to return after term 1)
 	changeTermCount := 0
-	for _, call := range mock.elementCalls {
+	for _, call := range mock.clickCalls {
 		if strings.Contains(call, "DERIVED_SSS_SCT_SSS_TERM_LINK") {
 			changeTermCount++
 		}
@@ -293,8 +324,8 @@ func TestHandleMultiTermSelection_MultipleTerms(t *testing.T) {
 
 	// Should have clicked both radio buttons
 	radioCSSCount := 0
-	for _, call := range mock.elementCalls {
-		if strings.Contains(call, "#SSR_DUMMY_RECV1") {
+	for _, call := range mock.clickCalls {
+		if strings.HasPrefix(call, "input.PSRADIOBUTTON[") {
 			radioCSSCount++
 		}
 	}
@@ -317,7 +348,7 @@ func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 
 	// First radio button click fails
-	mock.clickErrors["#SSR_DUMMY_RECV1$sels$0$0"] = errors.New("click failed")
+	mock.clickErrors["input.PSRADIOBUTTON[0]"] = errors.New("click failed")
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
 	if err != nil {
@@ -347,8 +378,8 @@ func TestHandleMultiTermSelection_ReturnToTermSelectionFailure_StopsIteration(t 
 
 	// Should have clicked only 1 radio button (second was skipped due to return failure)
 	radioCSSCount := 0
-	for _, call := range mock.elementCalls {
-		if strings.Contains(call, "#SSR_DUMMY_RECV1") {
+	for _, call := range mock.clickCalls {
+		if strings.HasPrefix(call, "input.PSRADIOBUTTON[") {
 			radioCSSCount++
 		}
 	}
@@ -376,8 +407,8 @@ func TestHandleMultiTermSelection_WrapperWithSuccess(t *testing.T) {
 
 	// Verify radio button lookup occurred
 	foundRadio := false
-	for _, call := range mock.elementCalls {
-		if call == "input.PSRADIOBUTTON" {
+	for _, call := range mock.clickCalls {
+		if strings.HasPrefix(call, "input.PSRADIOBUTTON[") {
 			foundRadio = true
 			break
 		}
@@ -438,7 +469,7 @@ func TestReturnToTermSelection_Success(t *testing.T) {
 
 	// Verify change term button was clicked
 	foundChangeTerm := false
-	for _, call := range mock.elementCalls {
+	for _, call := range mock.clickCalls {
 		if strings.Contains(call, "DERIVED_SSS_SCT_SSS_TERM_LINK") {
 			foundChangeTerm = true
 			break
