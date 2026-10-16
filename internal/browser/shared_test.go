@@ -26,6 +26,7 @@ type mockTermPage struct {
 	elementDelay        time.Duration
 	simulateNavigation  bool
 	onTimetable         bool
+	staleRadioButtonsOnTimetable bool
 	htmlCalls           int
 	htmlContent         string
 	htmlErrOnCall       int
@@ -152,7 +153,10 @@ func (m *mockTermPage) Elements(selector string) (rod.Elements, error) {
 		time.Sleep(m.elementDelay)
 	}
 	if m.simulateNavigation {
-		if selector == "input.PSRADIOBUTTON" && m.onTimetable {
+		if selector == "input.PSRADIOBUTTON" && m.onTimetable && !m.staleRadioButtonsOnTimetable {
+			return rod.Elements{}, nil
+		}
+		if selector == "input[name='DERIVED_SSS_SCT_SSR_PB_GO']" && m.onTimetable {
 			return rod.Elements{}, nil
 		}
 		if selector == "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']" && !m.onTimetable {
@@ -261,6 +265,7 @@ func TestHandleMultiTermSelection_PropagatesTimetableHTMLFailureAfterRecovery(t 
 	mock := newMockTermPage()
 	mock.simulateNavigation = true
 	mock.onTimetable = true
+	mock.staleRadioButtonsOnTimetable = true // Simulate stale/hidden radios that must not be mistaken for the selector.
 	mock.htmlErrOnCall = 1
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}, &rod.Element{}}
@@ -278,6 +283,15 @@ func TestHandleMultiTermSelection_PropagatesTimetableHTMLFailureAfterRecovery(t 
 	}
 	if mock.changeTermCallCount != 2 {
 		t.Errorf("expected selector recovery after the failed first term, got %d Change Term clicks", mock.changeTermCallCount)
+	}
+	goClickCount := 0
+	for _, call := range mock.clickCalls {
+		if strings.Contains(call, "DERIVED_SSS_SCT_SSR_PB_GO") {
+			goClickCount++
+		}
+	}
+	if goClickCount != 2 {
+		t.Errorf("expected Go to be clicked for both terms after selector recovery, got %d clicks; calls: %v", goClickCount, mock.clickCalls)
 	}
 	if len(mock.clickCalls) < 4 ||
 		mock.clickCalls[1] != "input.PSRADIOBUTTON[0]" ||
