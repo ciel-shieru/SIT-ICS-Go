@@ -217,6 +217,27 @@ func TestParseTimetableHTML_MalformedMeetingRowReturnsError(t *testing.T) {
 	}
 }
 
+func TestParseTimetableHTML_IncompleteMeetingRowReturnsError(t *testing.T) {
+	htmlContent := `<html><body>
+<div id="win0divDERIVED_REGFRM1_DESCR20$0">
+<table>
+<tr><td class="PAGROUPDIVIDER">ALT2501 - Fake Course</td></tr>
+<tr><td><table cols="7">
+<tr>
+<th>Class Nbr</th><th>Section</th><th>Component</th><th>Days &amp; Times</th><th>Room</th><th>Instructor</th><th>Start/End Date</th>
+</tr>
+<tr><td colspan="7">Incomplete timetable row</td></tr>
+</table></td></tr>
+</table>
+</div>
+</body></html>`
+
+	_, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
+	if err == nil {
+		t.Fatal("expected incomplete timetable row to fail parsing instead of being silently skipped")
+	}
+}
+
 func TestParseDateRejectsInvalidCalendarDates(t *testing.T) {
 	for _, input := range []string{"31/02/2026", "00/01/2026", "01/13/2026", "xx/01/2026"} {
 		t.Run(input, func(t *testing.T) {
