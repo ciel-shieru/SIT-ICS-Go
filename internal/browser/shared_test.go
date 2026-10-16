@@ -24,6 +24,10 @@ type mockTermPage struct {
 	waitCallCount       int
 	waitStableFunc      func(timeout time.Duration) error
 	elementDelay        time.Duration
+	simulateNavigation  bool
+	onTimetable         bool
+	htmlCalls           int
+	htmlErrOnCall       int
 	contexts            []context.Context
 	navigateErr         error
 	navigateCallCount   int
@@ -58,6 +62,18 @@ func (m *mockTermPage) Click(selector string, index int) error {
 	if m.elementDelay > 0 {
 		time.Sleep(m.elementDelay)
 	}
+	if m.simulateNavigation {
+		switch selector {
+		case "input.PSRADIOBUTTON":
+			if m.onTimetable {
+				return errors.New("term radio buttons are not present on the timetable page")
+			}
+		case "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']":
+			if !m.onTimetable {
+				return errors.New("change term button is not present on the selection page")
+			}
+		}
+	}
 	if selector == "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']" {
 		m.changeTermCallCount++
 		if m.changeTermFailAfter > 0 && m.changeTermCallCount > m.changeTermFailAfter {
@@ -73,6 +89,14 @@ func (m *mockTermPage) Click(selector string, index int) error {
 	elements, ok := m.elementsResults[selector]
 	if !ok || index < 0 || index >= len(elements) {
 		return errors.New("element not found")
+	}
+	if m.simulateNavigation {
+		switch selector {
+		case "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']":
+			m.onTimetable = false
+		case "input[name='DERIVED_SSS_SCT_SSR_PB_GO']":
+			m.onTimetable = true
+		}
 	}
 	return nil
 }
@@ -126,6 +150,14 @@ func (m *mockTermPage) Elements(selector string) (rod.Elements, error) {
 	if m.elementDelay > 0 {
 		time.Sleep(m.elementDelay)
 	}
+	if m.simulateNavigation {
+		if selector == "input.PSRADIOBUTTON" && m.onTimetable {
+			return rod.Elements{}, nil
+		}
+		if selector == "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']" && !m.onTimetable {
+			return rod.Elements{}, nil
+		}
+	}
 	if err, ok := m.elementsErrors[selector]; ok {
 		return nil, err
 	}
@@ -149,6 +181,10 @@ func (m *mockTermPage) Wait(fn *rod.EvalOptions) error {
 }
 
 func (m *mockTermPage) HTML() (string, error) {
+	m.htmlCalls++
+	if m.htmlErrOnCall > 0 && m.htmlCalls == m.htmlErrOnCall {
+		return "", errors.New("synthetic HTML extraction failure")
+	}
 	return `<!DOCTYPE html><html><body><div id='win0divSTDNT_ENRL_SSV2$0'><div id='win0divDERIVED_REGFRM1_DESCR20$0'><table><tr><td class='PAGROUPDIVIDER' align='left'>MOD1001 - Sample Module</td></tr><tr><td><div id='win0divCLASS_MTG_VW$0'><table cellspacing='0' class='PSLEVEL3GRIDWBO' id='CLASS_MTG_VW$scroll$0'><tr><td><table border='0' cellpadding='2' cellspacing='0' cols='7' width='100%' class='PSLEVEL3GRID'><tr><th scope='col' abbr='Class Nbr' width='29' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR PSGRIDFIRSTCOLUMN'>Class Nbr</th><th scope='col' abbr='Section' width='26' align='CENTER' class='PSLEVEL3GRIDCOLUMNHDR'>Section</th><th scope='col' abbr='Component' width='51' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Component</th><th scope='col' abbr='Days &amp; Times' width='90' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Days &amp; Times</th><th scope='col' abbr='Room' width='75' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Room</th><th scope='col' abbr='Instructor' width='87' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Instructor</th><th scope='col' abbr='Start/End Date' width='80' align='left' class='PSLEVEL3GRIDCOLUMNHDR'>Start/End Date</th></tr><tr id='trCLASS_MTG_VW$0_row1' valign='center'><td><DIV id='win0divDERIVED_CLS_DTL_CLASS_NBR$0'><span class='PSEDITBOX_DISPONLY' id='DERIVED_CLS_DTL_CLASS_NBR$0'>1160</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SECTION$0'><span id='MTG_SECTION$span$0' class='PSHYPERLINK'><a name='MTG_SECTION$0' id='MTG_SECTION$0'>P1</a></span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_COMP$0'><span class='PSEDITBOX_DISPONLY' id='MTG_COMP$0'>Laboratory</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_SCHED$0'><span class='PSEDITBOX_DISPONLY' id='MTG_SCHED$0'>Th 9:00AM - 11:00AM</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_LOC$0'><span class='PSEDITBOX_DISPONLY' id='MTG_LOC$0'>W1-06-18</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divDERIVED_CLS_DTL_SSR_INSTR_LONG$0'><span class='PSLONGEDITBOX' id='DERIVED_CLS_DTL_SSR_INSTR_LONG$0'>JOHN DOE</span></DIV></td><td class='PSLEVEL2GRIDODDROW'><DIV id='win0divMTG_DATES$0'><span class='PSEDITBOX_DISPONLY' id='MTG_DATES$0'>17/09/2026 - 17/09/2026</span></DIV></td></tr></table></td></tr></table></div></div></td></tr></table></div></body></html>`, nil
 }
 
@@ -171,8 +207,11 @@ func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *test
 	cfg.NavigationTimeout = 100 * time.Millisecond
 
 	mock := newMockTermPage()
-	// Make term-selection lookups take longer than the initial-navigation
-	// budget. They should still run under the caller's timetable-fetch context.
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{&rod.Element{}}
+	// Make term selection and fetch work take longer than the initial navigation
+	// timeout. They should still run under the caller's timetable-fetch context.
 	mock.elementDelay = 120 * time.Millisecond
 
 	entries, err := fetchTimetablePage(ctx, mock, cfg)
@@ -195,6 +234,37 @@ func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *test
 	}
 	if len(entries) == 0 {
 		t.Fatal("expected timetable entries to be fetched from the current page")
+	}
+}
+
+
+func TestHandleMultiTermSelection_RecoversAfterTimetableHTMLFailure(t *testing.T) {
+	ctx := context.Background()
+	mock := newMockTermPage()
+	mock.simulateNavigation = true
+	mock.onTimetable = true
+	mock.htmlErrOnCall = 1
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}, &rod.Element{}}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{&rod.Element{}}
+
+	entries, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err != nil {
+		t.Fatalf("expected second term to be fetched after first-term extraction failure: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("expected entries from the second term")
+	}
+	if mock.htmlCalls != 2 {
+		t.Errorf("expected HTML extraction to be attempted for both terms, got %d attempts", mock.htmlCalls)
+	}
+	if mock.changeTermCallCount != 2 {
+		t.Errorf("expected selector recovery after the failed first term, got %d Change Term clicks", mock.changeTermCallCount)
+	}
+	if len(mock.clickCalls) < 4 ||
+		mock.clickCalls[1] != "input.PSRADIOBUTTON[0]" ||
+		mock.clickCalls[len(mock.clickCalls)-2] != "input.PSRADIOBUTTON[1]" {
+		t.Errorf("expected both term radios to be clicked after recovery, calls: %v", mock.clickCalls)
 	}
 }
 
