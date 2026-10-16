@@ -79,8 +79,8 @@ Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   1. provider.Authenticate(ctx) → browser.AuthBrowser.Authenticate()
      — auth has separate 5-min deadline; timetable fetch gets fresh deadline (context isolation)
   2. provider.FetchTimetable(ctx, "", loc) → browser.FetchTimetable() → SSR_SSENRL_LIST.GBL HTML (uses configured browser retries; empty results and incomplete multi-term fetches are errors and trigger a full retry)
-  3. peoplesoft.ParseTimetableHTML(html, year, loc) → []Entry (empty parses are rejected by the browser/app fetch layers; recoverable errors continue to BrightSpace after retries are exhausted)
-  4. peoplesoft.ParseEntryDateTime(entry, loc) → DTStart, DTEnd → calendar.Event (recoverable — BrightSpace still runs on failure)
+  3. peoplesoft.ParseTimetableHTML(html, year, loc) → []Entry (empty parses are rejected by the browser/app fetch layers)
+  4. peoplesoft.ParseEntryDateTime(entry, loc) → DTStart, DTEnd → calendar.Event (entry conversion errors fail the complete PeopleSoft attempt and trigger a full retry)
   5. (if xsite enabled) cache.RemoveWhere(blocklist.Matches) — delete blocked brightspace events
   6. (if xsite enabled) provider.FetchBrightSpace(ctx, baseURL) → []BrightSpaceEntry → calendar.Event
   7. (if smart merge enabled) smartmerge.MergeEvents(psEvents, bsEvents) — module+time+location match, extracts Zoom details into PS event description
@@ -166,7 +166,7 @@ All via env vars with CLI flag override (flags take priority):
 ## Gotchas
 - **"BrightSpace" == "Xsite"** — Codebase internals (package names, config keys, function names like `FetchBrightSpace`) use "BrightSpace". User-facing names (env var prefixes like `XSITE_*`, HTTP endpoints like `/xsite-events.ics`, file names like `xsite.ics`) use "Xsite". They refer to the same thing: BrightSpace D2L content extraction.
 - **Rod API**: `page.Element()` returns `(*Element, error)` — not chainable. `element.Click(proto.InputMouseButtonLeft, 1)` uses proto params. `element.Input()`, `element.Visible()` return `(error)` or `(bool, error)`. Never use `page.MustQuery()` (does not exist).
-- **Rod navigation**: Uses `page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()` followed by `page.WaitStable(5000)`. Stable wait failure is logged but not fatal.
+- **Rod navigation**: Uses `page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()` followed by `page.WaitStable(5000)`. A stable-wait failure during PeopleSoft fetching is returned as an error so the complete fetch can be retried.
 - **Rod cookies**: Extracted via `page.Cookies([]string{})` with fallback to explicit domain queries for `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.
 - **Sentinel errors** — defined in `internal/browser/session.go`: `ErrBrowserUnavailable`, `ErrBrowserLaunch`, `ErrBrowserConnect`, `ErrNavigation`, `ErrAuthentication`, `ErrAuthenticationTimeout`, `ErrCredentialExtraction`.
 - **peoplesoft.ParseTimetableHTML** may return zero entries without an error when no expected timetable rows are found. The PeopleSoft fetch layers must reject empty results so the configured retry policy can run.
