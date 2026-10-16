@@ -72,7 +72,12 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	icsEvents := make([]calendar.Event, 0)
 	psFetchFailed := false
 
-	entries, err := provider.FetchTimetable(timetableCtx, "", loc)
+	var entries []peoplesoft.Entry
+	err = browser.Do(timetableCtx, func() error {
+		var fetchErr error
+		entries, fetchErr = provider.FetchTimetable(timetableCtx, "", loc)
+		return fetchErr
+	}, cfg.BrowserMaxRetries, cfg.BrowserRetryInterval)
 	timetableCancel()
 	if err != nil {
 		if isFatalPostAuth(err) || ctx.Err() != nil {
