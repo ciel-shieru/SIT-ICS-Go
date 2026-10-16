@@ -14,12 +14,11 @@ import (
 
 type termPage interface {
 	Context(ctx context.Context) termPage
-	Element(selector string) (*rod.Element, error)
+	Navigate(url string) error
+	Click(selector string, index int) error
 	Elements(selector string) (rod.Elements, error)
 	WaitStable(timeout time.Duration) error
-	Wait(fn *rod.EvalOptions) error
 	HTML() (string, error)
-	WaitNavigation(event proto.PageLifecycleEventName) func()
 }
 
 type pageAdapter struct {
@@ -30,12 +29,23 @@ func (a *pageAdapter) Context(ctx context.Context) termPage {
 	return &pageAdapter{a.Page.Context(ctx)}
 }
 
-func (a *pageAdapter) HTML() (string, error) {
-	return a.Page.HTML()
+func (a *pageAdapter) Navigate(url string) error {
+	return a.Page.Navigate(url)
 }
 
-func (a *pageAdapter) WaitNavigation(event proto.PageLifecycleEventName) func() {
-	return a.Page.WaitNavigation(event)
+func (a *pageAdapter) Click(selector string, index int) error {
+	elements, err := a.Page.Elements(selector)
+	if err != nil {
+		return err
+	}
+	if index < 0 || index >= len(elements) {
+		return fmt.Errorf("element %q at index %d not found (found %d)", selector, index, len(elements))
+	}
+	return clickElement(elements[index])
+}
+
+func (a *pageAdapter) HTML() (string, error) {
+	return a.Page.HTML()
 }
 
 func getPageURL(ctx context.Context, page *rod.Page, cfg BrowserConfig) string {
@@ -55,52 +65,56 @@ func fetchTimetable(ctx context.Context, page *rod.Page, cfg BrowserConfig) ([]p
 	if page == nil {
 		return nil, fmt.Errorf("no active page: authenticate first")
 	}
+	return fetchTimetablePage(ctx, &pageAdapter{page}, cfg)
+}
+
+// fetchTimetablePage keeps the initial endpoint navigation timeout separate
+// from term selection and the subsequent per-term navigations.
+func fetchTimetablePage(ctx context.Context, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("timetable fetch context already expired: %w", err)
 	}
 
-	fetchCtx, fetchCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	defer fetchCancel()
-	page = page.Context(fetchCtx)
-	if deadline, ok := fetchCtx.Deadline(); ok {
+	// Keep page operations bound to the overall timetable context. The initial
+	// navigation gets a nested timeout without shortening this page's lifetime.
+	page = page.Context(ctx)
+	if err := navigateToTimetable(ctx, page, cfg); err != nil {
+		return nil, err
+	}
+
+	return handleMultiTermSelection(ctx, page, cfg)
+}
+
+// navigateToTimetable applies NavigationTimeout only to the initial timetable
+// endpoint navigation. The page passed by the caller remains bound to its
+// original browser context for the rest of the fetch.
+// navigateToTimetable bounds the endpoint request, then waits for page stability
+// on the caller's context. The short-lived navigation context must not be reused
+// for later operations on the same page.
+func navigateToTimetable(ctx context.Context, page termPage, cfg BrowserConfig) error {
+	navigationCtx, navigationCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
+	navigationPage := page.Context(navigationCtx)
+	if deadline, ok := navigationCtx.Deadline(); ok {
 		debug(cfg, "timetable navigation deadline: %s (remaining %s)", deadline.Format(time.RFC3339Nano), time.Until(deadline).Round(time.Millisecond))
 	}
 
 	timetableURL := "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
 	debug(cfg, "navigating to timetable endpoint: %s", timetableURL)
-	if err := Do(fetchCtx, func() error {
-		return page.Navigate(timetableURL)
-	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		return nil, fmt.Errorf("navigate to timetable: %w", err)
+	err := Do(navigationCtx, func() error {
+		return navigationPage.Navigate(timetableURL)
+	}, cfg.MaxRetries, cfg.RetryInterval)
+	navigationCancel()
+	if err != nil {
+		return fmt.Errorf("navigate to timetable: %w", err)
 	}
 
-	navDone := make(chan struct{})
-	go func() {
-		page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		close(navDone)
-	}()
-
-	select {
-	case <-fetchCtx.Done():
-		return nil, fmt.Errorf("navigate to timetable: %w", fetchCtx.Err())
-	case <-navDone:
-	}
-
-	stableDone := make(chan error)
-	go func() {
-		stableDone <- page.WaitStable(5000)
-	}()
-
-	select {
-	case <-fetchCtx.Done():
-		return nil, fmt.Errorf("wait for stable: %w", fetchCtx.Err())
-	case err := <-stableDone:
-		if err != nil {
-			debug(cfg, "wait stable failed: %v", err)
+	if err := page.WaitStable(5000); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("wait for timetable page stability: %w", ctx.Err())
 		}
+		debug(cfg, "wait stable failed for timetable endpoint: %v", err)
 	}
-
-	return handleMultiTermSelection(fetchCtx, &pageAdapter{page}, cfg)
+	return nil
 }
 
 func debug(cfg BrowserConfig, msg string, args ...any) {
@@ -125,15 +139,10 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 		return fetchFromCurrentPage(ctx, page, cfg)
 	}
 
-	var radioButtons []*rod.Element
-	if err := Do(ctx, func() error {
-		var err error
-		radioButtons, err = page.Elements("input.PSRADIOBUTTON")
-		return err
-	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+	radioButtons, err := queryTermRadioButtons(ctx, page, cfg)
+	if err != nil {
 		return nil, fmt.Errorf("query term selection radio buttons: %w", err)
 	}
-
 	if len(radioButtons) == 0 {
 		debug(cfg, "no term selection radio buttons found, fetching from current page")
 		return fetchFromCurrentPage(ctx, page, cfg)
@@ -147,6 +156,24 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 		entries, err := navigateToTerm(ctx, i, page, cfg)
 		if err != nil {
 			debug(cfg, "failed to fetch term %d: %v — continuing to next term", i+1, err)
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("timetable fetch interrupted after term %d: %w", i+1, ctx.Err())
+			}
+			if i == len(radioButtons)-1 {
+				continue
+			}
+
+			// A failed term attempt can still leave the browser on its timetable
+			// page. Restore the selector before trying another term.
+			radioButtons, err = restoreTermSelection(ctx, page, cfg)
+			if err != nil {
+				debug(cfg, "failed to restore term selection after term %d: %v — stopping term iteration", i+1, err)
+				break
+			}
+			if i+1 >= len(radioButtons) {
+				debug(cfg, "no further term radio button available after term %d", i+1)
+				break
+			}
 			continue
 		}
 
@@ -158,12 +185,14 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 				debug(cfg, "failed to return to term selection after term %d: %v — stopping term iteration", i+1, err)
 				break
 			}
-
-			if err := Do(ctx, func() error {
-				_, err := page.Element("input.PSRADIOBUTTON")
-				return err
-			}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-				debug(cfg, "term selection radio button not visible after returning: %v", err)
+			radioButtons, err = queryTermRadioButtons(ctx, page, cfg)
+			if err != nil {
+				debug(cfg, "failed to query term selection after term %d: %v — stopping term iteration", i+1, err)
+				break
+			}
+			if i+1 >= len(radioButtons) {
+				debug(cfg, "no further term radio button available after term %d", i+1)
+				break
 			}
 		}
 	}
@@ -176,17 +205,50 @@ func handleMultiTermSelection(ctx context.Context, page termPage, cfg BrowserCon
 	return allEntries, nil
 }
 
+// queryTermRadioButtons is a one-shot DOM query. Element polls until a match is
+// found, which can block until the overall fetch deadline if the page is not on
+// the term selection screen.
+func queryTermRadioButtons(ctx context.Context, page termPage, cfg BrowserConfig) (rod.Elements, error) {
+	var radioButtons rod.Elements
+	err := Do(ctx, func() error {
+		var err error
+		radioButtons, err = page.Elements("input.PSRADIOBUTTON")
+		return err
+	}, cfg.MaxRetries, cfg.RetryInterval)
+	return radioButtons, err
+}
+
+// restoreTermSelection recovers after a failed term navigation. It first checks
+// whether the selector is already present, and otherwise returns from the
+// timetable page before allowing the loop to select the next term.
+func restoreTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) (rod.Elements, error) {
+	radioButtons, err := queryTermRadioButtons(ctx, page, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if len(radioButtons) > 0 {
+		return radioButtons, nil
+	}
+	if err := returnToTermSelection(ctx, page, cfg); err != nil {
+		return nil, err
+	}
+	radioButtons, err = queryTermRadioButtons(ctx, page, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if len(radioButtons) == 0 {
+		return nil, fmt.Errorf("term selection screen has no radio buttons after returning")
+	}
+	return radioButtons, nil
+}
+
 func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
 	radioID := fmt.Sprintf("SSR_DUMMY_RECV1\\$sels\\$%d\\$\\$0", index)
 	cssSelector := fmt.Sprintf("#%s", radioID)
 
 	debug(cfg, "clicking radio button: %s", cssSelector)
 	if err := Do(ctx, func() error {
-		el, err := page.Element(cssSelector)
-		if err != nil {
-			return fmt.Errorf("find radio button %s: %w", cssSelector, err)
-		}
-		return clickElement(el)
+		return page.Click("input.PSRADIOBUTTON", index)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("click radio button %s: %w", cssSelector, err)
 	}
@@ -194,93 +256,57 @@ func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserCo
 	goBtnID := "DERIVED_SSS_SCT_SSR_PB_GO"
 	debug(cfg, "clicking Go button: #%s", goBtnID)
 	if err := Do(ctx, func() error {
-		el, err := page.Element("#" + goBtnID)
-		if err != nil {
-			return fmt.Errorf("find go button: %w", err)
-		}
-		return clickElement(el)
+		return page.Click("input[name='DERIVED_SSS_SCT_SSR_PB_GO']", 0)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("click go button: %w", err)
 	}
 
 	debug(cfg, "waiting for timetable data to load")
-	termCtx, termCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
-	defer termCancel()
-
-	navigationPage := page.Context(termCtx)
-	navDone := make(chan struct{})
-	go func() {
-		navigationPage.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()
-		close(navDone)
-	}()
-
-	select {
-	case <-termCtx.Done():
-		return nil, fmt.Errorf("navigate to term: %w", termCtx.Err())
-	case <-navDone:
-	}
-
-	stableDone := make(chan error)
-	go func() {
-		stableDone <- navigationPage.WaitStable(5000)
-	}()
-
-	select {
-	case <-termCtx.Done():
-		return nil, fmt.Errorf("wait stable for term: %w", termCtx.Err())
-	case err := <-stableDone:
-		if err != nil {
-			debug(cfg, "wait stable for term failed: %v", err)
+	if err := page.WaitStable(2 * time.Second); err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("wait for timetable stability: %w", ctx.Err())
 		}
+		debug(cfg, "wait stable for term failed: %v", err)
 	}
 
-	htmlStr, err := navigationPage.HTML()
+	htmlStr, err := page.HTML()
 	if err != nil {
 		return nil, fmt.Errorf("get page HTML for term: %w", err)
 	}
 
 	debug(cfg, "timetable HTML extracted for term, length: %d", len(htmlStr))
-
 	entries, err := peoplesoft.ParseTimetableHTML(htmlStr, 0, time.Local)
 	if err != nil {
 		return nil, fmt.Errorf("parse timetable HTML for term: %w", err)
 	}
-
 	return entries, nil
 }
 
 func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) error {
 	debug(cfg, "clicking change term button to return to term selection")
 	if err := Do(ctx, func() error {
-		el, err := page.Element("input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']")
-		if err != nil {
-			return fmt.Errorf("find change term link: %w", err)
-		}
-		return clickElement(el)
+		return page.Click("input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']", 0)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("click change term button: %w", err)
 	}
 
 	debug(cfg, "waiting for term selection screen to load after clicking change term")
-	if err := Do(ctx, func() error {
-		_, err := page.Element("input.PSRADIOBUTTON")
-		return err
-	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
-		debug(cfg, "term selection radio button not found after change term click: %v", err)
+	if err := page.WaitStable(5000); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("wait stable for term selection return: %w", ctx.Err())
+		}
+		debug(cfg, "wait stable for term selection return failed: %v", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("return to term selection: %w", err)
 	}
 
-	stableDone := make(chan error)
-	go func() {
-		stableDone <- page.WaitStable(5000)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("wait stable for term selection return: %w", ctx.Err())
-	case err := <-stableDone:
-		if err != nil {
-			debug(cfg, "wait stable for term selection return failed: %v", err)
-		}
+	radioButtons, err := queryTermRadioButtons(ctx, page, cfg)
+	if err != nil {
+		return fmt.Errorf("query term selection after returning: %w", err)
+	}
+	if len(radioButtons) == 0 {
+		return fmt.Errorf("term selection radio buttons not present after returning")
 	}
 
 	debug(cfg, "returned to term selection screen")
@@ -289,6 +315,9 @@ func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig
 
 func fetchFromCurrentPage(ctx context.Context, page termPage, cfg BrowserConfig) ([]peoplesoft.Entry, error) {
 	debug(cfg, "fetching timetable from current page without term selection")
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("fetch timetable from current page: %w", err)
+	}
 
 	pageCtx := page.Context(ctx)
 
