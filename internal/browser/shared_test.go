@@ -27,6 +27,7 @@ type mockTermPage struct {
 	simulateNavigation  bool
 	onTimetable         bool
 	htmlCalls           int
+	htmlContent         string
 	htmlErrOnCall       int
 	contexts            []context.Context
 	navigateErr         error
@@ -182,6 +183,9 @@ func (m *mockTermPage) Wait(fn *rod.EvalOptions) error {
 
 func (m *mockTermPage) HTML() (string, error) {
 	m.htmlCalls++
+	if m.htmlContent != "" {
+		return m.htmlContent, nil
+	}
 	if m.htmlErrOnCall > 0 && m.htmlCalls == m.htmlErrOnCall {
 		return "", errors.New("synthetic HTML extraction failure")
 	}
@@ -197,6 +201,21 @@ func testConfig() BrowserConfig {
 	cfg.MaxRetries = 1
 	cfg.RetryInterval = 1 * time.Millisecond
 	return cfg
+}
+
+func TestNavigateToTimetable_StabilityFailureReturnsError(t *testing.T) {
+	mock := newMockTermPage()
+	mock.waitStableErr = errors.New("page did not stabilize")
+	cfg := testConfig()
+	cfg.NavigationTimeout = time.Second
+
+	err := navigateToTimetable(context.Background(), mock, cfg)
+	if err == nil {
+		t.Fatal("expected page stability failure to propagate")
+	}
+	if !strings.Contains(err.Error(), "wait for timetable page stability") {
+		t.Errorf("unexpected stability error: %v", err)
+	}
 }
 
 func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *testing.T) {
@@ -237,7 +256,7 @@ func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *test
 	}
 }
 
-func TestHandleMultiTermSelection_RecoversAfterTimetableHTMLFailure(t *testing.T) {
+func TestHandleMultiTermSelection_PropagatesTimetableHTMLFailureAfterRecovery(t *testing.T) {
 	ctx := context.Background()
 	mock := newMockTermPage()
 	mock.simulateNavigation = true
@@ -247,12 +266,12 @@ func TestHandleMultiTermSelection_RecoversAfterTimetableHTMLFailure(t *testing.T
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}, &rod.Element{}}
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{&rod.Element{}}
 
-	entries, err := handleMultiTermSelection(ctx, mock, testConfig())
-	if err != nil {
-		t.Fatalf("expected second term to be fetched after first-term extraction failure: %v", err)
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err == nil {
+		t.Fatal("expected the timetable run to fail after a term's HTML extraction failed")
 	}
-	if len(entries) == 0 {
-		t.Fatal("expected entries from the second term")
+	if !strings.Contains(err.Error(), "get page HTML for term") {
+		t.Errorf("expected HTML extraction error, got: %v", err)
 	}
 	if mock.htmlCalls != 2 {
 		t.Errorf("expected HTML extraction to be attempted for both terms, got %d attempts", mock.htmlCalls)
@@ -302,6 +321,17 @@ func TestHandleMultiTermSelection_NoChangeTermButton_FetchCurrentPage(t *testing
 	}
 	if !foundChangeTerm {
 		t.Error("expected change term button lookup")
+	}
+}
+
+func TestHandleMultiTermSelection_NoChangeTermButton_EmptyCurrentPageFails(t *testing.T) {
+	ctx := context.Background()
+	mock := newMockTermPage()
+	mock.htmlContent = "<html><body>PeopleSoft error page</body></html>"
+
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err == nil {
+		t.Fatal("expected empty current-page parse to fail the timetable fetch")
 	}
 }
 
@@ -403,7 +433,7 @@ func TestHandleMultiTermSelection_MultipleTerms(t *testing.T) {
 	}
 }
 
-func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
+func TestHandleMultiTermSelection_PerTermFailureMarksRunFailed(t *testing.T) {
 	ctx := context.Background()
 
 	changeTermEl := &rod.Element{}
@@ -420,8 +450,8 @@ func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
 	mock.clickErrors["input.PSRADIOBUTTON[0]"] = errors.New("click failed")
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error (per-term failures should be non-fatal): %v", err)
+	if err == nil {
+		t.Fatal("expected a term failure to mark the complete timetable fetch as failed")
 	}
 }
 
@@ -441,8 +471,8 @@ func TestHandleMultiTermSelection_ReturnToTermSelectionFailure_StopsIteration(t 
 	mock.changeTermFailAfter = 1
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected failure to return to term selection to mark the whole fetch as failed")
 	}
 
 	// Should have clicked only 1 radio button (second was skipped due to return failure)
@@ -565,25 +595,17 @@ func TestReturnToTermSelection_ChangeTermNotFound(t *testing.T) {
 	}
 }
 
-func TestClickElement_NilElement(t *testing.T) {
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("clickElement panicked with nil element: %v", r)
-		}
-	}()
-
+func TestClickElement_NilElementReturnsError(t *testing.T) {
 	var nilEl *rod.Element
-	err := clickElement(nilEl)
-	if err != nil {
-		t.Errorf("expected nil error from clickElement with nil element, got: %v", err)
+	if err := clickElement(nilEl); err == nil {
+		t.Fatal("expected error when clicking a nil element")
 	}
 }
 
-func TestClickElement_ValidElement(t *testing.T) {
+func TestClickElement_UninitializedElementReturnsError(t *testing.T) {
 	el := &rod.Element{}
-	err := clickElement(el)
-	if err != nil {
-		t.Errorf("expected nil error from clickElement with valid element, got: %v", err)
+	if err := clickElement(el); err == nil {
+		t.Fatal("expected an error from an uninitialized Rod element")
 	}
 }
 
