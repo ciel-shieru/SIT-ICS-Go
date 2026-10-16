@@ -78,8 +78,8 @@ Module path: `github.com/ciel-shieru/sit-ics-go`
 Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   1. provider.Authenticate(ctx) → browser.AuthBrowser.Authenticate()
      — auth has separate 5-min deadline; timetable fetch gets fresh deadline (context isolation)
-  2. provider.FetchTimetable(ctx, "", loc) → browser.FetchTimetable() → SSR_SSENRL_LIST.GBL HTML (uses configured browser retries; recoverable errors continue to BrightSpace after retries are exhausted)
-  3. peoplesoft.ParseTimetableHTML(html, year, loc) → []Entry (recoverable — BrightSpace still runs on failure)
+  2. provider.FetchTimetable(ctx, "", loc) → browser.FetchTimetable() → SSR_SSENRL_LIST.GBL HTML (uses configured browser retries; empty results and incomplete multi-term fetches are errors and trigger a full retry)
+  3. peoplesoft.ParseTimetableHTML(html, year, loc) → []Entry (empty parses are rejected by the browser/app fetch layers; recoverable errors continue to BrightSpace after retries are exhausted)
   4. peoplesoft.ParseEntryDateTime(entry, loc) → DTStart, DTEnd → calendar.Event (recoverable — BrightSpace still runs on failure)
   5. (if xsite enabled) cache.RemoveWhere(blocklist.Matches) — delete blocked brightspace events
   6. (if xsite enabled) provider.FetchBrightSpace(ctx, baseURL) → []BrightSpaceEntry → calendar.Event
@@ -169,7 +169,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Rod navigation**: Uses `page.WaitNavigation(proto.PageLifecycleEventNameNetworkAlmostIdle)()` followed by `page.WaitStable(5000)`. Stable wait failure is logged but not fatal.
 - **Rod cookies**: Extracted via `page.Cookies([]string{})` with fallback to explicit domain queries for `in4sit.singaporetech.edu.sg` and `fs.singaporetech.edu.sg`.
 - **Sentinel errors** — defined in `internal/browser/session.go`: `ErrBrowserUnavailable`, `ErrBrowserLaunch`, `ErrBrowserConnect`, `ErrNavigation`, `ErrAuthentication`, `ErrAuthenticationTimeout`, `ErrCredentialExtraction`.
-- **peoplesoft.ParseTimetableHTML** returns `[]Entry{}` (empty slice, not nil), `nil` when no entries found.
+- **peoplesoft.ParseTimetableHTML** may return zero entries without an error when no expected timetable rows are found. The PeopleSoft fetch layers must reject empty results so the configured retry policy can run.
 - **peoplesoft.ExtractYear("")** returns current year — the `year` param is effectively unused.
 - **Scheduler.New(tz)** returns `(*Scheduler, error)` — validates timezone.
 - **Remote browser discovery**: For `remote` mode, WebSocket URL discovered at runtime via `http://host:port/json/version/`. Per-session UUID changes on Chromium restart — discover fresh on every `Authenticate()` call.
@@ -178,6 +178,7 @@ All via env vars with CLI flag override (flags take priority):
 - **App.Fetch() is reentrant-guarded**: Uses mutex + `fetching` flag to prevent concurrent fetches.
 - **Events sorted deterministically**: Primary by DTStart, secondary by Location, tiebreaker by UID.
 - **Credential retry vs automatic retry**: `isRetriable()` returns `false` for auth errors, so the browser-level retry loop does not retry auth failures. The user-facing retry in `runFetch()` is a separate, single-attempt interactive flow (desktop only).
+- **PeopleSoft retry error propagation (ADR-0020)**: Empty timetable results, failed page-stability waits, term navigation/extraction errors, and failure to return to the selector all return errors to the full-fetch retry wrapper. If any term fails, any partial entries from that attempt are discarded so the next attempt refetches every term. A current-page fallback counts as success only when it parses at least one entry.
 - **Degraded fetch cycle (PeopleSoft failure, ADR-0020)**: After configured browser retries are exhausted, a non-fatal PeopleSoft timetable fetch failure does not abort `runFetch()`. BrightSpace fetches, quiz dedup/attempts, `cache.Update()`, and `SaveOutputs()` still run; existing PeopleSoft events are retained by non-destructive UID upsert. During a degraded cycle the blocklist `RemoveWhere` predicate additionally skips non-BrightSpace events (source not prefixed `brightspace-`), and smart merge is skipped (BrightSpace events appended standalone). Only errors rooted at the six browser sentinels (`ErrBrowserUnavailable`, `ErrBrowserLaunch`, `ErrBrowserConnect`, `ErrAuthentication`, `ErrAuthenticationTimeout`, `ErrCredentialExtraction`) remain fatal.
 - **Smart merge**: Only matches events where PS location is "Online"/"TBD"/"To Be Advised"/"TBA" AND BS location contains "Zoom Online Meeting". Extracts Zoom link, meeting ID, and passcode from BS HTML description via regex. Matched BS calendar events are explicitly removed from cache before upsert (otherwise non-destructive merge would retain them).
 - **Quiz attempt tracking**: Fetches each quiz's D2L submission page, parses attempt count and best score. Removes quizzes where attempts reached max or unlimited with a completed attempt. Uses `brightspace.ParseQuizSubmissionHTML()` and `brightspace.ShouldRemoveQuiz()`.
