@@ -173,9 +173,18 @@ func TestPeopleSoftFetchRetriesAndSucceedsBeforeBrightSpace(t *testing.T) {
 		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
 			timetableCalls++
 			if timetableCalls == 1 {
-				return nil, fmt.Errorf("temporary PeopleSoft page failure: %w", browser.ErrNavigation)
+				return nil, nil // Empty result is a failed fetch, even if no error was returned.
 			}
-			return []peoplesoft.Entry{}, nil
+			return []peoplesoft.Entry{{
+				CourseCode: "ALT2501",
+				ClassName: "Fake Class",
+				Section: "A",
+				Type: "Tutorial",
+				Day: "05/10/2026",
+				StartTime: "10:00",
+				EndTime: "11:00",
+				Location: "FAKE HALL 1",
+			}}, nil
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 			bsCalls++
