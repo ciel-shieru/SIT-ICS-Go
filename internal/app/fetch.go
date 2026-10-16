@@ -76,7 +76,13 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	err = browser.Do(timetableCtx, func() error {
 		var fetchErr error
 		entries, fetchErr = provider.FetchTimetable(timetableCtx, "", loc)
-		return fetchErr
+		if fetchErr != nil {
+			return fetchErr
+		}
+		if len(entries) == 0 {
+			return fmt.Errorf("PeopleSoft timetable fetch returned no entries")
+		}
+		return nil
 	}, cfg.BrowserMaxRetries, cfg.BrowserRetryInterval)
 	timetableCancel()
 	if err != nil {
