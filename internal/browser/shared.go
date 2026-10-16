@@ -109,6 +109,9 @@ func urlWithoutQuery(rawURL string) string {
 // browser actually landed on the timetable endpoint before allowing the fetch
 // to continue.
 func navigateToTimetable(ctx context.Context, page termPage, cfg BrowserConfig) error {
+	// Use the longer stability wait for the first URL check only. Once that
+	// check fails, every subsequent check uses the shorter one-second wait.
+	firstStabilityCheck := true
 	return Do(ctx, func() error {
 		navigationCtx, navigationCancel := context.WithTimeout(ctx, cfg.NavigationTimeout)
 		navigationPage := page.Context(navigationCtx)
@@ -125,11 +128,16 @@ func navigateToTimetable(ctx context.Context, page termPage, cfg BrowserConfig) 
 			return fmt.Errorf("navigate to timetable: %w", err)
 		}
 
-		if err := page.WaitStable(5000); err != nil {
+		stabilityWait := time.Second
+		if firstStabilityCheck {
+			stabilityWait = 5000
+			firstStabilityCheck = false
+		}
+		if err := page.WaitStable(stabilityWait); err != nil {
 			if ctx.Err() != nil {
 				return fmt.Errorf("wait for timetable page stability: %w", ctx.Err())
 			}
-			return fmt.Errorf("wait for timetable page stability: %w", err)
+			return fmt.Errorf("wait for timetable page stability (%s): %w", stabilityWait, err)
 		}
 
 		currentURL, err := page.CurrentURL()
@@ -291,7 +299,9 @@ func queryTermRadioButtons(ctx context.Context, page termPage, cfg BrowserConfig
 // active only when its Go button is present. Otherwise explicitly click Change
 // Term before selecting the next term.
 func restoreTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) (rod.Elements, error) {
-	goButtons, err := queryTermGoButtons(ctx, page, cfg)
+	// This is a state-detection query: an absent Go button means the browser
+	// may still be on the timetable page, where Change Term must be clicked.
+	goButtons, err := queryTermGoButtonsOnce(ctx, page)
 	if err != nil {
 		return nil, fmt.Errorf("query term selection Go button: %w", err)
 	}
@@ -311,13 +321,65 @@ func restoreTermSelection(ctx context.Context, page termPage, cfg BrowserConfig)
 	return radioButtons, nil
 }
 
+// queryTermGoButtons waits for the term selector's Go button. The first check
+// follows WaitStable(5000); if the button is absent or the DOM query fails, each
+// subsequent check follows WaitStable(1*time.Second) until the timetable-fetch
+// context expires.
 func queryTermGoButtons(ctx context.Context, page termPage, cfg BrowserConfig) (rod.Elements, error) {
-	var goButtons rod.Elements
-	err := Do(ctx, func() error {
-		var err error
-		goButtons, err = page.Elements("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
-		return err
-	}, cfg.MaxRetries, cfg.RetryInterval)
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("term selection Go button check: %w", err)
+	}
+
+	if err := page.WaitStable(5000); err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("wait stable before term selection Go button check: %w", ctx.Err())
+		}
+		debug(cfg, "WaitStable(5000) failed before Go button check: %v; checking button anyway", err)
+	}
+
+	goButtons, lastErr := queryTermGoButtonsOnce(ctx, page)
+	if lastErr == nil && len(goButtons) > 0 {
+		return goButtons, nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("term selection Go button not present")
+	}
+	debug(cfg, "term selection Go button not found on first check; retrying with one-second stability waits until timetable context expires")
+
+	for ctx.Err() == nil {
+		if err := page.WaitStable(time.Second); err != nil {
+			if ctx.Err() != nil {
+				break
+			}
+			lastErr = fmt.Errorf("wait stable before retrying term selection Go button check: %w", err)
+		}
+		goButtons, err := queryTermGoButtonsOnce(ctx, page)
+		if err == nil && len(goButtons) > 0 {
+			return goButtons, nil
+		}
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = fmt.Errorf("term selection Go button not present")
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("term selection Go button not found before timetable context expired (last check: %v): %w", lastErr, err)
+	}
+	return nil, fmt.Errorf("term selection Go button not found (last check: %v)", lastErr)
+}
+
+// queryTermGoButtonsOnce performs one DOM query. Its caller determines whether
+// an absent button is a retryable failure or simply means the selector is not
+// currently active.
+func queryTermGoButtonsOnce(ctx context.Context, page termPage) (rod.Elements, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	goButtons, err := page.Elements("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
+	}
 	return goButtons, err
 }
 
@@ -369,17 +431,7 @@ func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig
 		return fmt.Errorf("click change term button: %w", err)
 	}
 
-	debug(cfg, "waiting for term selection screen to load after clicking change term")
-	if err := page.WaitStable(5000); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("wait stable for term selection return: %w", ctx.Err())
-		}
-		return fmt.Errorf("wait stable for term selection return: %w", err)
-	}
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("return to term selection: %w", err)
-	}
-
+	debug(cfg, "waiting for term selection Go button after clicking change term")
 	goButtons, err := queryTermGoButtons(ctx, page, cfg)
 	if err != nil {
 		return fmt.Errorf("query Go button after returning to term selection: %w", err)
