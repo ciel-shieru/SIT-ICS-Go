@@ -48,7 +48,6 @@ func (a *pageAdapter) HTML() (string, error) {
 	return a.Page.HTML()
 }
 
-
 func getPageURL(ctx context.Context, page *rod.Page, cfg BrowserConfig) string {
 	var url string
 	_ = Do(ctx, func() error {
@@ -109,7 +108,7 @@ func navigateToTimetable(ctx context.Context, page termPage, cfg BrowserConfig) 
 		return fmt.Errorf("navigate to timetable: %w", err)
 	}
 
-	if err := page.WaitStable(5 * time.Second); err != nil {
+	if err := page.WaitStable(1 * time.Second); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("wait for timetable page stability: %w", ctx.Err())
 		}
@@ -263,7 +262,7 @@ func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserCo
 	}
 
 	debug(cfg, "waiting for timetable data to load")
-	if err := page.WaitStable(5 * time.Second); err != nil {
+	if err := page.WaitStable(1 * time.Second); err != nil {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("wait for timetable stability: %w", ctx.Err())
 		}
@@ -292,7 +291,7 @@ func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig
 	}
 
 	debug(cfg, "waiting for term selection screen to load after clicking change term")
-	if err := page.WaitStable(5 * time.Second); err != nil {
+	if err := page.WaitStable(1 * time.Second); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("wait stable for term selection return: %w", ctx.Err())
 		}
