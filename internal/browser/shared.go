@@ -15,7 +15,7 @@ import (
 type termPage interface {
 	Context(ctx context.Context) termPage
 	Navigate(url string) error
-	Element(selector string) (*rod.Element, error)
+	Click(selector string, index int) error
 	Elements(selector string) (rod.Elements, error)
 	WaitStable(timeout time.Duration) error
 	HTML() (string, error)
@@ -31,6 +31,17 @@ func (a *pageAdapter) Context(ctx context.Context) termPage {
 
 func (a *pageAdapter) Navigate(url string) error {
 	return a.Page.Navigate(url)
+}
+
+func (a *pageAdapter) Click(selector string, index int) error {
+	elements, err := a.Page.Elements(selector)
+	if err != nil {
+		return err
+	}
+	if index < 0 || index >= len(elements) {
+		return fmt.Errorf("element %q at index %d not found (found %d)", selector, index, len(elements))
+	}
+	return clickElement(elements[index])
 }
 
 func (a *pageAdapter) HTML() (string, error) {
@@ -236,17 +247,9 @@ func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserCo
 	radioID := fmt.Sprintf("SSR_DUMMY_RECV1\\$sels\\$%d\\$\\$0", index)
 	cssSelector := fmt.Sprintf("#%s", radioID)
 
-	radioButtons, err := queryTermRadioButtons(ctx, page, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("query radio buttons before term %d: %w", index+1, err)
-	}
-	if index >= len(radioButtons) {
-		return nil, fmt.Errorf("radio button for term %d is unavailable (found %d)", index+1, len(radioButtons))
-	}
-
 	debug(cfg, "clicking radio button: %s", cssSelector)
 	if err := Do(ctx, func() error {
-		return clickElement(radioButtons[index])
+		return page.Click("input.PSRADIOBUTTON", index)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("click radio button %s: %w", cssSelector, err)
 	}
@@ -254,14 +257,7 @@ func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserCo
 	goBtnID := "DERIVED_SSS_SCT_SSR_PB_GO"
 	debug(cfg, "clicking Go button: #%s", goBtnID)
 	if err := Do(ctx, func() error {
-		buttons, err := page.Elements("input[name='DERIVED_SSS_SCT_SSR_PB_GO']")
-		if err != nil {
-			return err
-		}
-		if len(buttons) == 0 {
-			return fmt.Errorf("Go button #%s not found", goBtnID)
-		}
-		return clickElement(buttons[0])
+		return page.Click("input[name='DERIVED_SSS_SCT_SSR_PB_GO']", 0)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return nil, fmt.Errorf("click go button: %w", err)
 	}
@@ -290,14 +286,7 @@ func navigateToTerm(ctx context.Context, index int, page termPage, cfg BrowserCo
 func returnToTermSelection(ctx context.Context, page termPage, cfg BrowserConfig) error {
 	debug(cfg, "clicking change term button to return to term selection")
 	if err := Do(ctx, func() error {
-		buttons, err := page.Elements("input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']")
-		if err != nil {
-			return err
-		}
-		if len(buttons) == 0 {
-			return fmt.Errorf("change term button not found")
-		}
-		return clickElement(buttons[0])
+		return page.Click("input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']", 0)
 	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
 		return fmt.Errorf("click change term button: %w", err)
 	}
