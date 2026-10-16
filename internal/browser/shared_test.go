@@ -20,34 +20,34 @@ type mockTermPage struct {
 	elementsErrors      map[string]error
 	waitStableErr       error
 	waitErr             error
-	waitStableCallCount int
-	waitStableTimeouts []time.Duration
-	waitCallCount       int
-	waitStableFunc      func(timeout time.Duration) error
-	elementDelay        time.Duration
-	currentURLResults   []string
-	currentURLCalls     int
-	currentURLErrors    map[int]error
-	simulateNavigation  bool
-	onTimetable         bool
+	waitStableCallCount          int
+	waitStableTimeouts           []time.Duration
+	waitCallCount                int
+	waitStableFunc               func(timeout time.Duration) error
+	elementDelay                 time.Duration
+	currentURLResults            []string
+	currentURLCalls              int
+	currentURLErrors             map[int]error
+	simulateNavigation           bool
+	onTimetable                  bool
 	staleRadioButtonsOnTimetable bool
-	htmlCalls           int
-	htmlContent         string
-	htmlErrOnCall       int
-	contexts            []context.Context
-	navigateErr         error
-	navigateCallCount   int
-	clickErrors         map[string]error
-	changeTermFailAfter int
-	changeTermCallCount int
+	htmlCalls                    int
+	htmlContent                  string
+	htmlErrOnCall                int
+	contexts                     []context.Context
+	navigateErr                  error
+	navigateCallCount            int
+	clickErrors                  map[string]error
+	changeTermFailAfter          int
+	changeTermCallCount          int
 }
 
 func newMockTermPage() *mockTermPage {
 	return &mockTermPage{
 		elementCalls:    []string{},
 		clickCalls:      []string{},
-		elementsResults: map[string]rod.Elements{},
-		elementsErrors:  map[string]error{},
+		elementsResults:  map[string]rod.Elements{},
+		elementsErrors:   map[string]error{},
 		clickErrors:      map[string]error{},
 		currentURLErrors: map[int]error{},
 	}
