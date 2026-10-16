@@ -42,6 +42,17 @@ func Do(ctx context.Context, fn RetryableFunc, maxRetries int, interval time.Dur
 			lastErr = fn()
 		}()
 
+		// A browser operation can return nil after its context deadline has
+		// already expired (for example, a navigation that completes late under
+		// upstream load). Never accept that as success: callers may use this
+		// error to retry the complete fetch under a still-live parent context.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			if lastErr != nil {
+				return fmt.Errorf("retry aborted: operation did not finish before context expired: %w", errors.Join(ctxErr, lastErr))
+			}
+			return fmt.Errorf("retry aborted: operation returned after context expiration: %w", ctxErr)
+		}
+
 		if lastErr == nil {
 			return nil
 		}
