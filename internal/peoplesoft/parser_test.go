@@ -193,6 +193,34 @@ func TestParseTimetableHTML(t *testing.T) {
 	}
 }
 
+func TestParseTimetableHTML_SkipsPlaceholderRows(t *testing.T) {
+	htmlContent := \`<html><body>
+<div id="win0divDERIVED_REGFRM1_DESCR20$0">
+<table>
+<tr><td class="PAGROUPDIVIDER">ALT2501 - Fake Course</td></tr>
+<tr><td><table cols="7">
+<tr>
+<th>Class Nbr</th><th>Section</th><th>Component</th><th>Days &amp; Times</th><th>Room</th><th>Instructor</th><th>Start/End Date</th>
+</tr>
+<tr><td>1001</td><td>A</td><td>Tutorial</td><td>TBA</td><td>Fake Room</td><td>Fake Instructor</td><td>17/09/2026 - 17/09/2026</td></tr>
+<tr><td>1002</td><td>B</td><td>Lecture</td><td>Th 9:00AM - 11:00AM</td><td>W1-06-18</td><td>Fake Instructor</td><td>17/09/2026 - 17/09/2026</td></tr>
+</table></td></tr>
+</table>
+</div>
+</body></html>\`
+
+	entries, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
+	if err != nil {
+		t.Fatalf("expected placeholder row to be ignored, got error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected only the valid row to be returned, got %d entries", len(entries))
+	}
+	if entries[0].Section != "B" || entries[0].StartTime != "09:00" {
+		t.Errorf("unexpected parsed entry after skipping placeholder row: %+v", entries[0])
+	}
+}
+
 func TestParseTimetableHTML_MalformedMeetingRowReturnsError(t *testing.T) {
 	htmlContent := `<html><body>
 <div id="win0divDERIVED_REGFRM1_DESCR20$0">
