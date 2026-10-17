@@ -147,6 +147,7 @@ func (a *App) spawnBrowser() (browser.AuthBrowser, error) {
 		AuthTimeout:       FetchTimeout,
 		RetryInterval:     a.cfg.BrowserRetryInterval,
 		MaxRetries:        a.cfg.BrowserMaxRetries,
+		AllowedHosts:      browser.SplitHostEntries(a.cfg.BrowserAllowedHosts),
 	})
 	if err != nil {
 		return nil, err

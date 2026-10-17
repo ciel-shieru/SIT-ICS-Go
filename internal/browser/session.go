@@ -26,6 +26,7 @@ type BrowserConfig struct {
 	AuthTimeout       time.Duration
 	RetryInterval     time.Duration
 	MaxRetries        int
+	AllowedHosts      []string // extra domain-suffix entries added to the built-in egress whitelist (BROWSER_ALLOWED_HOSTS)
 }
 
 type BrowserMode string

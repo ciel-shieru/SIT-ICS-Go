@@ -21,6 +21,7 @@ type RemoteBrowser struct {
 	browser       *rod.Browser
 	incognito     *rod.Browser
 	page          *rod.Page
+	hijackRouter  *rod.HijackRouter
 	pageTargetID  proto.TargetTargetID
 	browserCancel context.CancelFunc
 }
@@ -156,7 +157,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 		incognito = b.browser
 	}
 
-	page, err := AuthenticateADFS(authCtx, incognito, req, false, b.cfg, isAllowedOrigin)
+	page, router, err := AuthenticateADFS(authCtx, incognito, req, false, b.cfg, isAllowedOrigin)
 	if err != nil {
 		b.browser.Close()
 		browserCancel()
@@ -164,6 +165,7 @@ func (b *RemoteBrowser) Authenticate(ctx context.Context, req AuthRequest) (Auth
 		return AuthResult{}, err
 	}
 	b.page = page
+	b.hijackRouter = router
 	b.pageTargetID = page.TargetID
 
 	return AuthResult{
@@ -215,6 +217,10 @@ func (b *RemoteBrowser) FetchQuizSubmissionPage(ctx context.Context, quizURL str
 }
 
 func (b *RemoteBrowser) Close() {
+	if b.hijackRouter != nil {
+		safeRod(func() { b.hijackRouter.Stop() })
+		b.hijackRouter = nil
+	}
 	if b.incognito != nil && b.incognito != b.browser {
 		var pageIDs rod.Pages
 		safeRod(func() {

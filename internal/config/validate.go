@@ -5,6 +5,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/ciel-shieru/sit-ics-go/internal/browser"
 )
 
 var validBrowserModes = map[BrowserMode]bool{
@@ -16,6 +18,9 @@ var validBrowserModes = map[BrowserMode]bool{
 
 func Validate(cfg *Config) error {
 	if err := validateBrowserMode(cfg.BrowserMode); err != nil {
+		return err
+	}
+	if err := validateBrowserAllowedHosts(cfg.BrowserAllowedHosts); err != nil {
 		return err
 	}
 	if err := validateServerPort(cfg.ServerPort); err != nil {
@@ -36,6 +41,18 @@ func Validate(cfg *Config) error {
 func validateBrowserMode(mode BrowserMode) error {
 	if !validBrowserModes[mode] {
 		return fmt.Errorf("invalid browser mode %q: must be one of auto, system, managed, remote", mode)
+	}
+	return nil
+}
+
+func validateBrowserAllowedHosts(s string) error {
+	if s == "" {
+		return nil
+	}
+	for _, entry := range browser.SplitHostEntries(s) {
+		if err := browser.ValidHostEntry(entry); err != nil {
+			return fmt.Errorf("invalid BROWSER_ALLOWED_HOSTS entry %q: %w", entry, err)
+		}
 	}
 	return nil
 }

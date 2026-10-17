@@ -153,3 +153,32 @@ func TestValidateServerTrustedProxies(t *testing.T) {
 		})
 	}
 }
+
+
+func TestValidate_BrowserAllowedHosts(t *testing.T) {
+	tests := []struct {
+		name    string
+		hosts   string
+		wantErr bool
+	}{
+		{"empty", "", false},
+		{"single", "example.com", false},
+		{"multiple", "example.com, cdn.example.org", false},
+		{"with_port", "example.com:443", true},
+		{"empty_label", "example..com", true},
+		{"with_space", "example com", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				BrowserMode: BrowserAuto, TZ: "Asia/Singapore", ServerPort: 42748,
+				BrowserAllowedHosts: tt.hosts,
+			}
+			err := Validate(cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

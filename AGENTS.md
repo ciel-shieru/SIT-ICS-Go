@@ -119,6 +119,7 @@ All via env vars with CLI flag override (flags take priority):
 | `BROWSER_MAX_RETRIES` | 3 | Max retries for browser auth attempts |
 | `BROWSER_HEADLESS` | true | Headless mode |
 | `BROWSER_DEBUG` | false | Enable debug logging for browser actions |
+| `BROWSER_ALLOWED_HOSTS` | — | Comma-separated domain suffixes added to the built-in browser request whitelist; invalid entries fail startup |
 | `PROXY_URL` | — | SOCKS5 proxy URL |
 | `ICS_REFRESH_INTERVAL` | 1h | ICS REFRESH-INTERVAL property (RFC 7986 DURATION) |
 | `XSITE_ENABLED` | true | Enable xsite D2L extraction (opt-out) |
@@ -156,6 +157,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Browser-based fetch** — `fetchTimetable()` navigates to `SSR_SSENRL_LIST.GBL`, waits for stable, extracts full HTML via `page.HTML()`. Returns all scheduled classes in one response (ADR-0012).
 - **PeopleSoft navigation flow** — Keep `docs/peoplesoft-navigation-flow.md` accurate and update it whenever the PeopleSoft navigation flow changes.
 - **Browser lifecycle** — browser stays open after `Authenticate()` for `FetchTimetable()` and `FetchBrightSpace()`. Always call `browser.Close()` on shutdown.
+- **Browser egress control** — requests on the authenticated page's CDP session are intercepted and blocked unless their hosts match the built-in domain-suffix whitelist plus optional `BROWSER_ALLOWED_HOSTS` entries (ADR-0023). This per-page boundary does not automatically cover out-of-process iframes using separate CDP sessions.
 - **7 ICS output files** — main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite. `IsCampus` excludes BrightSpace events (ADR-0013).
 - **Server endpoints** — 8 HTTP handlers: 7 ICS handlers matching the 7 output files (ADR-0014) + `/wakey-sitizen/timetable.json` (ADR-0021).
 - **Wakey-SITizen JSON endpoint** (ADR-0021) — `GET /wakey-sitizen/timetable.json` serves the timetable as JSON for the companion mobile app. Excludes `brightspace-*` sources; `event_type` is `"online"` (case-insensitive `Online` location) else `"campus"`; timestamps are RFC 3339 in `TZ` (e.g. `+08:00`); `schema_version` starts at 1 (bump on schema change); `generated_at` is the cache last-modified time; always 200 OK — empty result is `"events":[]`, never 204.
@@ -244,3 +246,4 @@ All decisions in `docs/adr/`. Index with status in `docs/adr/README.md`.
 - 0019: Interactive credential retry on desktop when authentication fails with invalid credentials or TOTP error
 - 0020: Resilient fetch — BrightSpace still runs when PeopleSoft fetch fails
 - 0021: Wakey-SITizen JSON timetable endpoint for the companion mobile app
+- 0023: Browser egress control via per-page request interception and a domain-suffix whitelist
