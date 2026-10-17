@@ -29,6 +29,7 @@ func applyFlags(cfg *Config) error {
 	browserDebug                       := fs.Bool("browser-debug", false, "Enable debug logging for browser actions (env: BROWSER_DEBUG)")
 	browserRetryInterval               := fs.Duration("browser-retry-interval", 0, "Retry interval between retries (e.g. 5s) (env: BROWSER_RETRY_INTERVAL)")
 	browserMaxRetries                  := fs.Int("browser-max-retries", 0, "Maximum number of retries (env: BROWSER_MAX_RETRIES)")
+	browserAllowedHosts := fs.String("browser-allowed-hosts", "", "Comma-separated domain suffixes to add to the browser request whitelist (env: BROWSER_ALLOWED_HOSTS)")
 	proxyURL                           := fs.String("proxy-url", "", "SOCKS5 proxy URL (e.g. socks5://localhost:1080) (env: PROXY_URL)")
 	icsRefreshInterval                 := fs.Duration("ics-refresh-interval", 0, "ICS refresh interval (e.g. 1h, 30m) (env: ICS_REFRESH_INTERVAL)")
 	xsiteEventsPath                    := fs.String("xsite-events-path", "", "Path to xsite events ICS file (env: XSITE_EVENTS_PATH)")
@@ -117,6 +118,9 @@ func applyFlags(cfg *Config) error {
 	}
 	if fs.Lookup("browser-max-retries").Changed {
 		cfg.BrowserMaxRetries = *browserMaxRetries
+	}
+	if fs.Lookup("browser-allowed-hosts").Changed {
+		cfg.BrowserAllowedHosts = *browserAllowedHosts
 	}
 	if fs.Lookup("proxy-url").Changed {
 		cfg.ProxyURL = *proxyURL

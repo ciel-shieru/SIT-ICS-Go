@@ -52,6 +52,7 @@ func main() {
 			AuthTimeout:       app.FetchTimeout,
 			RetryInterval:     cfg.BrowserRetryInterval,
 			MaxRetries:        cfg.BrowserMaxRetries,
+			AllowedHosts:      browser.SplitHostEntries(cfg.BrowserAllowedHosts),
 		})
 		if err != nil {
 			log.Fatalf("browser: %v", err)
