@@ -12,7 +12,7 @@ Accepted
 
 The automated browser holds live ADFS credentials, MFA TOTP, and PeopleSoft/BrightSpace session cookies while navigating the ADFS (`fs.`), PeopleSoft (`in4sit.`), BrightSpace (`xsite.`) and Microsoft login/CDN hosts. ADR-0016 validates only the final landing URL after the auth redirect (`isAllowedOrigin`). Nothing constrained the hosts the browser may actually *talk to*: a malicious redirect chain, a compromised page, or a malicious SAML response rendering attacker HTML could exfiltrate credentials/cookies to any external host via subresource or XHR requests.
 
-The requirement is to intercept every browser request, check the hostname, and block everything off-whitelist; the whitelist is `*.singaporetech.edu.sg`, extensible via configuration without code changes.
+The requirement is to intercept every request issued by the authenticated page's CDP session, check the hostname, and block everything off-whitelist; the whitelist includes `*.singaporetech.edu.sg` and is extensible via configuration. This per-page design does not cover out-of-process iframes using separate CDP sessions.
 
 ## Decision Drivers
 
