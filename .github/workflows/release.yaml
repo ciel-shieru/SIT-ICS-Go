@@ -186,19 +186,47 @@ jobs:
       #       sit-ics-sbom-darwin-arm64
       #     path: artifacts
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.gate-semver.outputs.version }}
         run: |
           TAG="v${VERSION}"
-          gh release create "$TAG" \
-            --repo "${{ github.repository }}" \
-            --title "Release v${VERSION}" \
-            --generate-notes \
-            --latest \
-            --prerelease=false \
-            $(find artifacts -type f | tr '\n' ' ')
+          mapfile -t ASSETS < <(find artifacts -type f -print)
+
+          if (("${#ASSETS[@]}" == 0)); then
+            echo "::error::No release artifacts were downloaded"
+            exit 1
+          fi
+
+          HTTP_STATUS="$(curl --silent --show-error \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}")"
+
+          case "$HTTP_STATUS" in
+            200)
+              echo "Release $TAG already exists; uploading built artifacts."
+              gh release upload "$TAG" "${ASSETS[@]}" \
+                --repo "$GITHUB_REPOSITORY" \
+                --clobber
+              ;;
+            404)
+              echo "Release $TAG does not exist; creating it with built artifacts."
+              gh release create "$TAG" "${ASSETS[@]}" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "Release $TAG" \
+                --generate-notes \
+                --latest
+              ;;
+            *)
+              echo "::error::Unable to determine whether release $TAG exists (GitHub API HTTP status: $HTTP_STATUS)."
+              exit 1
+              ;;
+          esac
 
   # ── Build and push production container image ──
   build-prod-image:
