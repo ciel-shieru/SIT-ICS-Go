@@ -38,7 +38,9 @@ func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthReque
 	}
 	page = page.Context(ctx)
 
-	router, err := enableRequestInterception(page, wl, cfg)
+	// Keep interception alive after authCtx is canceled; Router events use the page context.
+	routerPage := page.Context(context.Background())
+	router, err := enableRequestInterception(routerPage, wl, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: enable request interception: %v", ErrAuthentication, err)
 	}
