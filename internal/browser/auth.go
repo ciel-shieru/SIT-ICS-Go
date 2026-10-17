@@ -18,7 +18,7 @@ type pageHTML interface {
 }
 
 func AuthenticateADFS(ctx context.Context, incognito *rod.Browser, req AuthRequest, waitNavigation bool, cfg BrowserConfig, isAllowedOrigin func(string) bool) (*rod.Page, *rod.HijackRouter, error) {
-		wl, err := BuildHostWhitelist(cfg)
+	wl, err := BuildHostWhitelist(cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: build host whitelist: %v", ErrAuthentication, err)
 	}
