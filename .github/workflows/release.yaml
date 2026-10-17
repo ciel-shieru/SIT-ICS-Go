@@ -194,7 +194,7 @@ jobs:
           TAG="v${VERSION}"
           mapfile -t ASSETS < <(find artifacts -type f -print)
 
-          if (("${#ASSETS[@]}" == 0)); then
+          if [ "${#ASSETS[@]}" -eq 0 ]; then
             echo "::error::No release artifacts were downloaded"
             exit 1
           fi
