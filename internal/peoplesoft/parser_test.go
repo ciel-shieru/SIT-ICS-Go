@@ -193,6 +193,123 @@ func TestParseTimetableHTML(t *testing.T) {
 	}
 }
 
+func TestParseTimetableHTML_SkipsPlaceholderRows(t *testing.T) {
+	htmlContent := `<html><body>
+<div id="win0divDERIVED_REGFRM1_DESCR20$0">
+<table>
+<tr><td class="PAGROUPDIVIDER">ALT2501 - Fake Course</td></tr>
+<tr><td><table cols="7">
+<tr>
+<th>Class Nbr</th><th>Section</th><th>Component</th><th>Days &amp; Times</th><th>Room</th><th>Instructor</th><th>Start/End Date</th>
+</tr>
+<tr><td>1001</td><td>A</td><td>Tutorial</td><td>TBA</td><td>Fake Room</td><td>Fake Instructor</td><td>17/09/2026 - 17/09/2026</td></tr>
+<tr><td>1002</td><td>B</td><td>Lecture</td><td>Th 9:00AM - 11:00AM</td><td>W1-06-18</td><td>Fake Instructor</td><td>17/09/2026 - 17/09/2026</td></tr>
+</table></td></tr>
+</table>
+</div>
+</body></html>`
+
+	entries, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
+	if err != nil {
+		t.Fatalf("expected placeholder row to be ignored, got error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected only the valid row to be returned, got %d entries", len(entries))
+	}
+	if entries[0].Section != "B" || entries[0].StartTime != "09:00" {
+		t.Errorf("unexpected parsed entry after skipping placeholder row: %+v", entries[0])
+	}
+}
+
+func TestParseTimetableHTML_MalformedMeetingRowReturnsError(t *testing.T) {
+	htmlContent := `<html><body>
+<div id="win0divDERIVED_REGFRM1_DESCR20$0">
+<table>
+<tr><td class="PAGROUPDIVIDER">ALT2501 - Fake Course</td></tr>
+<tr><td><table cols="7">
+<tr>
+<th>Class Nbr</th><th>Section</th><th>Component</th><th>Days &amp; Times</th><th>Room</th><th>Instructor</th><th>Start/End Date</th>
+</tr>
+<tr><td>1001</td><td>A</td><td>Tutorial</td><td>Not a schedule</td><td>Fake Room</td><td>Fake Instructor</td><td>17/09/2026 - 17/09/2026</td></tr>
+</table></td></tr>
+</table>
+</div>
+</body></html>`
+
+	_, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
+	if err == nil {
+		t.Fatal("expected malformed timetable row to fail parsing instead of being silently skipped")
+	}
+	if !strings.Contains(err.Error(), "invalid schedule") {
+		t.Errorf("expected a schedule parsing error, got: %v", err)
+	}
+}
+
+func TestParseTimetableHTML_IncompleteMeetingRowReturnsError(t *testing.T) {
+	htmlContent := `<html><body>
+<div id="win0divDERIVED_REGFRM1_DESCR20$0">
+<table>
+<tr><td class="PAGROUPDIVIDER">ALT2501 - Fake Course</td></tr>
+<tr><td><table cols="7">
+<tr>
+<th>Class Nbr</th><th>Section</th><th>Component</th><th>Days &amp; Times</th><th>Room</th><th>Instructor</th><th>Start/End Date</th>
+</tr>
+<tr><td colspan="7">Incomplete timetable row</td></tr>
+</table></td></tr>
+</table>
+</div>
+</body></html>`
+
+	_, err := ParseTimetableHTML(htmlContent, 2026, time.Local)
+	if err == nil {
+		t.Fatal("expected incomplete timetable row to fail parsing instead of being silently skipped")
+	}
+}
+
+func TestParseDateRejectsInvalidCalendarDates(t *testing.T) {
+	for _, input := range []string{"31/02/2026", "00/01/2026", "01/13/2026", "xx/01/2026"} {
+		t.Run(input, func(t *testing.T) {
+			if _, err := parseDate(input, time.Local); err == nil {
+				t.Fatalf("expected invalid date %q to return an error", input)
+			}
+		})
+	}
+}
+
+func TestParseTimeRejectsOutOfRangeValues(t *testing.T) {
+	for _, input := range []string{"13:00PM", "9:60AM", "25:00", "9:00XM"} {
+		t.Run(input, func(t *testing.T) {
+			if _, err := parseTime(input); err == nil {
+				t.Fatalf("expected invalid time %q to return an error", input)
+			}
+		})
+	}
+}
+
+func TestParseEntryDateTimeRejectsInvalidFields(t *testing.T) {
+	base := Entry{
+		CourseCode: "ALT2501",
+		Day: "05/10/2026",
+		StartTime: "10:00",
+		EndTime: "11:00",
+	}
+	cases := []struct {
+		name string
+		entry Entry
+	}{
+		{name: "date", entry: func() Entry { e := base; e.Day = "31/02/2026"; return e }()},
+		{name: "start time", entry: func() Entry { e := base; e.StartTime = "99:00"; return e }()},
+		{name: "end time", entry: func() Entry { e := base; e.EndTime = "10:60"; return e }()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, _, err := ParseEntryDateTime(tc.entry, time.Local); err == nil {
+				t.Fatalf("expected invalid %s to return an error", tc.name)
+			}
+		})
+	}
+}
+
 func TestParseTimetableHTML_NoTable(t *testing.T) {
 	htmlContent := `<html><body><p>No timetable here</p></body></html>`
 	entries, err := ParseTimetableHTML(htmlContent, 2026, time.Local)

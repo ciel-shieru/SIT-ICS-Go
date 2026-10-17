@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-10-03
+2026-10-03 (retry policy updated 2026-10-17)
 
 ## Context
 
@@ -24,8 +24,8 @@ The key insight is that a PeopleSoft page failure is a *data-source* failure, no
 The PeopleSoft timetable fetch is classified as a **recoverable failure class** within `runFetch()`:
 
 - **Auth failures and browser-lifecycle failures remain fatal.** A single authenticated browser session backs all fetch steps (PeopleSoft, BrightSpace calendar, BrightSpace quizzes, quiz submission pages). If that session is broken, every remaining step would fail identically, so the whole job aborts immediately.
-- **On PeopleSoft fetch failure** (any non-fatal error), the fetch continues:
-  1. PeopleSoft event construction is skipped (no entries → no new PeopleSoft events this cycle).
+- **On PeopleSoft fetch failure**, the complete timetable fetch is retried using the existing `browser.Do` policy (`BROWSER_MAX_RETRIES`, default 3, and `BROWSER_RETRY_INTERVAL`, default 5s), bounded by the timetable fetch deadline. Errors that the shared retry helper classifies as non-retriable stop immediately. Empty results are treated as failures even when the HTML parser returned no error. The retry helper also checks the operation context after each call returns: if a browser operation (such as navigation) returns success only after its own deadline expired, that late success is rejected so the outer timetable-fetch retry can run while its parent context remains live. The initial timetable navigation also verifies the loaded URL against the endpoint with query parameters removed. `WaitStable(5000)` is used for the first URL check only; if that check fails, subsequent checks within the same cycle and every later retry cycle use `WaitStable(1*time.Second)`. The Go-button presence check after clicking Change Term uses `WaitStable(5000)` once, then retries `WaitStable(1*time.Second)` plus the presence check until the timetable-fetch context expires. Malformed or structurally incomplete recognized timetable rows (including missing course headers and invalid dates, weekdays, or times), except rows containing configured placeholder cell values (currently `TBA`, which are ignored), page-stability failures, term navigation/extraction failures, failures to restore/query the term selector, and PeopleSoft entry-to-event conversion errors are propagated instead of being silently accepted as partial success; entries gathered during an attempt with any term failure are discarded so the retry repeats the complete run. The current-page fallback is accepted only if it yields at least one entry. Once retrying stops, errors rooted at fatal browser/auth sentinels still abort the entire job; other errors enter the degraded flow:
+  1. PeopleSoft event construction is skipped after all attempts fail (no entries → no new PeopleSoft events this cycle).
   2. Blocklist `RemoveWhere` cleanup still runs, but during a degraded cycle the predicate additionally skips non-BrightSpace events (source not prefixed `brightspace-`), so cached PeopleSoft events are never deleted by blocklist patterns.
   3. BrightSpace calendar/dropbox fetch, quiz API fetch, quiz dedup (`DedupQuizzes`), quiz attempt tracking, and quiz removal all proceed unchanged (verified safe with an empty PeopleSoft event list).
   4. `cache.Update()` runs with only the BrightSpace events. The non-destructive UID upsert semantics (ADR-0003) preserve existing PeopleSoft events untouched — they are absent from the new event list and therefore retained.
@@ -44,7 +44,7 @@ The PeopleSoft timetable fetch is classified as a **recoverable failure class** 
 | `ErrAuthenticationTimeout` | Authentication timed out |
 | `ErrCredentialExtraction` | Cookie/credential extraction failed |
 
-Errors rooted at any of these sentinels are fatal and abort the fetch. **Everything else after a successful auth is recoverable** (navigation failures, page timeouts, parse errors, API errors), and the fetch continues to completion.
+Errors rooted at any of these sentinels are fatal and abort the fetch after the existing retry helper's applicable behavior. Other PeopleSoft navigation, page-stability, HTML extraction, selector restoration, and empty-result errors also fail the timetable attempt and enter retry handling; after retry exhaustion, non-fatal errors allow BrightSpace to continue.
 
 ### Degraded-Cycle Smart Merge
 
@@ -56,7 +56,7 @@ Smart merge (`MergeEvents`) matches BrightSpace Zoom events into PeopleSoft even
 
 - **xsite outputs stay fresh**: BrightSpace events, dropbox due dates, and quizzes are fetched and saved even when PeopleSoft is down.
 - **No data loss**: Existing PeopleSoft events in the cache are preserved by non-destructive UID upsert (ADR-0003); the degraded cycle cannot delete them.
-- **Simplicity**: The classification rule is a single sentinel check; no new retry machinery is introduced.
+- **Consistency**: Reuses the existing browser retry helper and configuration rather than adding a separate retry implementation; the existing fatal-sentinel classification remains unchanged.
 
 ### Negative / Operational
 
@@ -81,9 +81,9 @@ Continue the fetch on any PeopleSoft error, including browser-lifecycle failures
 
 ### Option C: Retry PeopleSoft before continuing
 
-Retry the PeopleSoft fetch (with backoff) before deciding to continue degraded.
+Retry the complete PeopleSoft fetch run using the existing `browser.Do` helper and the same configured retry count/backoff as other browser operations.
 
-**Reason rejected**: Adds latency to every degraded cycle and still ends in the same degraded state. The next cron tick already provides a retry opportunity with a fresh browser session (fresh auth, fresh deadlines).
+**Selected**: A transient PeopleSoft failure can recover within the current cycle instead of waiting for the next cron tick. The existing timetable-fetch deadline bounds the retry sequence; if attempts are exhausted, the previously defined fatal-versus-recoverable behavior still applies. This adds bounded latency only when the fetch fails, while avoiding a separate retry mechanism.
 
 ## Follow-Ups
 

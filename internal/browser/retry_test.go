@@ -56,6 +56,33 @@ func TestRetryExhausted(t *testing.T) {
 	}
 }
 
+func TestRetryRejectsSuccessAfterContextDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	calls := 0
+	err := Do(ctx, func() error {
+		calls++
+		// Simulate a browser operation that ignores or outlasts its navigation
+		// deadline, then returns nil after the deadline has expired.
+		time.Sleep(30 * time.Millisecond)
+		return nil
+	}, 3, 0)
+
+	if err == nil {
+		t.Fatal("expected a late success to be rejected after the context deadline")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected context deadline error, got: %v", err)
+	}
+	if !containsString(err.Error(), "retry aborted") {
+		t.Errorf("expected retry-aborted context error, got: %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("expected the expired operation not to be retried under the same context, got %d calls", calls)
+	}
+}
+
 func TestRetryContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

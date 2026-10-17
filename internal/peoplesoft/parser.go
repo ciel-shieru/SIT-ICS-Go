@@ -3,6 +3,7 @@ package peoplesoft
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,6 +11,24 @@ import (
 )
 
 var dayAbbrevRe = regexp.MustCompile(`^(Mo|Tu|We|Th|Fr|Sa|Su)\b`)
+var timeRe = regexp.MustCompile(`(?i)^(\d{1,2}):(\d{2})(AM|PM)?$`)
+
+// timetableRowPlaceholders lists cell values that mean the timetable row has no
+// schedulable data. Keep this list explicit so additional PeopleSoft placeholders
+// can be added without changing the row parser.
+var timetableRowPlaceholders = []string{"TBA"}
+
+// isTimetableRowPlaceholder reports whether a cell contains a recognized
+// placeholder value. Matching is trimmed and case-insensitive.
+func isTimetableRowPlaceholder(value string) bool {
+	value = strings.TrimSpace(value)
+	for _, placeholder := range timetableRowPlaceholders {
+		if strings.EqualFold(value, placeholder) {
+			return true
+		}
+	}
+	return false
+}
 
 func ParseTimetableHTML(htmlContent string, year int, loc *time.Location) ([]Entry, error) {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
@@ -18,8 +37,8 @@ func ParseTimetableHTML(htmlContent string, year int, loc *time.Location) ([]Ent
 	}
 
 	var entries []Entry
-	var find func(*html.Node)
-	find = func(n *html.Node) {
+	var find func(*html.Node) error
+	find = func(n *html.Node) error {
 		if n.Type == html.ElementNode && n.Data == "table" {
 			rows := getRows(n)
 			if len(rows) > 0 {
@@ -27,16 +46,25 @@ func ParseTimetableHTML(htmlContent string, year int, loc *time.Location) ([]Ent
 				if len(headerCells) >= 7 {
 					firstCellText := getTextContent(headerCells[0])
 					if strings.Contains(firstCellText, "Class Nbr") {
-						entries = append(entries, parseMeetingTable(n, loc)...)
+						tableEntries, err := parseMeetingTable(n, loc)
+						if err != nil {
+							return fmt.Errorf("parse timetable table: %w", err)
+						}
+						entries = append(entries, tableEntries...)
 					}
 				}
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			find(c)
+			if err := find(c); err != nil {
+				return err
+			}
 		}
+		return nil
 	}
-	find(doc)
+	if err := find(doc); err != nil {
+		return nil, err
+	}
 
 	return entries, nil
 }
@@ -56,7 +84,7 @@ func getRows(table *html.Node) []*html.Node {
 	return rows
 }
 
-func parseMeetingTable(table *html.Node, loc *time.Location) []Entry {
+func parseMeetingTable(table *html.Node, loc *time.Location) ([]Entry, error) {
 	var entries []Entry
 
 	var rows []*html.Node
@@ -74,24 +102,44 @@ func parseMeetingTable(table *html.Node, loc *time.Location) []Entry {
 	}
 
 	if len(rows) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	var currentCourseCode, currentClassName string
 	var currentSection, currentComp string
-	for _, row := range rows {
+	for rowIndex, row := range rows {
 		cells := getCells(row)
 		if len(cells) < 7 {
+			if currentCourseCode != "" && len(cells) > 0 {
+				return nil, fmt.Errorf("row %d has %d cells; expected at least 7", rowIndex+1, len(cells))
+			}
 			continue
 		}
 
 		firstCellText := getTextContent(cells[0])
 		if strings.Contains(firstCellText, "Class Nbr") {
 			findCourseHeader(row, &currentCourseCode, &currentClassName)
+			if currentCourseCode == "" {
+				return nil, fmt.Errorf("row %d has a timetable header but no recognizable course header", rowIndex+1)
+			}
 			continue
 		}
 
 		if currentCourseCode == "" {
+			continue
+		}
+
+		// Placeholder values make the entire class-meeting row non-schedulable.
+		// Check the data cells before updating carried-forward section/component
+		// values or trying strict date/schedule parsing.
+		placeholderFound := false
+		for _, cell := range cells {
+			if isTimetableRowPlaceholder(getTextContent(cell)) {
+				placeholderFound = true
+				break
+			}
+		}
+		if placeholderFound {
 			continue
 		}
 
@@ -115,22 +163,22 @@ func parseMeetingTable(table *html.Node, loc *time.Location) []Entry {
 
 		meetingDate, err := parseMeetingDate(dateText, loc)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("row %d has invalid meeting date %q: %w", rowIndex+1, dateText, err)
 		}
 
 		dayName, timeRange, err := parseSchedule(sched)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("row %d has invalid schedule %q: %w", rowIndex+1, sched, err)
 		}
 
 		startTime, endTime, err := parseTimeRange(timeRange)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("row %d has invalid time range %q: %w", rowIndex+1, timeRange, err)
 		}
 
 		entryDay, err := computeEntryDate(meetingDate, dayName)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("row %d has invalid weekday %q: %w", rowIndex+1, dayName, err)
 		}
 
 		entries = append(entries, Entry{
@@ -145,7 +193,7 @@ func parseMeetingTable(table *html.Node, loc *time.Location) []Entry {
 		})
 	}
 
-	return entries
+	return entries, nil
 }
 
 func findCourseHeader(row *html.Node, courseCode, className *string) {
@@ -214,11 +262,29 @@ func parseDate(s string, loc *time.Location) (time.Time, error) {
 	if len(parts) != 3 {
 		return time.Time{}, fmt.Errorf("invalid date format: %s", s)
 	}
-	var day, month, year int
-	fmt.Sscanf(parts[0], "%d", &day)
-	fmt.Sscanf(parts[1], "%d", &month)
-	fmt.Sscanf(parts[2], "%d", &year)
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, loc), nil
+	day, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid day in date %q: %w", s, err)
+	}
+	month, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid month in date %q: %w", s, err)
+	}
+	year, err := strconv.Atoi(strings.TrimSpace(parts[2]))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid year in date %q: %w", s, err)
+	}
+	if year < 1 || month < 1 || month > 12 || day < 1 || day > 31 {
+		return time.Time{}, fmt.Errorf("date out of range: %s", s)
+	}
+	if loc == nil {
+		loc = time.Local
+	}
+	parsed := time.Date(year, time.Month(month), day, 0, 0, 0, 0, loc)
+	if parsed.Year() != year || int(parsed.Month()) != month || parsed.Day() != day {
+		return time.Time{}, fmt.Errorf("invalid calendar date: %s", s)
+	}
+	return parsed, nil
 }
 
 func parseSchedule(s string) (dayName string, timeRange string, err error) {
@@ -233,6 +299,9 @@ func parseSchedule(s string) (dayName string, timeRange string, err error) {
 }
 
 func computeEntryDate(meetingDate time.Time, dayAbbr string) (string, error) {
+	if dayToWeekday(dayAbbr) == time.Monday && dayAbbr != "Mo" && dayAbbr != "Mon" {
+		return "", fmt.Errorf("unknown weekday abbreviation: %s", dayAbbr)
+	}
 	targetWeekday := dayToWeekday(dayAbbr)
 	currentWeekday := meetingDate.Weekday()
 	daysDiff := int(targetWeekday) - int(currentWeekday)
@@ -281,21 +350,33 @@ func parseTimeRange(s string) (string, string, error) {
 
 func parseTime(s string) (string, error) {
 	s = strings.TrimSpace(s)
-	var hour, minute int
-	var period string
-	n, err := fmt.Sscanf(s, "%d:%d%s", &hour, &minute, &period)
-	if n < 2 || err != nil {
+	matches := timeRe.FindStringSubmatch(s)
+	if len(matches) != 4 {
 		return "", fmt.Errorf("invalid time: %s", s)
 	}
-	period = strings.ToUpper(period)
-	if period == "PM" {
-		if hour != 12 {
-			hour += 12
+	hour, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return "", fmt.Errorf("invalid hour in time %q: %w", s, err)
+	}
+	minute, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return "", fmt.Errorf("invalid minute in time %q: %w", s, err)
+	}
+	period := strings.ToUpper(matches[3])
+	if minute > 59 {
+		return "", fmt.Errorf("minute out of range in time: %s", s)
+	}
+	if period != "" {
+		if hour < 1 || hour > 12 {
+			return "", fmt.Errorf("hour out of range in 12-hour time: %s", s)
 		}
-	} else if period == "AM" {
-		if hour == 12 {
+		if period == "PM" && hour != 12 {
+			hour += 12
+		} else if period == "AM" && hour == 12 {
 			hour = 0
 		}
+	} else if hour > 23 {
+		return "", fmt.Errorf("hour out of range in 24-hour time: %s", s)
 	}
 	return fmt.Sprintf("%02d:%02d", hour, minute), nil
 }

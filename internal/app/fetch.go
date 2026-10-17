@@ -72,24 +72,22 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	icsEvents := make([]calendar.Event, 0)
 	psFetchFailed := false
 
-	entries, err := provider.FetchTimetable(timetableCtx, "", loc)
-	timetableCancel()
-	if err != nil {
-		if isFatalPostAuth(err) || ctx.Err() != nil {
-			log.Printf("scheduler: fetch failed: %v", err)
-			return
+	err = browser.Do(timetableCtx, func() error {
+		entries, fetchErr := provider.FetchTimetable(timetableCtx, "", loc)
+		if fetchErr != nil {
+			return fetchErr
 		}
-		psFetchFailed = true
-		log.Printf("scheduler: peoplesoft timetable fetch failed: %v — continuing with brightspace fetches, existing timetable events retained by UID upsert", err)
-	} else {
-		allEntries := entries
-		for _, entry := range allEntries {
-			dtStart, dtEnd, err := peoplesoft.ParseEntryDateTime(entry, loc)
-			if err != nil {
-				log.Printf("scheduler: skipping entry %s: %v", entry.CourseCode, err)
-				continue
+		if len(entries) == 0 {
+			return fmt.Errorf("PeopleSoft timetable fetch returned no entries")
+		}
+
+		fetchedEvents := make([]calendar.Event, 0, len(entries))
+		for _, entry := range entries {
+			dtStart, dtEnd, parseErr := peoplesoft.ParseEntryDateTime(entry, loc)
+			if parseErr != nil {
+				return fmt.Errorf("parse timetable entry %s: %w", entry.CourseCode, parseErr)
 			}
-			icsEvents = append(icsEvents, calendar.Event{
+			fetchedEvents = append(fetchedEvents, calendar.Event{
 				CourseCode:  entry.CourseCode,
 				Summary:     fmt.Sprintf("%s - %s (%s)", entry.CourseCode, entry.Section, entry.Type),
 				Title:       entry.ClassName,
@@ -99,8 +97,24 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 				DTEnd:       dtEnd,
 			})
 		}
+		if contextErr := timetableCtx.Err(); contextErr != nil {
+			return fmt.Errorf("PeopleSoft timetable attempt context expired: %w", contextErr)
+		}
+		if len(fetchedEvents) == 0 {
+			return fmt.Errorf("PeopleSoft timetable fetch produced no valid calendar events")
+		}
+		icsEvents = fetchedEvents
+		return nil
+	}, cfg.BrowserMaxRetries, cfg.BrowserRetryInterval)
+	timetableCancel()
+	if err != nil {
+		if isFatalPostAuth(err) || ctx.Err() != nil {
+			log.Printf("scheduler: fetch failed: %v", err)
+			return
+		}
+		psFetchFailed = true
+		log.Printf("scheduler: peoplesoft timetable fetch failed: %v — continuing with brightspace fetches, existing timetable events retained by UID upsert", err)
 	}
-
 	if cfg.XsiteEnabled {
 		blocklist := &brightspace.Blocklist{
 			CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteCourseNameBlocklist),

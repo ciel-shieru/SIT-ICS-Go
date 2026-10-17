@@ -20,29 +20,38 @@ type mockTermPage struct {
 	elementsErrors      map[string]error
 	waitStableErr       error
 	waitErr             error
-	waitStableCallCount int
-	waitCallCount       int
-	waitStableFunc      func(timeout time.Duration) error
-	elementDelay        time.Duration
-	simulateNavigation  bool
-	onTimetable         bool
-	htmlCalls           int
-	htmlErrOnCall       int
-	contexts            []context.Context
-	navigateErr         error
-	navigateCallCount   int
-	clickErrors         map[string]error
-	changeTermFailAfter int
-	changeTermCallCount int
+	waitStableCallCount          int
+	waitStableTimeouts           []time.Duration
+	waitCallCount                int
+	waitStableFunc               func(timeout time.Duration) error
+	elementDelay                 time.Duration
+	currentURLResults            []string
+	currentURLCalls              int
+	currentURLErrors             map[int]error
+	goButtonAppearAfter          int
+	goButtonChecks               int
+	simulateNavigation           bool
+	onTimetable                  bool
+	staleRadioButtonsOnTimetable bool
+	htmlCalls                    int
+	htmlContent                  string
+	htmlErrOnCall                int
+	contexts                     []context.Context
+	navigateErr                  error
+	navigateCallCount            int
+	clickErrors                  map[string]error
+	changeTermFailAfter          int
+	changeTermCallCount          int
 }
 
 func newMockTermPage() *mockTermPage {
 	return &mockTermPage{
 		elementCalls:    []string{},
 		clickCalls:      []string{},
-		elementsResults: map[string]rod.Elements{},
-		elementsErrors:  map[string]error{},
-		clickErrors:     map[string]error{},
+		elementsResults:  map[string]rod.Elements{},
+		elementsErrors:   map[string]error{},
+		clickErrors:      map[string]error{},
+		currentURLErrors: map[int]error{},
 	}
 }
 
@@ -54,6 +63,21 @@ func (m *mockTermPage) Context(ctx context.Context) termPage {
 func (m *mockTermPage) Navigate(url string) error {
 	m.navigateCallCount++
 	return m.navigateErr
+}
+
+func (m *mockTermPage) CurrentURL() (string, error) {
+	m.currentURLCalls++
+	if err, ok := m.currentURLErrors[m.currentURLCalls]; ok {
+		return "", err
+	}
+	if len(m.currentURLResults) == 0 {
+		return timetableEndpointURL, nil
+	}
+	index := m.currentURLCalls - 1
+	if index >= len(m.currentURLResults) {
+		index = len(m.currentURLResults) - 1
+	}
+	return m.currentURLResults[index], nil
 }
 
 func (m *mockTermPage) Click(selector string, index int) error {
@@ -151,10 +175,19 @@ func (m *mockTermPage) Elements(selector string) (rod.Elements, error) {
 		time.Sleep(m.elementDelay)
 	}
 	if m.simulateNavigation {
-		if selector == "input.PSRADIOBUTTON" && m.onTimetable {
+		if selector == "input.PSRADIOBUTTON" && m.onTimetable && !m.staleRadioButtonsOnTimetable {
+			return rod.Elements{}, nil
+		}
+		if selector == "input[name='DERIVED_SSS_SCT_SSR_PB_GO']" && m.onTimetable {
 			return rod.Elements{}, nil
 		}
 		if selector == "input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']" && !m.onTimetable {
+			return rod.Elements{}, nil
+		}
+	}
+	if selector == "input[name='DERIVED_SSS_SCT_SSR_PB_GO']" && m.goButtonAppearAfter > 0 {
+		m.goButtonChecks++
+		if m.goButtonChecks < m.goButtonAppearAfter {
 			return rod.Elements{}, nil
 		}
 	}
@@ -169,6 +202,7 @@ func (m *mockTermPage) Elements(selector string) (rod.Elements, error) {
 
 func (m *mockTermPage) WaitStable(timeout time.Duration) error {
 	m.waitStableCallCount++
+	m.waitStableTimeouts = append(m.waitStableTimeouts, timeout)
 	if m.waitStableFunc != nil {
 		return m.waitStableFunc(timeout)
 	}
@@ -182,6 +216,9 @@ func (m *mockTermPage) Wait(fn *rod.EvalOptions) error {
 
 func (m *mockTermPage) HTML() (string, error) {
 	m.htmlCalls++
+	if m.htmlContent != "" {
+		return m.htmlContent, nil
+	}
 	if m.htmlErrOnCall > 0 && m.htmlCalls == m.htmlErrOnCall {
 		return "", errors.New("synthetic HTML extraction failure")
 	}
@@ -197,6 +234,143 @@ func testConfig() BrowserConfig {
 	cfg.MaxRetries = 1
 	cfg.RetryInterval = 1 * time.Millisecond
 	return cfg
+}
+
+func TestNavigateToTimetable_StabilityFailureReturnsError(t *testing.T) {
+	mock := newMockTermPage()
+	mock.waitStableErr = errors.New("page did not stabilize")
+	cfg := testConfig()
+	cfg.NavigationTimeout = time.Second
+
+	err := navigateToTimetable(context.Background(), mock, cfg)
+	if err == nil {
+		t.Fatal("expected page stability failure to propagate")
+	}
+	if !strings.Contains(err.Error(), "wait for timetable page stability") {
+		t.Errorf("unexpected stability error: %v", err)
+	}
+}
+
+func TestNavigateToTimetable_URLWithQueryMatchesEndpoint(t *testing.T) {
+	mock := newMockTermPage()
+	mock.currentURLResults = []string{timetableEndpointURL + "?ICType=Panel"}
+	cfg := testConfig()
+
+	if err := navigateToTimetable(context.Background(), mock, cfg); err != nil {
+		t.Fatalf("navigateToTimetable returned error for endpoint URL with query parameters: %v", err)
+	}
+	if mock.navigateCallCount != 1 {
+		t.Errorf("navigation calls = %d, want 1", mock.navigateCallCount)
+	}
+	if mock.currentURLCalls != 1 {
+		t.Errorf("URL checks = %d, want 1", mock.currentURLCalls)
+	}
+	if len(mock.waitStableTimeouts) != 1 || mock.waitStableTimeouts[0] != 5000 {
+		t.Errorf("WaitStable calls = %v, want only [5000]", mock.waitStableTimeouts)
+	}
+}
+
+func TestNavigateToTimetable_URLMatchesAfterAdditionalStabilityWait(t *testing.T) {
+	mock := newMockTermPage()
+	mock.currentURLResults = []string{
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL?redirect=working",
+		timetableEndpointURL + "?ICType=Panel",
+	}
+	cfg := testConfig()
+
+	if err := navigateToTimetable(context.Background(), mock, cfg); err != nil {
+		t.Fatalf("navigateToTimetable returned error after delayed redirect: %v", err)
+	}
+	if mock.navigateCallCount != 1 {
+		t.Errorf("navigation calls = %d, want 1", mock.navigateCallCount)
+	}
+	if mock.currentURLCalls != 2 {
+		t.Errorf("URL checks = %d, want 2", mock.currentURLCalls)
+	}
+	wantWaits := []time.Duration{5000, time.Second}
+	if fmt.Sprint(mock.waitStableTimeouts) != fmt.Sprint(wantWaits) {
+		t.Errorf("WaitStable calls = %v, want %v", mock.waitStableTimeouts, wantWaits)
+	}
+}
+
+func TestNavigateToTimetable_URLMismatchRetriesWholeCycle(t *testing.T) {
+	mock := newMockTermPage()
+	mock.currentURLResults = []string{
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL",
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL?retry=1",
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL",
+		"https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/login.GBL?retry=2",
+	}
+	cfg := testConfig()
+	cfg.MaxRetries = 1
+
+	err := navigateToTimetable(context.Background(), mock, cfg)
+	if err == nil {
+		t.Fatal("expected URL mismatch after both checks to fail each navigation cycle")
+	}
+	if !strings.Contains(err.Error(), "timetable endpoint URL mismatch") {
+		t.Errorf("expected endpoint mismatch error, got: %v", err)
+	}
+	if mock.navigateCallCount != 2 {
+		t.Errorf("navigation calls = %d, want 2 whole-cycle attempts", mock.navigateCallCount)
+	}
+	if mock.currentURLCalls != 4 {
+		t.Errorf("URL checks = %d, want 4 checks across two cycles", mock.currentURLCalls)
+	}
+	wantWaits := []time.Duration{5000, time.Second, time.Second, time.Second}
+	if fmt.Sprint(mock.waitStableTimeouts) != fmt.Sprint(wantWaits) {
+		t.Errorf("WaitStable calls = %v, want %v", mock.waitStableTimeouts, wantWaits)
+	}
+}
+
+func TestReturnToTermSelection_RetriesGoButtonCheckWithShortStabilityWait(t *testing.T) {
+	ctx := context.Background()
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{&rod.Element{}}
+	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}}
+	mock.goButtonAppearAfter = 3
+	cfg := testConfig()
+
+	if err := returnToTermSelection(ctx, mock, cfg); err != nil {
+		t.Fatalf("returnToTermSelection failed while Go button eventually appeared: %v", err)
+	}
+	wantWaits := []time.Duration{5000, time.Second, time.Second}
+	if fmt.Sprint(mock.waitStableTimeouts) != fmt.Sprint(wantWaits) {
+		t.Errorf("WaitStable calls = %v, want %v", mock.waitStableTimeouts, wantWaits)
+	}
+	if mock.goButtonChecks != 3 {
+		t.Errorf("Go button checks = %d, want 3", mock.goButtonChecks)
+	}
+}
+
+func TestReturnToTermSelection_GoButtonWaitEndsAtContextDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+
+	mock := newMockTermPage()
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
+	mock.waitStableFunc = func(timeout time.Duration) error {
+		time.Sleep(time.Millisecond)
+		return nil
+	}
+	cfg := testConfig()
+
+	err := returnToTermSelection(ctx, mock, cfg)
+	if err == nil {
+		t.Fatal("expected absent Go button to fail when timetable context expires")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected context deadline error, got: %v", err)
+	}
+	if len(mock.waitStableTimeouts) < 2 || mock.waitStableTimeouts[0] != 5000 {
+		t.Errorf("WaitStable calls = %v, expected initial 5000 wait followed by retries", mock.waitStableTimeouts)
+	}
+	for i, wait := range mock.waitStableTimeouts[1:] {
+		if wait != time.Second {
+			t.Errorf("retry WaitStable call %d = %v, want %v", i+2, wait, time.Second)
+		}
+	}
 }
 
 func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *testing.T) {
@@ -237,28 +411,38 @@ func TestFetchTimetablePage_NavigationTimeoutIsScopedToInitialNavigation(t *test
 	}
 }
 
-func TestHandleMultiTermSelection_RecoversAfterTimetableHTMLFailure(t *testing.T) {
+func TestHandleMultiTermSelection_PropagatesTimetableHTMLFailureAfterRecovery(t *testing.T) {
 	ctx := context.Background()
 	mock := newMockTermPage()
 	mock.simulateNavigation = true
 	mock.onTimetable = true
+	mock.staleRadioButtonsOnTimetable = true // Simulate stale/hidden radios that must not be mistaken for the selector.
 	mock.htmlErrOnCall = 1
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{&rod.Element{}}
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{&rod.Element{}, &rod.Element{}}
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{&rod.Element{}}
 
-	entries, err := handleMultiTermSelection(ctx, mock, testConfig())
-	if err != nil {
-		t.Fatalf("expected second term to be fetched after first-term extraction failure: %v", err)
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err == nil {
+		t.Fatal("expected the timetable run to fail after a term's HTML extraction failed")
 	}
-	if len(entries) == 0 {
-		t.Fatal("expected entries from the second term")
+	if !strings.Contains(err.Error(), "get page HTML for term") {
+		t.Errorf("expected HTML extraction error, got: %v", err)
 	}
 	if mock.htmlCalls != 2 {
 		t.Errorf("expected HTML extraction to be attempted for both terms, got %d attempts", mock.htmlCalls)
 	}
 	if mock.changeTermCallCount != 2 {
 		t.Errorf("expected selector recovery after the failed first term, got %d Change Term clicks", mock.changeTermCallCount)
+	}
+	goClickCount := 0
+	for _, call := range mock.clickCalls {
+		if strings.Contains(call, "DERIVED_SSS_SCT_SSR_PB_GO") {
+			goClickCount++
+		}
+	}
+	if goClickCount != 2 {
+		t.Errorf("expected Go to be clicked for both terms after selector recovery, got %d clicks; calls: %v", goClickCount, mock.clickCalls)
 	}
 	if len(mock.clickCalls) < 4 ||
 		mock.clickCalls[1] != "input.PSRADIOBUTTON[0]" ||
@@ -305,13 +489,26 @@ func TestHandleMultiTermSelection_NoChangeTermButton_FetchCurrentPage(t *testing
 	}
 }
 
+func TestHandleMultiTermSelection_NoChangeTermButton_EmptyCurrentPageFails(t *testing.T) {
+	ctx := context.Background()
+	mock := newMockTermPage()
+	mock.htmlContent = "<html><body>PeopleSoft error page</body></html>"
+
+	_, err := handleMultiTermSelection(ctx, mock, testConfig())
+	if err == nil {
+		t.Fatal("expected empty current-page parse to fail the timetable fetch")
+	}
+}
+
 func TestHandleMultiTermSelection_NoRadioButtons_FetchCurrentPage(t *testing.T) {
 	ctx := context.Background()
 
 	changeTermEl := &rod.Element{}
+	goEl := &rod.Element{}
 	mock := newMockTermPage()
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
-	// No radio buttons after clicking change term
+	// Selector is present, but no term radio buttons are exposed.
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{}
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
@@ -403,7 +600,7 @@ func TestHandleMultiTermSelection_MultipleTerms(t *testing.T) {
 	}
 }
 
-func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
+func TestHandleMultiTermSelection_PerTermFailureMarksRunFailed(t *testing.T) {
 	ctx := context.Background()
 
 	changeTermEl := &rod.Element{}
@@ -420,8 +617,8 @@ func TestHandleMultiTermSelection_PerTermFailureContinues(t *testing.T) {
 	mock.clickErrors["input.PSRADIOBUTTON[0]"] = errors.New("click failed")
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error (per-term failures should be non-fatal): %v", err)
+	if err == nil {
+		t.Fatal("expected a term failure to mark the complete timetable fetch as failed")
 	}
 }
 
@@ -441,8 +638,8 @@ func TestHandleMultiTermSelection_ReturnToTermSelectionFailure_StopsIteration(t 
 	mock.changeTermFailAfter = 1
 
 	_, err := handleMultiTermSelection(ctx, mock, testConfig())
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected failure to return to term selection to mark the whole fetch as failed")
 	}
 
 	// Should have clicked only 1 radio button (second was skipped due to return failure)
@@ -526,10 +723,12 @@ func TestReturnToTermSelection_Success(t *testing.T) {
 
 	changeTermEl := &rod.Element{}
 	radioEl := &rod.Element{}
+	goEl := &rod.Element{}
 
 	mock := newMockTermPage()
 	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSS_TERM_LINK']"] = rod.Elements{changeTermEl}
 	mock.elementsResults["input.PSRADIOBUTTON"] = rod.Elements{radioEl}
+	mock.elementsResults["input[name='DERIVED_SSS_SCT_SSR_PB_GO']"] = rod.Elements{goEl}
 
 	err := returnToTermSelection(ctx, mock, testConfig())
 	if err != nil {
@@ -565,25 +764,17 @@ func TestReturnToTermSelection_ChangeTermNotFound(t *testing.T) {
 	}
 }
 
-func TestClickElement_NilElement(t *testing.T) {
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("clickElement panicked with nil element: %v", r)
-		}
-	}()
-
+func TestClickElement_NilElementReturnsError(t *testing.T) {
 	var nilEl *rod.Element
-	err := clickElement(nilEl)
-	if err != nil {
-		t.Errorf("expected nil error from clickElement with nil element, got: %v", err)
+	if err := clickElement(nilEl); err == nil {
+		t.Fatal("expected error when clicking a nil element")
 	}
 }
 
-func TestClickElement_ValidElement(t *testing.T) {
+func TestClickElement_UninitializedElementReturnsError(t *testing.T) {
 	el := &rod.Element{}
-	err := clickElement(el)
-	if err != nil {
-		t.Errorf("expected nil error from clickElement with valid element, got: %v", err)
+	if err := clickElement(el); err == nil {
+		t.Fatal("expected an error from an uninitialized Rod element")
 	}
 }
 
