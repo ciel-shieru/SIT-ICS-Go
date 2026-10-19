@@ -22,6 +22,8 @@ func TestParseICS_ParsesCalendarEventID(t *testing.T) {
 		"DTEND;TZID=Asia/Singapore:20260915T110000",
 		"SUMMARY:Test Event",
 		"LOCATION:Room 101",
+		"X-PeopleSoft-CourseCode:ALT2501",
+		"X-PeopleSoft-Title:Lecture 1",
 		"X-CalendarEventId:99001",
 		"END:VEVENT",
 		"END:VCALENDAR",
@@ -35,6 +37,12 @@ func TestParseICS_ParsesCalendarEventID(t *testing.T) {
 	}
 	if events[0].CalendarEventID != 99001 {
 		t.Errorf("CalendarEventID = %d, want 99001", events[0].CalendarEventID)
+	}
+	if events[0].CourseCode != "ALT2501" {
+		t.Errorf("CourseCode = %q, want %q", events[0].CourseCode, "ALT2501")
+	}
+	if events[0].Title != "Lecture 1" {
+		t.Errorf("Title = %q, want %q", events[0].Title, "Lecture 1")
 	}
 }
 

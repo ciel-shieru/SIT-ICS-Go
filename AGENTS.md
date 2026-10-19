@@ -175,7 +175,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Scheduler.New(tz)** returns `(*Scheduler, error)` — validates timezone.
 - **Remote browser discovery**: For `remote` mode, WebSocket URL discovered at runtime via `http://host:port/json/version/`. Per-session UUID changes on Chromium restart — discover fresh on every `Authenticate()` call.
 - **Shutdown**: Signal handler waits for in-flight fetch (30s timeout), stops scheduler, closes browser, then calls `cache.SaveOutputs()` for all 7 paths.
-- **ICS UID format**: `SHA-256(summary-location-date-start-end)` for PeopleSoft events; `SHA-256(source-summary-location-date-start-end)` for BrightSpace events (source prefix). Changing any component breaks idempotency.
+- **ICS PeopleSoft metadata**: PeopleSoft timetable events emit `X-PeopleSoft-CourseCode` and `X-PeopleSoft-Title`. BrightSpace events retain `X-Title`; the persistence parser accepts legacy `X-Title` for compatibility with previously saved ICS files. These metadata properties are emitted by the shared renderer, so changes must preserve source-based separation.
 - **App.Fetch() is reentrant-guarded**: Uses mutex + `fetching` flag to prevent concurrent fetches.
 - **Events sorted deterministically**: Primary by DTStart, secondary by Location, tiebreaker by UID.
 - **Credential retry vs automatic retry**: `isRetriable()` returns `false` for auth errors, so the browser-level retry loop does not retry auth failures. The user-facing retry in `runFetch()` is a separate, single-attempt interactive flow (desktop only).

@@ -525,7 +525,7 @@ func TestRender_XPropertyOrder(t *testing.T) {
 
 	content := string(data)
 
-	titleIdx := strings.Index(content, "X-Title:")
+	titleIdx := strings.Index(content, "X-PeopleSoft-Title:")
 	calIdx := strings.Index(content, "X-CalendarEventId:")
 	quizIdx := strings.Index(content, "X-QuizId:")
 
@@ -533,7 +533,7 @@ func TestRender_XPropertyOrder(t *testing.T) {
 		t.Error("Missing expected X- properties")
 	}
 	if titleIdx >= calIdx {
-		t.Error("X-Title should come before X-CalendarEventId")
+		t.Error("X-PeopleSoft-Title should come before X-CalendarEventId")
 	}
 	if calIdx >= quizIdx {
 		t.Error("X-CalendarEventId should come before X-QuizId")

@@ -63,7 +63,12 @@ func parseICS(data []byte, loc *time.Location) []Event {
 				event.OrgUnitName = unescapeText(strings.TrimPrefix(line, "X-OrgUnitName:"))
 			} else if strings.HasPrefix(line, "X-OrgUnitCode:") {
 				event.OrgUnitCode = unescapeText(strings.TrimPrefix(line, "X-OrgUnitCode:"))
+			} else if strings.HasPrefix(line, "X-PeopleSoft-CourseCode:") {
+				event.CourseCode = unescapeText(strings.TrimPrefix(line, "X-PeopleSoft-CourseCode:"))
+			} else if strings.HasPrefix(line, "X-PeopleSoft-Title:") {
+				event.Title = unescapeText(strings.TrimPrefix(line, "X-PeopleSoft-Title:"))
 			} else if strings.HasPrefix(line, "X-Title:") {
+				// Read legacy and BrightSpace title properties for backwards compatibility.
 				event.Title = unescapeText(strings.TrimPrefix(line, "X-Title:"))
 			} else if strings.HasPrefix(line, "X-CalendarEventId:") {
 				event.CalendarEventID = parseInt(strings.TrimPrefix(line, "X-CalendarEventId:"))
