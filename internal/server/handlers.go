@@ -110,7 +110,9 @@ type WakeyEvent struct {
 
 // newWakeySitizenHandler serves the timetable as JSON for the Wakey-SITizen
 // companion app. Events sourced from BrightSpace (Source prefix "brightspace-")
-// are excluded. Always returns 200 OK, including for an empty result set.
+// are excluded. An optional date=YYYY-MM-DD query parameter filters events by
+// local start date to the four-day window [date, date+4 days). Always returns
+// 200 OK for valid requests, including for an empty result set.
 func newWakeySitizenHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, disableCaching bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		loc, err := time.LoadLocation(tz)
@@ -118,10 +120,32 @@ func newWakeySitizenHandler(cache *calendar.ICSCache, tz string, refreshInterval
 			loc = time.UTC
 		}
 
+		var dateStart, dateEnd time.Time
+		filterByDate := false
+		if dateValues, hasDate := r.URL.Query()["date"]; hasDate {
+			if len(dateValues) != 1 || dateValues[0] == "" {
+				http.Error(w, "date must be a single YYYY-MM-DD value", http.StatusBadRequest)
+				return
+			}
+			dateStart, err = time.ParseInLocation("2006-01-02", dateValues[0], loc)
+			if err != nil {
+				http.Error(w, "date must be a valid YYYY-MM-DD date", http.StatusBadRequest)
+				return
+			}
+			dateEnd = dateStart.AddDate(0, 0, 4)
+			filterByDate = true
+		}
+
 		wakeyEvents := make([]WakeyEvent, 0)
 		for _, e := range cache.GetEvents() {
 			if strings.HasPrefix(e.Source, "brightspace-") {
 				continue
+			}
+			if filterByDate {
+				eventDate := e.DTStart.In(loc)
+				if eventDate.Before(dateStart) || !eventDate.Before(dateEnd) {
+					continue
+				}
 			}
 			eventType := "campus"
 			if strings.EqualFold(e.Location, "Online") {
