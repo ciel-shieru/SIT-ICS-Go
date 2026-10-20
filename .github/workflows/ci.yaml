@@ -40,7 +40,8 @@ jobs:
           # Repository owners, members, and collaborators can run CI directly.
           case "$PR_AUTHOR_ASSOCIATION" in
             OWNER|COLLABORATOR|MEMBER)
-              echo "approved=true (repository member)" >> "$GITHUB_OUTPUT"
+              echo "approved=true" >> "$GITHUB_OUTPUT"
+              echo "Approval granted: PR author is a repository member."
               exit 0
               ;;
           esac
@@ -53,7 +54,8 @@ jobs:
             python3 -c "import sys,json; labels=[t['name'] for t in json.load(sys.stdin).get('labels',[])]; print('yes' if 'ci-approved' in labels else 'no')" 2>/dev/null || echo "no")
 
           if [ "$HAS_LABEL" = "yes" ]; then
-            echo "approved=true (ci-approved label)" >> "$GITHUB_OUTPUT"
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+            echo "Approval granted by ci-approved label."
           else
             echo "approved=false" >> "$GITHUB_OUTPUT"
           fi
