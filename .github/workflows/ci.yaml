@@ -274,5 +274,5 @@ jobs:
             org.opencontainers.image.description=Debug image for sit-ics-go (non-root, distroless)
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             debug=true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
