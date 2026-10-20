@@ -111,7 +111,14 @@ func Render(events []Event, opts RenderOptions) ([]byte, error) {
 		if event.OrgUnitCode != "" {
 			sb.WriteString(fmt.Sprintf("X-OrgUnitCode:%s\r\n", FoldText(EscapeText(event.OrgUnitCode))))
 		}
-		if event.Title != "" {
+		if !strings.HasPrefix(event.Source, "brightspace-") {
+			if event.CourseCode != "" {
+				sb.WriteString(fmt.Sprintf("X-PeopleSoft-CourseCode:%s\r\n", FoldText(EscapeText(event.CourseCode))))
+			}
+			if event.Title != "" {
+				sb.WriteString(fmt.Sprintf("X-PeopleSoft-Title:%s\r\n", FoldText(EscapeText(event.Title))))
+			}
+		} else if event.Title != "" {
 			sb.WriteString(fmt.Sprintf("X-Title:%s\r\n", FoldText(EscapeText(event.Title))))
 		}
 		if event.CalendarEventID > 0 {

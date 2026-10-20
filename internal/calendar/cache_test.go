@@ -920,7 +920,7 @@ func TestICSCacheBrightSpaceFieldsRoundTrip(t *testing.T) {
 		t.Error("Reloaded event missing X-OrgUnitCode:ALT2501")
 	}
 	if !contains(content, "X-Title:Assignment 1: Requirements Analysis") {
-		t.Error("Reloaded event missing X-Title")
+		t.Error("Reloaded event missing legacy BrightSpace X-Title")
 	}
 }
 
