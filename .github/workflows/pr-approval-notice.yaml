@@ -1,0 +1,29 @@
+name: PR approval notice
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  approval-notice:
+    name: Request approval for external PRs
+    if: >-
+      github.event.pull_request.author_association != 'OWNER' &&
+      github.event.pull_request.author_association != 'COLLABORATOR' &&
+      github.event.pull_request.author_association != 'MEMBER' &&
+      !contains(github.event.pull_request.labels.*.name, 'ci-approved')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment with CI approval instructions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh pr comment "$PR_NUMBER" \
+            --repo "$REPOSITORY" \
+            --body "**CI is paused pending maintainer approval.** External contributors require the ci-approved label before CI workflows run. A project maintainer should add that label to this pull request."

@@ -3,12 +3,11 @@ name: CI
 on:
   push:
     branches: [main, master]
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
-  packages: write
 
 env:
   REGISTRY: ghcr.io
@@ -25,82 +24,50 @@ jobs:
       pull-requests: read
       issues: read
     steps:
-      - name: Check collaborator status or ci-approved label
+      - name: Check repository membership or ci-approved label
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO_OWNER: ${{ github.repository_owner }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
         run: |
-          AUTHOR="${{ github.event.pull_request.user.login }}"
-
-          # Push events always pass through
-          if [ -z "$AUTHOR" ]; then
+          # Pushes to main/master do not need PR approval.
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             echo "approved=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Check collaborator status via API (204 = yes, 404 = no)
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/${REPO_OWNER}/${{ github.event.repository.name }}/collaborators/$AUTHOR 2>/dev/null || echo "0")
+          # Repository owners, members, and collaborators can run CI directly.
+          case "$PR_AUTHOR_ASSOCIATION" in
+            OWNER|COLLABORATOR|MEMBER)
+              echo "approved=true (repository member)" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
 
-          if [ "$HTTP_CODE" = "204" ]; then
-            echo "approved=true (collaborator)" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Check for ci-approved label on the PR
-          HAS_LABEL=$(curl -s \
+          # External contributors need a maintainer-applied ci-approved label.
+          HAS_LABEL=$(curl -fsS \
             -H "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/${REPO_OWNER}/${{ github.event.repository.name }}/issues/$PR_NUMBER 2>/dev/null | \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER" | \
             python3 -c "import sys,json; labels=[t['name'] for t in json.load(sys.stdin).get('labels',[])]; print('yes' if 'ci-approved' in labels else 'no')" 2>/dev/null || echo "no")
 
           if [ "$HAS_LABEL" = "yes" ]; then
             echo "approved=true (ci-approved label)" >> "$GITHUB_OUTPUT"
-            exit 0
+          else
+            echo "approved=false" >> "$GITHUB_OUTPUT"
           fi
-
-          # Not approved — fail the gate
-          echo "approved=false" >> "$GITHUB_OUTPUT"
-
-      - name: Post approval request for external PRs
-        if: steps.check.outputs.approved == 'false' && github.event_name == 'pull_request_target'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO_OWNER: ${{ github.repository_owner }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          AUTHOR="${{ github.event.pull_request.user.login }}"
-          gh pr comment "$PR_NUMBER" \
-            --repo "${REPO_OWNER}/${{ github.event.repository.name }}" \
-            --body "**CI is paused pending maintainer approval.** \n\nExternal contributors require a \`ci-approved\` label before CI workflows run.\n\nA project maintainer should add the \`ci-approved\` label to this pull request."
-
-      # - name: Comment CI status
-      #   if: always() && needs.gate-external-prs.outputs.approved == 'false'
-      #   needs: [gate-external-prs]
-      #   runs-on: ubuntu-latest
-      #   permissions:
-      #     pull-requests: write
-      #   steps:
-      #     - name: Comment CI status
-      #       env:
-      #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #         REPO_OWNER: ${{ github.repository_owner }}
-      #         PR_NUMBER: ${{ github.event.pull_request.number }}
-      #       run: |
-      #         gh pr comment "$PR_NUMBER" \
-      #           --repo "${REPO_OWNER}/${{ github.event.repository.name }}" \
-      #           --body "⏳ **CI checks are waiting for maintainer approval.**\n\nA maintainer needs to add the \`ci-approved\` label to this PR.\n\n*This is an automated status update.*"
 
   # ── Lint ──
   lint:
     name: Lint (go vet)
     runs-on: ubuntu-latest
     needs: [gate-external-prs]
-    if: always() && (needs.gate-external-prs.result == 'success' || github.event_name == 'push')
+    if: needs.gate-external-prs.outputs.approved == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -116,9 +83,11 @@ jobs:
     name: Tests (go test -race)
     runs-on: ubuntu-latest
     needs: [gate-external-prs]
-    if: always() && (needs.gate-external-prs.result == 'success' || github.event_name == 'push')
+    if: needs.gate-external-prs.outputs.approved == 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -134,7 +103,7 @@ jobs:
     name: Build (${{ matrix.name }})
     runs-on: ubuntu-latest
     needs: [gate-external-prs]
-    if: always() && (needs.gate-external-prs.result == 'success' || github.event_name == 'push')
+    if: needs.gate-external-prs.outputs.approved == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -149,6 +118,8 @@ jobs:
             goarch: arm64
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -178,7 +149,7 @@ jobs:
   #   name: Run check (linux/amd64)
   #   runs-on: ubuntu-latest
   #   needs: [gate-external-prs, build]
-  #   if: always() && (needs.gate-external-prs.result == 'success' || github.event_name == 'push')
+  #   if: needs.gate-external-prs.outputs.approved == 'true'
   #   steps:
   #     - uses: actions/checkout@v4
   #
@@ -229,7 +200,10 @@ jobs:
     name: Debug image (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     needs: [gate-external-prs]
-    if: always() && (needs.gate-external-prs.result == 'success' || github.event_name == 'push')
+    if: needs.gate-external-prs.outputs.approved == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -241,6 +215,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Docker meta (debug)
         id: debug-meta
