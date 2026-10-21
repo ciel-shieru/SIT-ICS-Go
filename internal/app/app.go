@@ -38,8 +38,10 @@ type App struct {
 	refreshPending bool
 	refreshScheduled bool
 	shuttingDown bool
-	lastFetchJobTime time.Time
-	done          chan struct{}
+	lastFetchJobTime   time.Time
+	lastStatusIN4SIT   string
+	lastStatusXsite    string
+	done               chan struct{}
 	ctx           context.Context
 	cancel        context.CancelFunc
 }
@@ -52,8 +54,10 @@ func New(cfg *config.Config, cache *calendar.ICSCache, provider *auth.ADFSProvid
 		provider:      provider,
 		loc:           loc,
 		remoteBrowser: remoteBrowser,
-		done:          make(chan struct{}),
-		ctx:           ctx,
+		lastStatusIN4SIT: "unknown",
+		lastStatusXsite:  "unknown",
+		done:             make(chan struct{}),
+		ctx:              ctx,
 		cancel:        cancel,
 	}
 }
@@ -80,7 +84,7 @@ func (a *App) Run() error {
 		a.cfg.XsiteDropboxAlerts,
 		a.cfg.XsiteQuizzesAlerts,
 	)
-	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts, a.cfg.ServerTrustedProxies, a.cfg.ServerDisableCaching, a.LastFetchJobTime, a.RequestRefresh)
+	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts, a.cfg.ServerTrustedProxies, a.cfg.ServerDisableCaching, a.LastFetchJobTime, a.FetchStatuses, a.RequestRefresh)
 	go func() { _ = a.srv.Start() }()
 
 	sigChan := make(chan os.Signal, 1)
@@ -134,7 +138,40 @@ func (a *App) runFetchJob() {
 		defer a.provider.SetBrowser(old)
 	}
 
-	runFetch(a.ctx, a.cfg, a.provider, a.cache, a.loc)
+	runFetchWithStatus(a.ctx, a.cfg, a.provider, a.cache, a.loc, a.setLastStatusIN4SIT, a.setLastStatusXsite)
+}
+
+// FetchStatuses returns current overall-job and last source-fetch statuses.
+// Source statuses persist until the next corresponding fetch starts.
+func (a *App) FetchStatuses() (jobStatus, lastStatusIN4SIT, lastStatusXsite string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	jobStatus = "finished"
+	if a.fetching {
+		jobStatus = "running"
+	}
+	lastStatusIN4SIT = a.lastStatusIN4SIT
+	if lastStatusIN4SIT == "" {
+		lastStatusIN4SIT = "unknown"
+	}
+	lastStatusXsite = a.lastStatusXsite
+	if lastStatusXsite == "" {
+		lastStatusXsite = "unknown"
+	}
+	return jobStatus, lastStatusIN4SIT, lastStatusXsite
+}
+
+func (a *App) setLastStatusIN4SIT(status string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastStatusIN4SIT = status
+}
+
+func (a *App) setLastStatusXsite(status string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastStatusXsite = status
 }
 
 // LastFetchJobTime returns the start time of the most recent fetch job.

@@ -19,6 +19,17 @@ import (
 )
 
 func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.ICSCache, loc *time.Location) {
+	runFetchWithStatus(ctx, cfg, provider, cache, loc, nil, nil)
+}
+
+func runFetchWithStatus(
+	ctx context.Context,
+	cfg *config.Config,
+	provider *auth.ADFSProvider,
+	cache *calendar.ICSCache,
+	loc *time.Location,
+	onIN4SITStatus, onXsiteStatus func(string),
+) {
 	log.Printf("scheduler: starting timetable fetch")
 
 	if ctx.Err() != nil {
@@ -71,6 +82,9 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	timetableCtx, timetableCancel := context.WithTimeout(ctx, TimetableFetchTimeout)
 	icsEvents := make([]calendar.Event, 0)
 	psFetchFailed := false
+	if onIN4SITStatus != nil {
+		onIN4SITStatus("running")
+	}
 
 	err = browser.Do(timetableCtx, func() error {
 		entries, fetchErr := provider.FetchTimetable(timetableCtx, "", loc)
@@ -108,14 +122,23 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 	}, cfg.BrowserMaxRetries, cfg.BrowserRetryInterval)
 	timetableCancel()
 	if err != nil {
+		if onIN4SITStatus != nil {
+			onIN4SITStatus("failed")
+		}
 		if isFatalPostAuth(err) || ctx.Err() != nil {
 			log.Printf("scheduler: fetch failed: %v", err)
 			return
 		}
 		psFetchFailed = true
 		log.Printf("scheduler: peoplesoft timetable fetch failed: %v — continuing with brightspace fetches, existing timetable events retained by UID upsert", err)
+	} else if onIN4SITStatus != nil {
+		onIN4SITStatus("successful")
 	}
 	if cfg.XsiteEnabled {
+		if onXsiteStatus != nil {
+			onXsiteStatus("running")
+		}
+		xsiteFetchFailed := false
 		blocklist := &brightspace.Blocklist{
 			CourseNamePatterns:    brightspace.ParseCommaSeparated(cfg.XsiteCourseNameBlocklist),
 			CourseIDs:             brightspace.ParseCommaSeparated(cfg.XsiteCourseIDBlocklist),
@@ -141,6 +164,7 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		brightSpaceCancel()
 		var bsEvents []calendar.Event
 		if err != nil {
+			xsiteFetchFailed = true
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
 		} else {
 			bsEvents = brightspace.EntriesToEvents(bsEntries, blocklist, loc)
@@ -172,6 +196,7 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 		brightSpaceQuizzesCancel()
 		var bsQuizzesEntries []brightspace.BrightSpaceStringEntry
 		if err != nil {
+			xsiteFetchFailed = true
 			log.Printf("scheduler: brightspace quizzes fetch failed: %v", err)
 		} else {
 			for _, q := range bsQuizzesAPI {
@@ -211,12 +236,14 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 					pageHTML, fetchErr := provider.FetchQuizSubmissionPage(quizCtx, quizURL)
 					quizCancel()
 					if fetchErr != nil {
+						xsiteFetchFailed = true
 						log.Printf("scheduler: failed to fetch quiz submission page for quiz %d: %v", q.QuizId, fetchErr)
 						continue
 					}
 
 					attemptInfo, parseErr := brightspace.ParseQuizSubmissionHTML(pageHTML, q.QuizId, q.OrgUnitId)
 					if parseErr != nil {
+						xsiteFetchFailed = true
 						log.Printf("scheduler: failed to parse quiz submission for quiz %d: %v", q.QuizId, parseErr)
 						continue
 					}
@@ -251,6 +278,13 @@ func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvid
 					}
 				}
 			}
+		}
+		if onXsiteStatus != nil {
+			status := "successful"
+			if xsiteFetchFailed {
+				status = "failed"
+			}
+			onXsiteStatus(status)
 		}
 	}
 

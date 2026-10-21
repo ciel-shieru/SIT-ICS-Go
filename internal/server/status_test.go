@@ -37,6 +37,8 @@ func TestStatusHandlerReportsInMemoryHashesETagsAndLastFetchTime(t *testing.T) {
 	lastFetch := time.Date(2026, 10, 21, 5, 30, 0, 0, time.FixedZone("UTC+8", 8*60*60))
 	handler := newStatusHandler(cache, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, func() time.Time {
 		return lastFetch
+	}, func() (string, string, string) {
+		return "running", "successful", "failed"
 	})
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/status", nil))
@@ -53,6 +55,15 @@ func TestStatusHandlerReportsInMemoryHashesETagsAndLastFetchTime(t *testing.T) {
 	}
 	if response.LastFetchJobTime == nil || !response.LastFetchJobTime.Equal(lastFetch) {
 		t.Errorf("last_fetch_job_time = %v, want %v", response.LastFetchJobTime, lastFetch)
+	}
+	if response.JobStatus != "running" {
+		t.Errorf("job_status = %q, want running", response.JobStatus)
+	}
+	if response.LastStatusIN4SIT != "successful" {
+		t.Errorf("last_status_in4sit = %q, want successful", response.LastStatusIN4SIT)
+	}
+	if response.LastStatusXsite != "failed" {
+		t.Errorf("last_status_xsite = %q, want failed", response.LastStatusXsite)
 	}
 	if len(response.SHA256) != 7 {
 		t.Errorf("SHA256 output count = %d, want 7", len(response.SHA256))
@@ -83,7 +94,7 @@ func TestStatusHandlerReportsInMemoryHashesETagsAndLastFetchTime(t *testing.T) {
 }
 
 func TestStatusHandlerAllowsOnlyGET(t *testing.T) {
-	handler := newStatusHandler(calendar.NewICSCache(), "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil)
+	handler := newStatusHandler(calendar.NewICSCache(), "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil, nil)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/status", nil))
 	if recorder.Code != http.StatusMethodNotAllowed {
@@ -95,7 +106,7 @@ func TestStatusHandlerAllowsOnlyGET(t *testing.T) {
 }
 
 func TestStatusHandlerHasNullLastFetchBeforeFirstJob(t *testing.T) {
-	handler := newStatusHandler(calendar.NewICSCache(), "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil)
+	handler := newStatusHandler(calendar.NewICSCache(), "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil, nil)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/status", nil))
 	var response map[string]any
