@@ -22,10 +22,13 @@ type Server struct {
 	bsDropboxAlerts []calendar.Alert
 	bsQuizzesAlerts []calendar.Alert
 	trustedProxies  string
-	disableCaching  bool
+	disableCaching   bool
+	lastFetchJobTime func() time.Time
+	fetchStatuses    func() (jobStatus, lastStatusIN4SIT, lastStatusXsite string)
+	requestRefresh   func()
 }
 
-func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert, trustedProxies string, disableCaching bool) *Server {
+func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert, trustedProxies string, disableCaching bool, lastFetchJobTime func() time.Time, fetchStatuses func() (jobStatus, lastStatusIN4SIT, lastStatusXsite string), requestRefresh func()) *Server {
 	return &Server{
 		port:            port,
 		serverAddr:      serverAddr,
@@ -40,6 +43,9 @@ func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string,
 		bsQuizzesAlerts: bsQuizzesAlerts,
 		trustedProxies:  trustedProxies,
 		disableCaching:  disableCaching,
+		lastFetchJobTime: lastFetchJobTime,
+		fetchStatuses:    fetchStatuses,
+		requestRefresh:   requestRefresh,
 	}
 }
 
@@ -53,6 +59,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/xsite-quizzes.ics", newXsiteQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts, s.disableCaching))
 	mux.HandleFunc("/xsite.ics", newXsiteHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts, s.bsDropboxAlerts, s.bsQuizzesAlerts, s.disableCaching))
 	mux.HandleFunc("/wakey-sitizen/timetable.json", newWakeySitizenHandler(s.cache, s.tz, s.refreshInterval, s.disableCaching))
+	mux.HandleFunc("/status", newStatusHandler(s.cache, s.tz, s.refreshInterval, s.mainAlerts, s.onlineAlerts, s.campusAlerts, s.bsEventsAlerts, s.bsDropboxAlerts, s.bsQuizzesAlerts, s.lastFetchJobTime, s.fetchStatuses))
+	mux.HandleFunc("/refresh", newRefreshHandler(s.requestRefresh))
 
 	handler, err := NewLoggingMiddleware(mux, s.trustedProxies)
 	if err != nil {

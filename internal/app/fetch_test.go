@@ -78,6 +78,70 @@ func fakeBSEntry(title string) brightspace.BrightSpaceStringEntry {
 	}
 }
 
+func TestRunFetchReportsSourceStatuses(t *testing.T) {
+	loc := testLoc(t)
+	mock := &browser.MockAuthBrowser{
+		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
+			return browser.AuthResult{}, nil
+		},
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return []peoplesoft.Entry{{
+				CourseCode: "ALT2501", ClassName: "Fake Class", Section: "A",
+				Type: "Tutorial", Day: "05/10/2026", StartTime: "10:00",
+				EndTime: "11:00", Location: "FAKE HALL 1",
+			}}, nil
+		},
+		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+			return nil, nil
+		},
+		FetchBrightSpaceQuizzesAPIFunc: func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig(t, nil)
+	var in4sitStatuses, xsiteStatuses []string
+	runFetchWithStatus(context.Background(), cfg, auth.NewADFSProvider(mock), calendar.NewICSCache(), loc,
+		func(status string) { in4sitStatuses = append(in4sitStatuses, status) },
+		func(status string) { xsiteStatuses = append(xsiteStatuses, status) },
+	)
+	if got := strings.Join(in4sitStatuses, ","); got != "running,successful" {
+		t.Errorf("IN4SIT statuses = %q, want running,successful", got)
+	}
+	if got := strings.Join(xsiteStatuses, ","); got != "running,successful" {
+		t.Errorf("xSITe statuses = %q, want running,successful", got)
+	}
+}
+
+func TestRunFetchReportsSourceFailures(t *testing.T) {
+	loc := testLoc(t)
+	mock := &browser.MockAuthBrowser{
+		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
+			return browser.AuthResult{}, nil
+		},
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return nil, errors.New("fake IN4SIT fetch failure")
+		},
+		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+			return nil, errors.New("fake xSITe fetch failure")
+		},
+		FetchBrightSpaceQuizzesAPIFunc: func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig(t, func(c *config.Config) { c.BrowserMaxRetries = 0 })
+	var in4sitStatus, xsiteStatus string
+	runFetchWithStatus(context.Background(), cfg, auth.NewADFSProvider(mock), calendar.NewICSCache(), loc,
+		func(status string) { in4sitStatus = status },
+		func(status string) { xsiteStatus = status },
+	)
+	if in4sitStatus != "failed" {
+		t.Errorf("IN4SIT status = %q, want failed", in4sitStatus)
+	}
+	if xsiteStatus != "failed" {
+		t.Errorf("xSITe status = %q, want failed", xsiteStatus)
+	}
+}
+
 func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 	loc := testLoc(t)
 

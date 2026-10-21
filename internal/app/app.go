@@ -35,7 +35,13 @@ type App struct {
 	remoteBrowser browser.AuthBrowser
 	mu            sync.Mutex
 	fetching      bool
-	done          chan struct{}
+	refreshPending bool
+	refreshScheduled bool
+	shuttingDown bool
+	lastFetchJobTime   time.Time
+	lastStatusIN4SIT   string
+	lastStatusXsite    string
+	done               chan struct{}
 	ctx           context.Context
 	cancel        context.CancelFunc
 }
@@ -48,8 +54,10 @@ func New(cfg *config.Config, cache *calendar.ICSCache, provider *auth.ADFSProvid
 		provider:      provider,
 		loc:           loc,
 		remoteBrowser: remoteBrowser,
-		done:          make(chan struct{}),
-		ctx:           ctx,
+		lastStatusIN4SIT: "unknown",
+		lastStatusXsite:  "unknown",
+		done:             make(chan struct{}),
+		ctx:              ctx,
 		cancel:        cancel,
 	}
 }
@@ -76,7 +84,7 @@ func (a *App) Run() error {
 		a.cfg.XsiteDropboxAlerts,
 		a.cfg.XsiteQuizzesAlerts,
 	)
-	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts, a.cfg.ServerTrustedProxies, a.cfg.ServerDisableCaching)
+	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts, a.cfg.ServerTrustedProxies, a.cfg.ServerDisableCaching, a.LastFetchJobTime, a.FetchStatuses, a.RequestRefresh)
 	go func() { _ = a.srv.Start() }()
 
 	sigChan := make(chan os.Signal, 1)
@@ -91,33 +99,36 @@ func (a *App) Run() error {
 
 func (a *App) Fetch() {
 	a.mu.Lock()
-	if a.fetching {
+	if a.shuttingDown || a.fetching {
 		a.mu.Unlock()
 		return
 	}
 	a.fetching = true
+	a.lastFetchJobTime = time.Now().UTC()
 	a.mu.Unlock()
 
+	a.runFetchJob()
+}
+
+func (a *App) runFetchJob() {
 	defer func() {
 		a.mu.Lock()
 		a.fetching = false
+		pending := a.refreshPending && !a.shuttingDown
+		a.refreshPending = false
 		select {
 		case a.done <- struct{}{}:
 		default:
 		}
 		a.mu.Unlock()
+		if pending {
+			a.RequestRefresh()
+		}
 	}()
 
 	b, err := a.spawnBrowser()
 	if err != nil {
 		log.Printf("scheduler: failed to spawn browser: %v", err)
-		a.mu.Lock()
-		a.fetching = false
-		a.mu.Unlock()
-		select {
-		case a.done <- struct{}{}:
-		default:
-		}
 		return
 	}
 
@@ -127,7 +138,87 @@ func (a *App) Fetch() {
 		defer a.provider.SetBrowser(old)
 	}
 
-	runFetch(a.ctx, a.cfg, a.provider, a.cache, a.loc)
+	runFetchWithStatus(a.ctx, a.cfg, a.provider, a.cache, a.loc, a.setLastStatusIN4SIT, a.setLastStatusXsite)
+}
+
+// FetchStatuses returns current overall-job and last source-fetch statuses.
+// Source statuses persist until the next corresponding fetch starts.
+func (a *App) FetchStatuses() (jobStatus, lastStatusIN4SIT, lastStatusXsite string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	jobStatus = "finished"
+	if a.fetching {
+		jobStatus = "running"
+	}
+	lastStatusIN4SIT = a.lastStatusIN4SIT
+	if lastStatusIN4SIT == "" {
+		lastStatusIN4SIT = "unknown"
+	}
+	lastStatusXsite = a.lastStatusXsite
+	if lastStatusXsite == "" {
+		lastStatusXsite = "unknown"
+	}
+	return jobStatus, lastStatusIN4SIT, lastStatusXsite
+}
+
+func (a *App) setLastStatusIN4SIT(status string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastStatusIN4SIT = status
+}
+
+func (a *App) setLastStatusXsite(status string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastStatusXsite = status
+}
+
+// LastFetchJobTime returns the start time of the most recent fetch job.
+// It reads only in-memory state.
+func (a *App) LastFetchJobTime() time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lastFetchJobTime
+}
+
+// RequestRefresh queues one immediate fetch. Requests during a running job are
+// coalesced into a single follow-up job instead of being silently discarded.
+func (a *App) RequestRefresh() {
+	a.mu.Lock()
+	if a.shuttingDown {
+		a.mu.Unlock()
+		return
+	}
+	if a.fetching {
+		a.refreshPending = true
+		a.mu.Unlock()
+		return
+	}
+	if a.refreshScheduled {
+		a.mu.Unlock()
+		return
+	}
+	a.refreshScheduled = true
+	a.mu.Unlock()
+
+	go func() {
+		a.mu.Lock()
+		a.refreshScheduled = false
+		if a.shuttingDown {
+			a.mu.Unlock()
+			return
+		}
+		if a.fetching {
+			a.refreshPending = true
+			a.mu.Unlock()
+			return
+		}
+		a.fetching = true
+		a.lastFetchJobTime = time.Now().UTC()
+		a.mu.Unlock()
+		a.runFetchJob()
+	}()
 }
 
 func (a *App) spawnBrowser() (browser.AuthBrowser, error) {
@@ -156,6 +247,7 @@ func (a *App) spawnBrowser() (browser.AuthBrowser, error) {
 
 func (a *App) Shutdown() {
 	a.mu.Lock()
+	a.shuttingDown = true
 	if a.fetching {
 		a.cancel()
 		a.mu.Unlock()
