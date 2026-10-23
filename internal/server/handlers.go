@@ -120,9 +120,17 @@ func newWakeySitizenHandler(cache *calendar.ICSCache, tz string, refreshInterval
 			loc = time.UTC
 		}
 
+		query := r.URL.Query()
+		dateValues, hasDate := query["date"]
+		endDateValues, hasEndDate := query["end_date"]
+
 		var dateStart, dateEnd time.Time
-		filterByDate := false
-		if dateValues, hasDate := r.URL.Query()["date"]; hasDate {
+		filterByDate := hasDate || hasEndDate
+		if hasEndDate && !hasDate {
+			http.Error(w, "date is required when end_date is supplied", http.StatusBadRequest)
+			return
+		}
+		if hasDate {
 			if len(dateValues) != 1 || dateValues[0] == "" {
 				http.Error(w, "date must be a single YYYY-MM-DD value", http.StatusBadRequest)
 				return
@@ -132,8 +140,29 @@ func newWakeySitizenHandler(cache *calendar.ICSCache, tz string, refreshInterval
 				http.Error(w, "date must be a valid YYYY-MM-DD date", http.StatusBadRequest)
 				return
 			}
-			dateEnd = dateStart.AddDate(0, 0, 4)
-			filterByDate = true
+
+			if hasEndDate {
+				if len(endDateValues) != 1 || endDateValues[0] == "" {
+					http.Error(w, "end_date must be a single YYYY-MM-DD value", http.StatusBadRequest)
+					return
+				}
+				inclusiveEnd, parseErr := time.ParseInLocation("2006-01-02", endDateValues[0], loc)
+				if parseErr != nil {
+					http.Error(w, "end_date must be a valid YYYY-MM-DD date", http.StatusBadRequest)
+					return
+				}
+				if inclusiveEnd.Before(dateStart) {
+					http.Error(w, "end_date must be on or after date", http.StatusBadRequest)
+					return
+				}
+				// Convert the inclusive calendar-day end into an exclusive bound,
+				// retaining every event occurring on the requested end date.
+				dateEnd = inclusiveEnd.AddDate(0, 0, 1)
+			} else {
+				// Preserve the existing four-calendar-day window for callers that
+				// provide only date.
+				dateEnd = dateStart.AddDate(0, 0, 4)
+			}
 		}
 
 		wakeyEvents := make([]WakeyEvent, 0)

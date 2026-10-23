@@ -18,7 +18,7 @@ Requirements:
 - BrightSpace/Xsite events (`Source` prefix `brightspace-`) are excluded — the app only needs class sessions for alarm scheduling.
 - A `schema_version` field so the app can validate the contract before deserializing (with `kotlinx.serialization`), enabling safe server-side schema evolution.
 - A `generated_at` field for client-side staleness detection.
-- An optional `date=YYYY-MM-DD` query parameter filters events by local start date to the four-calendar-day window beginning at the supplied date. Omitting it returns all events; malformed or repeated values are rejected with `400 Bad Request`.
+- An optional `date=YYYY-MM-DD` query parameter filters events by local start date to the four-calendar-day window beginning at the supplied date. Supplying `end_date=YYYY-MM-DD` alongside `date` instead selects an inclusive start-to-end range. Omitting both returns all events; `end_date` without `date`, malformed or repeated values, or an end before the start are rejected with `400 Bad Request`.
 - A fixed `Asia/Singapore` (`+08:00`) RFC 3339 timestamp format (SGT has no DST).
 
 ## Decision Drivers
@@ -61,7 +61,7 @@ We will choose **Option A: Dedicated JSON Handler over ICSCache**.
 
 #### Optional Date Filter
 
-Requests may include `?date=YYYY-MM-DD`. The date is interpreted in the configured server timezone, and the response includes events whose local start date is on or after the supplied date and before four calendar days later (the supplied date plus the following three dates). The range is start-inclusive and end-exclusive. The parameter is optional for backward compatibility; if supplied more than once or not as a valid date, the handler returns `400 Bad Request`. This changes only which events are returned, not the JSON schema, so `schema_version` remains 1.
+Requests may include `?date=YYYY-MM-DD`. By itself, `date` is interpreted in the configured server timezone and includes events whose local start date is on or after the supplied date and before four calendar days later (the supplied date plus the following three dates). This keeps the historical start-inclusive, end-exclusive four-day window. To select a longer range, callers may supply `end_date=YYYY-MM-DD` alongside `date`; both endpoints are interpreted in the configured timezone and are inclusive. Supplying `end_date` without `date`, repeating either parameter, using an invalid date, or specifying an end before the start returns `400 Bad Request`. Omitting both parameters returns all events. This changes only which events are returned, not the JSON schema, so `schema_version` remains 1.
 
 ## Schema
 
