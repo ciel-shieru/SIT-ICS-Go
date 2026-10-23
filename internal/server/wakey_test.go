@@ -381,12 +381,87 @@ func TestNewWakeySitizenHandler_DateFilterFourCalendarDays(t *testing.T) {
 	}
 }
 
+func TestNewWakeySitizenHandler_DateRangeInclusive(t *testing.T) {
+	loc, err := time.LoadLocation("Asia/Singapore")
+	if err != nil {
+		t.Fatalf("LoadLocation() error = %v", err)
+	}
+
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{
+			Summary: "Day Before Range",
+			DTStart: time.Date(2026, 9, 6, 23, 59, 0, 0, loc),
+			DTEnd:   time.Date(2026, 9, 7, 0, 30, 0, 0, loc),
+		},
+		{
+			Summary: "Range Start",
+			DTStart: time.Date(2026, 9, 7, 0, 0, 0, 0, loc),
+			DTEnd:   time.Date(2026, 9, 7, 1, 0, 0, 0, loc),
+		},
+		{
+			Summary: "Middle Of Range",
+			DTStart: time.Date(2026, 9, 20, 9, 0, 0, 0, loc),
+			DTEnd:   time.Date(2026, 9, 20, 10, 0, 0, 0, loc),
+		},
+		{
+			Summary: "Range End",
+			DTStart: time.Date(2026, 10, 6, 23, 59, 0, 0, loc),
+			DTEnd:   time.Date(2026, 10, 7, 0, 30, 0, 0, loc),
+		},
+		{
+			Summary: "Day After Range",
+			DTStart: time.Date(2026, 10, 7, 0, 0, 0, 0, loc),
+			DTEnd:   time.Date(2026, 10, 7, 1, 0, 0, 0, loc),
+		},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newWakeySitizenHandler(cache, "Asia/Singapore", time.Hour, false)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/wakey-sitizen/timetable.json?date=2026-09-07&end_date=2026-10-06",
+		nil,
+	)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Status = %d, want %d; body: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+
+	var resp WakeyResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal() error = %v; body: %s", err, rr.Body.String())
+	}
+	got := make([]string, 0, len(resp.Events))
+	for _, event := range resp.Events {
+		got = append(got, event.Summary)
+	}
+	want := []string{"Range Start", "Middle Of Range", "Range End"}
+	if len(got) != len(want) {
+		t.Fatalf("event summaries = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("event summaries = %v, want %v", got, want)
+			break
+		}
+	}
+}
+
 func TestNewWakeySitizenHandler_InvalidDateFilter(t *testing.T) {
 	handler := newWakeySitizenHandler(calendar.NewICSCache(), "Asia/Singapore", time.Hour, false)
 	for _, target := range []string{
 		"/wakey-sitizen/timetable.json?date=not-a-date",
 		"/wakey-sitizen/timetable.json?date=2026-02-30",
 		"/wakey-sitizen/timetable.json?date=2026-09-07&date=2026-09-08",
+		"/wakey-sitizen/timetable.json?date=2026-09-07&end_date=not-a-date",
+		"/wakey-sitizen/timetable.json?date=2026-09-07&end_date=2026-02-30",
+		"/wakey-sitizen/timetable.json?date=2026-09-07&end_date=2026-09-08&end_date=2026-09-09",
+		"/wakey-sitizen/timetable.json?date=2026-09-08&end_date=2026-09-07",
+		"/wakey-sitizen/timetable.json?end_date=2026-09-07",
 	} {
 		t.Run(target, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, target, nil)
