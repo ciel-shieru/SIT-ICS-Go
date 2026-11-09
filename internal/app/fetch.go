@@ -134,6 +134,13 @@ func runFetchWithStatus(
 	} else if onIN4SITStatus != nil {
 		onIN4SITStatus("successful")
 	}
+	authoritativeSources := make([]string, 0, 4)
+	if !psFetchFailed {
+		// PeopleSoft events intentionally have an empty Source to preserve their
+		// existing deterministic UID format.
+		authoritativeSources = append(authoritativeSources, "")
+	}
+
 	if cfg.XsiteEnabled {
 		if onXsiteStatus != nil {
 			onXsiteStatus("running")
@@ -162,122 +169,134 @@ func runFetchWithStatus(
 		brightSpaceCtx, brightSpaceCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
 		bsEntries, err := provider.FetchBrightSpace(brightSpaceCtx, "https://xsite.singaporetech.edu.sg")
 		brightSpaceCancel()
-		var bsEvents []calendar.Event
+		bsCalendarFetchSucceeded := err == nil
 		if err != nil {
 			xsiteFetchFailed = true
 			log.Printf("scheduler: brightspace fetch failed: %v", err)
-		} else {
-			bsEvents = brightspace.EntriesToEvents(bsEntries, blocklist, loc)
-			if psFetchFailed {
-				icsEvents = append(icsEvents, bsEvents...)
-				log.Printf("scheduler: smart merge skipped — peoplesoft fetch failed, keeping brightspace events standalone")
-			} else if cfg.XsiteSmartMergeEnabled {
-				psEvents, mergedCount, matchedCalendarEventIDs := smartmerge.MergeEvents(icsEvents, bsEvents)
-				if mergedCount > 0 {
-					log.Printf("smartmerge: merged %d brightspace events into timetable events", mergedCount)
-					removed := cache.RemoveWhere(func(e calendar.Event) bool {
-						return matchedCalendarEventIDs[e.CalendarEventID]
-					})
-					if removed > 0 {
-						log.Printf("smartmerge: removed %d matched brightspace calendar events from cache", removed)
-					}
-				} else {
-					log.Printf("smartmerge: no matching events found (checked %d brightspace events)", len(bsEvents))
+		}
+
+		// A partial fetch can still contribute newly observed events, but it is
+		// not authoritative for deletion because some courses may be missing.
+		bsEvents := brightspace.EntriesToEvents(bsEntries, blocklist, loc)
+		if psFetchFailed {
+			icsEvents = append(icsEvents, bsEvents...)
+			log.Printf("scheduler: smart merge skipped — peoplesoft fetch failed, keeping brightspace events standalone")
+		} else if cfg.XsiteSmartMergeEnabled {
+			psEvents, mergedCount, matchedCalendarEventIDs := smartmerge.MergeEvents(icsEvents, bsEvents)
+			if mergedCount > 0 {
+				log.Printf("smartmerge: merged %d brightspace events into timetable events", mergedCount)
+				removed := cache.RemoveWhere(func(e calendar.Event) bool {
+					return matchedCalendarEventIDs[e.CalendarEventID]
+				})
+				if removed > 0 {
+					log.Printf("smartmerge: removed %d matched brightspace calendar events from cache", removed)
 				}
-				icsEvents = psEvents
 			} else {
-				icsEvents = append(icsEvents, bsEvents...)
-				log.Printf("scheduler: smart merge disabled, added %d brightspace events", len(bsEvents))
+				log.Printf("smartmerge: no matching events found (checked %d brightspace events)", len(bsEvents))
 			}
+			icsEvents = psEvents
+		} else {
+			icsEvents = append(icsEvents, bsEvents...)
+			log.Printf("scheduler: smart merge disabled, added %d brightspace events", len(bsEvents))
 		}
 
 		brightSpaceQuizzesCtx, brightSpaceQuizzesCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
 		bsQuizzesAPI, err := provider.FetchBrightSpaceQuizzesAPI(brightSpaceQuizzesCtx, "https://xsite.singaporetech.edu.sg")
 		brightSpaceQuizzesCancel()
-		var bsQuizzesEntries []brightspace.BrightSpaceStringEntry
+		bsQuizzesFetchSucceeded := err == nil
 		if err != nil {
 			xsiteFetchFailed = true
 			log.Printf("scheduler: brightspace quizzes fetch failed: %v", err)
-		} else {
+		}
+
+		// As with calendar events, use partial results as additions/updates but
+		// reconcile quiz deletions only after every course was fetched.
+		var bsQuizzesEntries []brightspace.BrightSpaceStringEntry
+		for _, q := range bsQuizzesAPI {
+			bsQuizzesEntries = append(bsQuizzesEntries, brightspace.QuizToStringEntry(q))
+		}
+
+		bsQuizzes := brightspace.QuizEntriesToEvents(bsQuizzesEntries, blocklist, loc)
+
+		bsMerged, replacedCount, removedCalendarEventIDs := smartmerge.DedupQuizzes(icsEvents, bsQuizzes)
+		if replacedCount > 0 {
+			log.Printf("smartmerge: replaced %d quiz-associated calendar events with quiz entries", replacedCount)
+			removed := cache.RemoveWhere(func(e calendar.Event) bool {
+				return removedCalendarEventIDs[e.CalendarEventID]
+			})
+			if removed > 0 {
+				log.Printf("smartmerge: removed %d quiz-associated calendar events from cache", removed)
+			}
+		}
+
+		icsEvents = bsMerged
+		log.Printf("scheduler: added %d brightspace quiz events", len(bsQuizzes))
+
+		if cfg.XsiteQuizAttemptTrackingEnabled {
+			removedQuizIDs := make(map[int]bool)
+
 			for _, q := range bsQuizzesAPI {
-				bsQuizzesEntries = append(bsQuizzesEntries, brightspace.QuizToStringEntry(q))
+				if q.QuizId == 0 {
+					continue
+				}
+
+				quizURL := fmt.Sprintf(
+					"https://xsite.singaporetech.edu.sg/d2l/lms/quizzing/user/quiz_submissions.d2l?qi=%d&ou=%s",
+					q.QuizId, q.OrgUnitId,
+				)
+
+				quizCtx, quizCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
+				pageHTML, fetchErr := provider.FetchQuizSubmissionPage(quizCtx, quizURL)
+				quizCancel()
+				if fetchErr != nil {
+					xsiteFetchFailed = true
+					log.Printf("scheduler: failed to fetch quiz submission page for quiz %d: %v", q.QuizId, fetchErr)
+					continue
+				}
+
+				attemptInfo, parseErr := brightspace.ParseQuizSubmissionHTML(pageHTML, q.QuizId, q.OrgUnitId)
+				if parseErr != nil {
+					xsiteFetchFailed = true
+					log.Printf("scheduler: failed to parse quiz submission for quiz %d: %v", q.QuizId, parseErr)
+					continue
+				}
+
+				if brightspace.ShouldRemoveQuiz(
+					q.AttemptsAllowed.IsUnlimited,
+					q.AttemptsAllowed.NumberOfAttemptsAllowed,
+					attemptInfo.AttemptsMade,
+					attemptInfo.BestScore,
+				) {
+					log.Printf("scheduler: removing quiz %q (ID=%d) — attempts=%d, best=%.1f%%, unlimited=%v",
+						q.Name, q.QuizId, attemptInfo.AttemptsMade, attemptInfo.BestScore, q.AttemptsAllowed.IsUnlimited)
+					removedQuizIDs[q.QuizId] = true
+				}
 			}
 
-			bsQuizzes := brightspace.QuizEntriesToEvents(bsQuizzesEntries, blocklist, loc)
+			if len(removedQuizIDs) > 0 {
+				newEvents := make([]calendar.Event, 0, len(icsEvents))
+				for _, e := range icsEvents {
+					if e.Source != "brightspace-quizzes" || !removedQuizIDs[e.QuizID] {
+						newEvents = append(newEvents, e)
+					}
+				}
+				icsEvents = newEvents
+				log.Printf("scheduler: removed %d completed quizzes from ICS", len(removedQuizIDs))
 
-			bsMerged, replacedCount, removedCalendarEventIDs := smartmerge.DedupQuizzes(icsEvents, bsQuizzes)
-			if replacedCount > 0 {
-				log.Printf("smartmerge: replaced %d quiz-associated calendar events with quiz entries", replacedCount)
 				removed := cache.RemoveWhere(func(e calendar.Event) bool {
-					return removedCalendarEventIDs[e.CalendarEventID]
+					return e.Source == "brightspace-quizzes" && removedQuizIDs[e.QuizID]
 				})
 				if removed > 0 {
-					log.Printf("smartmerge: removed %d quiz-associated calendar events from cache", removed)
+					log.Printf("scheduler: removed %d completed quizzes from cache", removed)
 				}
 			}
+		}
 
-			icsEvents = bsMerged
-			log.Printf("scheduler: added %d brightspace quiz events", len(bsQuizzes))
-
-			if cfg.XsiteQuizAttemptTrackingEnabled {
-				removedQuizIDs := make(map[int]bool)
-
-				for _, q := range bsQuizzesAPI {
-					if q.QuizId == 0 {
-						continue
-					}
-
-					quizURL := fmt.Sprintf(
-						"https://xsite.singaporetech.edu.sg/d2l/lms/quizzing/user/quiz_submissions.d2l?qi=%d&ou=%s",
-						q.QuizId, q.OrgUnitId,
-					)
-
-					quizCtx, quizCancel := context.WithTimeout(ctx, BrightSpaceFetchTimeout)
-					pageHTML, fetchErr := provider.FetchQuizSubmissionPage(quizCtx, quizURL)
-					quizCancel()
-					if fetchErr != nil {
-						xsiteFetchFailed = true
-						log.Printf("scheduler: failed to fetch quiz submission page for quiz %d: %v", q.QuizId, fetchErr)
-						continue
-					}
-
-					attemptInfo, parseErr := brightspace.ParseQuizSubmissionHTML(pageHTML, q.QuizId, q.OrgUnitId)
-					if parseErr != nil {
-						xsiteFetchFailed = true
-						log.Printf("scheduler: failed to parse quiz submission for quiz %d: %v", q.QuizId, parseErr)
-						continue
-					}
-
-					if brightspace.ShouldRemoveQuiz(
-						q.AttemptsAllowed.IsUnlimited,
-						q.AttemptsAllowed.NumberOfAttemptsAllowed,
-						attemptInfo.AttemptsMade,
-						attemptInfo.BestScore,
-					) {
-						log.Printf("scheduler: removing quiz %q (ID=%d) — attempts=%d, best=%.1f%%, unlimited=%v",
-							q.Name, q.QuizId, attemptInfo.AttemptsMade, attemptInfo.BestScore, q.AttemptsAllowed.IsUnlimited)
-						removedQuizIDs[q.QuizId] = true
-					}
-				}
-
-				if len(removedQuizIDs) > 0 {
-					newEvents := make([]calendar.Event, 0, len(icsEvents))
-					for _, e := range icsEvents {
-						if e.Source != "brightspace-quizzes" || !removedQuizIDs[e.QuizID] {
-							newEvents = append(newEvents, e)
-						}
-					}
-					icsEvents = newEvents
-					log.Printf("scheduler: removed %d completed quizzes from ICS", len(removedQuizIDs))
-
-					removed := cache.RemoveWhere(func(e calendar.Event) bool {
-						return e.Source == "brightspace-quizzes" && removedQuizIDs[e.QuizID]
-					})
-					if removed > 0 {
-						log.Printf("scheduler: removed %d completed quizzes from cache", removed)
-					}
-				}
-			}
+		if bsCalendarFetchSucceeded {
+			authoritativeSources = append(authoritativeSources, "brightspace-calendar", "brightspace-dropbox")
+		}
+		if bsQuizzesFetchSucceeded {
+			authoritativeSources = append(authoritativeSources, "brightspace-quizzes")
 		}
 		if onXsiteStatus != nil {
 			status := "successful"
@@ -293,7 +312,7 @@ func runFetchWithStatus(
 		icsEvents[i].DTStamp = now
 	}
 
-	if err := cache.Update(icsEvents, cfg.TZ); err != nil {
+	if err := cache.UpdateWithSourceReconciliation(icsEvents, authoritativeSources, now); err != nil {
 		log.Printf("scheduler: update failed: %v", err)
 		return
 	}

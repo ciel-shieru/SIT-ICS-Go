@@ -205,14 +205,29 @@ func (c *ICSCache) RemoveWhere(predicate func(Event) bool) int {
 	return deleted
 }
 
-// Update merges new events into the cache. The merge is non-destructive:
-// events absent from the latest upstream response are intentionally retained.
-// Matching events (by UID) are updated; new events are added; duplicates are avoided.
-func (c *ICSCache) Update(events []Event, tz string) error {
+// Update merges new events into the cache without deleting events absent from
+// the latest response. Use UpdateWithSourceReconciliation when the caller has
+// completed an authoritative upstream fetch and can identify the covered sources.
+func (c *ICSCache) Update(events []Event, _ string) error {
+	return c.UpdateWithSourceReconciliation(events, nil, time.Now())
+}
+
+// UpdateWithSourceReconciliation merges new events and reconciles only the
+// sources listed in authoritativeSources. Missing events from those sources
+// are removed only when their DTSTART is after now; events that have already
+// started are retained as historical records. Sources not listed are untouched,
+// which protects cached events when a source is disabled or its fetch is partial
+// or unsuccessful.
+func (c *ICSCache) UpdateWithSourceReconciliation(events []Event, authoritativeSources []string, now time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	merged, err := c.mergeEvents(events)
+	sourceSet := make(map[string]struct{}, len(authoritativeSources))
+	for _, source := range authoritativeSources {
+		sourceSet[source] = struct{}{}
+	}
+
+	merged, err := c.mergeEvents(events, sourceSet, now)
 	if err != nil {
 		return fmt.Errorf("merge events: %w", err)
 	}
@@ -422,12 +437,10 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	return nil
 }
 
-// mergeEvents merges newEvents into existing cache events with non-destructive semantics:
-// - Events in newEvents are added or update matching existing events (by UID).
-// - Events absent from newEvents are retained (non-destructive).
-// - No duplicates are created.
-// This does NOT implement ReplaceSource or authoritative source reconciliation.
-func (c *ICSCache) mergeEvents(newEvents []Event) ([]Event, error) {
+// mergeEvents merges newEvents into the existing cache by UID. Missing events
+// from authoritative sources are removed only when their DTSTART is upcoming;
+// historical events and events from non-authoritative sources are retained.
+func (c *ICSCache) mergeEvents(newEvents []Event, authoritativeSources map[string]struct{}, now time.Time) ([]Event, error) {
 	existing := c.indexByUID()
 
 	merged := make([]Event, 0, len(existing)+len(newEvents))
@@ -440,9 +453,13 @@ func (c *ICSCache) mergeEvents(newEvents []Event) ([]Event, error) {
 	}
 
 	for uid, event := range existing {
-		if !seenUIDs[uid] {
-			merged = append(merged, event)
+		if seenUIDs[uid] {
+			continue
 		}
+		if _, authoritative := authoritativeSources[event.Source]; authoritative && event.DTStart.After(now) {
+			continue
+		}
+		merged = append(merged, event)
 	}
 
 	return merged, nil

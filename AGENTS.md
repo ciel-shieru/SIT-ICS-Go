@@ -46,7 +46,7 @@ internal/peoplesoft/             # Entry struct + HTML parser
 internal/calendar/               # RFC 5545 writer + in-memory cache with disk upsert
   event.go     # Event struct: UID, DTStart, DTEnd, Summary, Location, Source, etc.
   render.go    # Render(), EventID() — custom ICS writer, deterministic UID via SHA-256
-  cache.go     # ICSCache: RWMutex, Update (non-destructive merge), SaveOutputs (7 files)
+  cache.go     # ICSCache: RWMutex, UID upsert + source-aware historical reconciliation, SaveOutputs (7 files)
   persistence.go # writeAtomic (tmp+rename), parseICS (round-trip reader)
   projection.go  # IsOnline, IsNotOnline, IsCampus (excludes BrightSpace), filterEvents
 
@@ -88,7 +88,7 @@ Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   9. (if xsite enabled) brightspace.QuizEntriesToEvents() → quiz calendar events
  10. (if smart merge enabled) smartmerge.DedupQuizzes(calendarEvents, quizEvents) — replaces quiz-associated calendar events with quiz entries
  11. (if quiz attempt tracking enabled) FetchQuizSubmissionPage() + ParseQuizSubmissionHTML() — remove completed quizzes
- 12. cache.Update(icsEvents, tz) — non-destructive merge by UID
+ 12. cache.UpdateWithSourceReconciliation(icsEvents, successfulSources, now) — UID upsert; removes absent upcoming events only from fully fetched sources, retaining past events and sources that failed or were disabled
  13. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite (with alerts)
 ```
 
@@ -148,7 +148,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Credentials sourcing**: Desktop builds (`!container`) source credentials from OS keyring (`sit-ics-go` service) with env var fallback. Container builds (`-tags container`) source from env vars only. CLI flags `--username`, `--password`, `--totp-secret` are removed.
 - **Override credentials**: --override-credentials CLI flag (or OVERRIDE_CREDENTIALS env var) forces interactive credential prompt on desktop builds regardless of keyring state. Container builds ignore this flag.
 - **Credential retry (desktop only)**: On desktop builds (`!container`), when `runFetch()` encounters a credential-related auth error (invalid password, wrong TOTP), it prompts the user with `[Y/n]` to re-enter credentials. If confirmed, calls `credprompt.PromptIfNeeded()` to overwrite stored credentials, then retries authentication once. Container builds are no-op. Network/browser errors do not trigger credential prompt.
-- **ICS upsert semantics** — non-destructive merge by UID. Events absent from new data are retained. Changing the UID formula breaks idempotency.
+- **ICS reconciliation semantics** — merge by deterministic UID. A source is reconciled only after a complete successful upstream fetch; absent upcoming events (DTSTART after the fetch time) are deleted, while past/started events and events from failed or disabled sources are retained. Changing the UID formula breaks idempotency.
 - **Timezone** — all time ops use `TZ` env var (default `Asia/Singapore`). `time.Local` is set at startup.
 - **Browser modes** — `auto`, `system`, `managed` all use `LocalBrowser`; `remote` uses `RemoteBrowser`. Controlled by `BROWSER_MODE`.
 - **Auth flow** — browser follows ADFS redirect naturally after MFA; no SAMLResponse extraction (ADR-0010).
