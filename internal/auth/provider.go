@@ -77,7 +77,8 @@ func (a *ADFSProvider) FetchBrightSpace(ctx context.Context, baseURL string) ([]
 func (a *ADFSProvider) FetchBrightSpaceQuizzes(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	entries, err := a.browser.FetchBrightSpaceQuizzes(ctx, baseURL)
 	if err != nil {
-		return nil, fmt.Errorf("browser fetch brightspace quizzes: %w", err)
+		// Keep partial course results available without treating them as a complete snapshot.
+		return entries, fmt.Errorf("browser fetch brightspace quizzes: %w", err)
 	}
 	return entries, nil
 }

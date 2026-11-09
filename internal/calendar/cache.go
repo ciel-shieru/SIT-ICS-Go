@@ -214,8 +214,8 @@ func (c *ICSCache) Update(events []Event, _ string) error {
 
 // UpdateWithSourceReconciliation merges new events and reconciles only the
 // sources listed in authoritativeSources. Missing events from those sources
-// are removed only when their DTSTART is after now; events that have already
-// started are retained as historical records. Sources not listed are untouched,
+// are removed only when their DTSTART is after now; events whose start time has
+// passed (including events currently in progress) are retained. Sources not listed are untouched,
 // which protects cached events when a source is disabled or its fetch is partial
 // or unsuccessful.
 func (c *ICSCache) UpdateWithSourceReconciliation(events []Event, authoritativeSources []string, now time.Time) error {

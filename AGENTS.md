@@ -88,7 +88,7 @@ Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   9. (if xsite enabled) brightspace.QuizEntriesToEvents() → quiz calendar events
  10. (if smart merge enabled) smartmerge.DedupQuizzes(calendarEvents, quizEvents) — replaces quiz-associated calendar events with quiz entries
  11. (if quiz attempt tracking enabled) FetchQuizSubmissionPage() + ParseQuizSubmissionHTML() — remove completed quizzes
- 12. cache.UpdateWithSourceReconciliation(icsEvents, successfulSources, now) — UID upsert; removes absent upcoming events only from fully fetched sources, retaining past events and sources that failed or were disabled
+ 12. cache.UpdateWithSourceReconciliation(icsEvents, authoritativeSources, now) — UID upsert; removes absent upcoming events only from fully fetched sources, retaining past events and sources that failed or were disabled
  13. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite (with alerts)
 ```
 
@@ -206,14 +206,14 @@ When data is needed for tests, configuration examples, or documentation, use **f
 ## Testing
 - `go test -v -count=1 -race ./...` — runs all unit tests, no browser or Chromium required.
 - `internal/browser/browser_test.go` — sentinel errors, wrapping, `MockAuthBrowser`, `ErrAuthenticationTimeout`.
-- `internal/calendar/cache_test.go` — upsert, load/save, dirty tracking, filter online/campus, BrightSpace exclusion, deterministic output, event retention, idempotency.
+- `internal/calendar/cache_test.go` and `internal/calendar/reconciliation_test.go` — upsert, load/save, dirty tracking, filters, deterministic output, historical retention, upcoming deletion, idempotency.
 - `internal/calendar/alerts_test.go` — alert rendering in ICS output.
 - `internal/calendar/persistence_test.go` — atomic write, ICS round-trip parsing.
 - `internal/peoplesoft/parser_test.go` — HTML parsing for the list endpoint layout, time parsing, date computation.
 - `internal/totp/totp_test.go` — TOTP generation determinism and time-window behavior.
 - `internal/config/validate_test.go` — config validation.
 - `internal/smartmerge/smartmerge_test.go` — module matching, time overlap, location conditions, Zoom extraction.
-- `internal/brightspace/` — filter, dedup, recurrence, quiz removal, timestamp tests.
+- `internal/brightspace/` — fetch completeness/partial results, filter, dedup, recurrence, quiz removal, timestamp tests.
 - `internal/server/middleware_test.go`, `handlers_test.go`, `wakey_test.go` — HTTP middleware, handler, and Wakey-SITizen JSON endpoint tests.
 - Browser integration and E2E tests are excluded (require Chromium / staging ADFS).
 
