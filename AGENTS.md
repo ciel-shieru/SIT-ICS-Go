@@ -46,7 +46,7 @@ internal/peoplesoft/             # Entry struct + HTML parser
 internal/calendar/               # RFC 5545 writer + in-memory cache with disk upsert
   event.go     # Event struct: UID, DTStart, DTEnd, Summary, Location, Source, etc.
   render.go    # Render(), EventID() — custom ICS writer, deterministic UID via SHA-256
-  cache.go     # ICSCache: RWMutex, Update (non-destructive merge), SaveOutputs (7 files)
+  cache.go     # ICSCache: RWMutex, UID upsert + source-aware historical reconciliation, SaveOutputs (7 files)
   persistence.go # writeAtomic (tmp+rename), parseICS (round-trip reader)
   projection.go  # IsOnline, IsNotOnline, IsCampus (excludes BrightSpace), filterEvents
 
@@ -88,7 +88,7 @@ Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   9. (if xsite enabled) brightspace.QuizEntriesToEvents() → quiz calendar events
  10. (if smart merge enabled) smartmerge.DedupQuizzes(calendarEvents, quizEvents) — replaces quiz-associated calendar events with quiz entries
  11. (if quiz attempt tracking enabled) FetchQuizSubmissionPage() + ParseQuizSubmissionHTML() — remove completed quizzes
- 12. cache.Update(icsEvents, tz) — non-destructive merge by UID
+ 12. cache.UpdateWithSourceReconciliation(icsEvents, authoritativeSources, now) — UID upsert; removes absent upcoming events only from fully fetched sources, retaining past events and sources that failed or were disabled
  13. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite (with alerts)
 ```
 
@@ -148,7 +148,7 @@ All via env vars with CLI flag override (flags take priority):
 - **Credentials sourcing**: Desktop builds (`!container`) source credentials from OS keyring (`sit-ics-go` service) with env var fallback. Container builds (`-tags container`) source from env vars only. CLI flags `--username`, `--password`, `--totp-secret` are removed.
 - **Override credentials**: --override-credentials CLI flag (or OVERRIDE_CREDENTIALS env var) forces interactive credential prompt on desktop builds regardless of keyring state. Container builds ignore this flag.
 - **Credential retry (desktop only)**: On desktop builds (`!container`), when `runFetch()` encounters a credential-related auth error (invalid password, wrong TOTP), it prompts the user with `[Y/n]` to re-enter credentials. If confirmed, calls `credprompt.PromptIfNeeded()` to overwrite stored credentials, then retries authentication once. Container builds are no-op. Network/browser errors do not trigger credential prompt.
-- **ICS upsert semantics** — non-destructive merge by UID. Events absent from new data are retained. Changing the UID formula breaks idempotency.
+- **ICS reconciliation semantics** — merge by deterministic UID. A source is reconciled only after a complete successful upstream fetch; absent upcoming events (DTSTART after the fetch time) are deleted, while past/started events and events from failed or disabled sources are retained. Changing the UID formula breaks idempotency.
 - **Timezone** — all time ops use `TZ` env var (default `Asia/Singapore`). `time.Local` is set at startup.
 - **Browser modes** — `auto`, `system`, `managed` all use `LocalBrowser`; `remote` uses `RemoteBrowser`. Controlled by `BROWSER_MODE`.
 - **Auth flow** — browser follows ADFS redirect naturally after MFA; no SAMLResponse extraction (ADR-0010).
@@ -206,14 +206,14 @@ When data is needed for tests, configuration examples, or documentation, use **f
 ## Testing
 - `go test -v -count=1 -race ./...` — runs all unit tests, no browser or Chromium required.
 - `internal/browser/browser_test.go` — sentinel errors, wrapping, `MockAuthBrowser`, `ErrAuthenticationTimeout`.
-- `internal/calendar/cache_test.go` — upsert, load/save, dirty tracking, filter online/campus, BrightSpace exclusion, deterministic output, event retention, idempotency.
+- `internal/calendar/cache_test.go` and `internal/calendar/reconciliation_test.go` — upsert, load/save, dirty tracking, filters, deterministic output, historical retention, upcoming deletion, idempotency.
 - `internal/calendar/alerts_test.go` — alert rendering in ICS output.
 - `internal/calendar/persistence_test.go` — atomic write, ICS round-trip parsing.
 - `internal/peoplesoft/parser_test.go` — HTML parsing for the list endpoint layout, time parsing, date computation.
 - `internal/totp/totp_test.go` — TOTP generation determinism and time-window behavior.
 - `internal/config/validate_test.go` — config validation.
 - `internal/smartmerge/smartmerge_test.go` — module matching, time overlap, location conditions, Zoom extraction.
-- `internal/brightspace/` — filter, dedup, recurrence, quiz removal, timestamp tests.
+- `internal/brightspace/` — fetch completeness/partial results, filter, dedup, recurrence, quiz removal, timestamp tests.
 - `internal/server/middleware_test.go`, `handlers_test.go`, `wakey_test.go` — HTTP middleware, handler, and Wakey-SITizen JSON endpoint tests.
 - Browser integration and E2E tests are excluded (require Chromium / staging ADFS).
 

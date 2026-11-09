@@ -2,6 +2,7 @@ package brightspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -96,29 +97,34 @@ func Fetch(ctx context.Context, client *Client) ([]CalendarEventAPI, []DropboxFo
 
 	var allEvents []CalendarEventAPI
 	var allFolders []DropboxFolderAPI
+	var fetchErrors []error
 
 	for _, course := range courses {
-		events, err := client.FetchCalendarEvents(ctx, version, course.OrgUnitId)
-		if err != nil {
-			log.Printf("brightspace: failed to fetch calendar events for %s: %v", course.Name, err)
-			continue
-		}
-		for _, ev := range events {
-			ev.OrgUnitName = course.Name
-			ev.OrgUnitCode = course.Code
-			allEvents = append(allEvents, ev)
+		events, eventErr := client.FetchCalendarEvents(ctx, version, course.OrgUnitId)
+		if eventErr != nil {
+			log.Printf("brightspace: failed to fetch calendar events for %s: %v", course.Name, eventErr)
+			fetchErrors = append(fetchErrors, fmt.Errorf("course %q calendar events: %w", course.Name, eventErr))
+		} else {
+			for _, ev := range events {
+				ev.OrgUnitName = course.Name
+				ev.OrgUnitCode = course.Code
+				allEvents = append(allEvents, ev)
+			}
 		}
 
-		folders, err := client.FetchDropboxFolders(ctx, version, course.OrgUnitId)
-		if err != nil {
-			log.Printf("brightspace: failed to fetch dropbox folders for %s: %v", course.Name, err)
-			continue
-		}
-		for _, folder := range folders {
-			folder.OrgUnitId = course.OrgUnitId
-			folder.OrgUnitName = course.Name
-			folder.OrgUnitCode = course.Code
-			allFolders = append(allFolders, folder)
+		// Calendar and Dropbox endpoints are independent. Attempt both so that
+		// a failure in one does not discard usable data from the other.
+		folders, folderErr := client.FetchDropboxFolders(ctx, version, course.OrgUnitId)
+		if folderErr != nil {
+			log.Printf("brightspace: failed to fetch dropbox folders for %s: %v", course.Name, folderErr)
+			fetchErrors = append(fetchErrors, fmt.Errorf("course %q dropbox folders: %w", course.Name, folderErr))
+		} else {
+			for _, folder := range folders {
+				folder.OrgUnitId = course.OrgUnitId
+				folder.OrgUnitName = course.Name
+				folder.OrgUnitCode = course.Code
+				allFolders = append(allFolders, folder)
+			}
 		}
 	}
 
@@ -127,7 +133,7 @@ func Fetch(ctx context.Context, client *Client) ([]CalendarEventAPI, []DropboxFo
 	allEvents = DeduplicateCalendarEntries(allEvents)
 
 	log.Printf("brightspace: after deduplication %d events", len(allEvents))
-	return allEvents, allFolders, nil
+	return allEvents, allFolders, errors.Join(fetchErrors...)
 }
 
 // FetchQuizzes fetches quizzes for all courses accessible to the authenticated user.
@@ -143,10 +149,12 @@ func FetchQuizzes(ctx context.Context, client *Client) ([]QuizAPI, error) {
 	}
 
 	var allQuizzes []QuizAPI
+	var fetchErrors []error
 	for _, course := range courses {
-		quizzes, err := client.FetchQuizzes(ctx, version, course.OrgUnitId)
-		if err != nil {
-			log.Printf("brightspace: failed to fetch quizzes for %s: %v", course.Name, err)
+		quizzes, quizErr := client.FetchQuizzes(ctx, version, course.OrgUnitId)
+		if quizErr != nil {
+			log.Printf("brightspace: failed to fetch quizzes for %s: %v", course.Name, quizErr)
+			fetchErrors = append(fetchErrors, fmt.Errorf("course %q quizzes: %w", course.Name, quizErr))
 			continue
 		}
 		for _, quiz := range quizzes {
@@ -158,5 +166,5 @@ func FetchQuizzes(ctx context.Context, client *Client) ([]QuizAPI, error) {
 	}
 
 	log.Printf("brightspace: extracted %d quizzes", len(allQuizzes))
-	return allQuizzes, nil
+	return allQuizzes, errors.Join(fetchErrors...)
 }

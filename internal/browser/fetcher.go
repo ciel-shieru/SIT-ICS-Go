@@ -126,9 +126,6 @@ func FetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 	client := brightspace.NewClient(baseURL, fetcher)
 
 	events, folders, err := brightspace.Fetch(ctx, client)
-	if err != nil {
-		return nil, fmt.Errorf("brightspace fetch: %w", err)
-	}
 
 	entries := make([]brightspace.BrightSpaceStringEntry, 0, len(events)+len(folders))
 	for _, ev := range events {
@@ -138,6 +135,9 @@ func FetchBrightSpace(ctx context.Context, page *rod.Page, baseURL string, cfg B
 		entries = append(entries, brightspace.FolderToStringEntry(folder))
 	}
 
+	if err != nil {
+		return entries, fmt.Errorf("brightspace fetch: %w", err)
+	}
 	return entries, nil
 }
 
@@ -178,15 +178,15 @@ func FetchBrightSpaceQuizzes(ctx context.Context, page *rod.Page, baseURL string
 	client := brightspace.NewClient(baseURL, fetcher)
 
 	quizzes, err := brightspace.FetchQuizzes(ctx, client)
-	if err != nil {
-		return nil, fmt.Errorf("brightspace quizzes fetch: %w", err)
-	}
 
 	entries := make([]brightspace.BrightSpaceStringEntry, 0, len(quizzes))
 	for _, quiz := range quizzes {
 		entries = append(entries, brightspace.QuizToStringEntry(quiz))
 	}
 
+	if err != nil {
+		return entries, fmt.Errorf("brightspace quizzes fetch: %w", err)
+	}
 	return entries, nil
 }
 
