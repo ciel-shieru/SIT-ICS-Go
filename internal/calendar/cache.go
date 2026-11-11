@@ -19,13 +19,14 @@ type ICSCache struct {
 }
 
 type Outputs struct {
-	Main       string
-	Online     string
-	Campus     string
+	Main        string
+	Online      string
+	Campus      string
+	Exams       string
 	XsiteEvents string
 	XsiteDropbox string
 	XsiteQuizzes string
-	Xsite      string
+	Xsite       string
 }
 
 type outputErrors []outputError
@@ -329,7 +330,7 @@ func (c *ICSCache) SaveAllToFiles(mainPath, onlinePath, campusPath string, tz st
 // SaveOutputs atomically writes all configured ICS output files if dirty.
 // Uses writeAtomic for individual file persistence.
 // If any output fails, the cache dirty flag is preserved and all errors are returned.
-func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, xsiteEventsAlerts, xsiteDropboxAlerts, xsiteQuizzesAlerts []Alert) error {
+func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, examsAlerts, xsiteEventsAlerts, xsiteDropboxAlerts, xsiteQuizzesAlerts []Alert) error {
 	c.mu.RLock()
 	dirty := c.dirty
 	events := make([]Event, len(c.events))
@@ -368,6 +369,14 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 	})
 	if err != nil {
 		return fmt.Errorf("render campus ICS: %w", err)
+	}
+	examsData, err := Render(filterEventsBySource(events, "peoplesoft-exams"), RenderOptions{
+		Timezone:        loc,
+		RefreshInterval: refreshInterval,
+		Alerts:          examsAlerts,
+	})
+	if err != nil {
+		return fmt.Errorf("render exams ICS: %w", err)
 	}
 	xsiteEventsData, err := Render(filterEventsBySource(events, "brightspace-calendar"), RenderOptions{
 		Timezone:        loc,
@@ -411,6 +420,7 @@ func (c *ICSCache) SaveOutputs(out Outputs, tz string, refreshInterval time.Dura
 		{out.Main, mainData},
 		{out.Online, onlineData},
 		{out.Campus, campusData},
+		{out.Exams, examsData},
 		{out.XsiteEvents, xsiteEventsData},
 		{out.XsiteDropbox, xsiteDropboxData},
 		{out.XsiteQuizzes, xsiteQuizzesData},

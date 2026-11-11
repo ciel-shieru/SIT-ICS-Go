@@ -16,8 +16,8 @@ func TestICSCacheUpdateAndSave(t *testing.T) {
 	cache := NewICSCache()
 	events := []Event{
 		{
-			DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:   time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart: time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:   time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 			Summary: "Test Event",
 			Location: "Room 101",
 		},
@@ -73,8 +73,8 @@ func TestICSCacheUpsert(t *testing.T) {
 
 	events1 := []Event{
 		{
-			DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:   time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart: time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:   time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 			Summary: "Event 1",
 			Location: "Room 101",
 		},
@@ -89,8 +89,8 @@ func TestICSCacheUpsert(t *testing.T) {
 
 	events2 := []Event{
 		{
-			DTStart: time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:   time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			DTStart: time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:   time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 			Summary: "Event 2",
 			Location: "Room 102",
 		},
@@ -152,14 +152,14 @@ func TestICSCacheFilterOnline(t *testing.T) {
 		{
 			Summary:  "Online Class",
 			Location: "Online",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:  "Campus Class",
-			Location: "W1-05-07",
-			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			Location: "FAK BLDG Hall A",
+			DTStart:  time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -199,14 +199,14 @@ func TestICSCacheSaveAllToFiles(t *testing.T) {
 		{
 			Summary:  "Online Class",
 			Location: "Online",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:  "Campus Class",
-			Location: "W1-05-07",
-			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			Location: "FAK BLDG Hall A",
+			DTStart:  time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -279,22 +279,22 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	events := []Event{
 		{
 			Summary:  "Campus Class",
-			Location: "W1-05-07",
-			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			Location: "FAK BLDG Hall A",
+			DTStart:  time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:  "[COR2001] Assignment 1",
+			Summary:  "[FAK2001] Assignment 1",
 			Location: "Online",
-			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 8, 10, 0, 0, 0, time.UTC),
 			Source:   "brightspace-calendar",
 		},
 		{
-			Summary:  "[COR2002] Lab 3 Due",
+			Summary:  "[FAK2002] Lab 3 Due",
 			Location: "",
-			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 9, 23, 59, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 10, 23, 59, 0, 0, time.UTC),
 			Source:   "brightspace-dropbox",
 		},
 	}
@@ -311,7 +311,7 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 		XsiteDropbox: xsiteDropboxPath,
 		XsiteQuizzes: xsiteQuizzesPath,
 		Xsite:        xsitePath,
-	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
@@ -319,10 +319,10 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	if !contains(string(mainData), "SUMMARY:Campus Class") {
 		t.Error("Main ICS missing campus event")
 	}
-	if !contains(string(mainData), "SUMMARY:[COR2001] Assignment 1") {
+	if !contains(string(mainData), "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("Main ICS missing brightspace-calendar event")
 	}
-	if !contains(string(mainData), "SUMMARY:[COR2002] Lab 3 Due") {
+	if !contains(string(mainData), "SUMMARY:[FAK2002] Lab 3 Due") {
 		t.Error("Main ICS missing brightspace-dropbox event")
 	}
 
@@ -330,34 +330,34 @@ func TestICSCacheSaveOutputs_ExcludesBrightSpaceFromCampus(t *testing.T) {
 	if !contains(string(campusData), "SUMMARY:Campus Class") {
 		t.Error("Campus ICS missing campus event")
 	}
-	if contains(string(campusData), "SUMMARY:[COR2001] Assignment 1") {
+	if contains(string(campusData), "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("Campus ICS should not contain brightspace-calendar event")
 	}
-	if contains(string(campusData), "SUMMARY:[COR2002] Lab 3 Due") {
+	if contains(string(campusData), "SUMMARY:[FAK2002] Lab 3 Due") {
 		t.Error("Campus ICS should not contain brightspace-dropbox event")
 	}
 
 	xsiteEventsData, _ := os.ReadFile(xsiteEventsPath)
-	if !contains(string(xsiteEventsData), "SUMMARY:[COR2001] Assignment 1") {
+	if !contains(string(xsiteEventsData), "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("xsite events ICS missing brightspace-calendar event")
 	}
-	if contains(string(xsiteEventsData), "SUMMARY:[COR2002] Lab 3 Due") {
+	if contains(string(xsiteEventsData), "SUMMARY:[FAK2002] Lab 3 Due") {
 		t.Error("xsite events ICS should not contain brightspace-dropbox event")
 	}
 
 	xsiteDropboxData, _ := os.ReadFile(xsiteDropboxPath)
-	if !contains(string(xsiteDropboxData), "SUMMARY:[COR2002] Lab 3 Due") {
+	if !contains(string(xsiteDropboxData), "SUMMARY:[FAK2002] Lab 3 Due") {
 		t.Error("xsite dropbox ICS missing brightspace-dropbox event")
 	}
-	if contains(string(xsiteDropboxData), "SUMMARY:[COR2001] Assignment 1") {
+	if contains(string(xsiteDropboxData), "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("xsite dropbox ICS should not contain brightspace-calendar event")
 	}
 
 	xsiteComboData, _ := os.ReadFile(xsitePath)
-	if !contains(string(xsiteComboData), "SUMMARY:[COR2001] Assignment 1") {
+	if !contains(string(xsiteComboData), "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("xsite combo ICS missing brightspace-calendar event")
 	}
-	if !contains(string(xsiteComboData), "SUMMARY:[COR2002] Lab 3 Due") {
+	if !contains(string(xsiteComboData), "SUMMARY:[FAK2002] Lab 3 Due") {
 		t.Error("xsite combo ICS missing brightspace-dropbox event")
 	}
 	if contains(string(xsiteComboData), "SUMMARY:Campus Class") {
@@ -379,15 +379,15 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	events := []Event{
 		{
 			Summary:  "Campus Class",
-			Location: "W1-05-07",
-			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			Location: "FAK BLDG Hall A",
+			DTStart:  time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:  "[COR2001] Assignment 1",
+			Summary:  "[FAK2001] Assignment 1",
 			Location: "Online",
-			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 8, 10, 0, 0, 0, time.UTC),
 			Source:   "brightspace-calendar",
 		},
 	}
@@ -404,12 +404,12 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 		XsiteDropbox: xsiteDropboxPath,
 		XsiteQuizzes: xsiteQuizzesPath,
 		Xsite:        xsitePath,
-	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
 	campusData1, _ := os.ReadFile(campusPath)
-	if contains(string(campusData1), "SUMMARY:[COR2001] Assignment 1") {
+	if contains(string(campusData1), "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("First run: Campus ICS should not contain brightspace-calendar event")
 	}
 
@@ -419,7 +419,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	}
 
 	filtered := cache2.GetFiltered("Asia/Singapore", func(e Event) bool {
-		return e.Summary == "[COR2001] Assignment 1"
+		return e.Summary == "[FAK2001] Assignment 1"
 	}, time.Hour)
 	content := string(filtered)
 	if !contains(content, "X-SOURCE:brightspace-calendar") {
@@ -430,8 +430,8 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 		{
 			Summary:  "New Campus Class",
 			Location: "W2-03-04",
-			DTStart:  time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 10, 10, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 10, 12, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -447,7 +447,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 		XsiteDropbox: xsiteDropboxPath,
 		XsiteQuizzes: xsiteQuizzesPath,
 		Xsite:        xsitePath,
-	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil); err != nil {
+	}, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("SaveOutputs() error = %v", err)
 	}
 
@@ -458,7 +458,7 @@ func TestICSCacheSaveOutputs_RoundTrip(t *testing.T) {
 	if !contains(string(campusData2), "SUMMARY:New Campus Class") {
 		t.Error("Second run: Campus ICS missing new campus event")
 	}
-	if contains(string(campusData2), "SUMMARY:[COR2001] Assignment 1") {
+	if contains(string(campusData2), "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("Second run: Campus ICS should not contain brightspace-calendar event")
 	}
 }
@@ -471,22 +471,22 @@ func TestICSCacheDeleteByPredicate(t *testing.T) {
 			Location: "Online",
 			Source:   "brightspace-calendar",
 			Title:    "Online Class",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:  "Campus Class",
-			Location: "W1-05-07",
-			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			Location: "FAK BLDG Hall A",
+			DTStart:  time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:  "Zoom Meeting",
 			Location: "Zoom Online Meeting",
 			Source:   "brightspace-calendar",
 			Title:    "Zoom Meeting",
-			DTStart:  time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 8, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 8, 10, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 8, 11, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -554,14 +554,14 @@ func TestICSCacheEventRetention(t *testing.T) {
 		{
 			Summary:  "Event A",
 			Location: "Room 101",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:  "Event B",
 			Location: "Room 102",
-			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -577,8 +577,8 @@ func TestICSCacheEventRetention(t *testing.T) {
 		{
 			Summary:  "Event A",
 			Location: "Room 101",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -608,8 +608,8 @@ func TestICSCacheRepeatedMergeIdempotency(t *testing.T) {
 		{
 			Summary:  "Repeated Event",
 			Location: "Room 101",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -638,22 +638,22 @@ func TestICSCacheDeleteByPredicate_BrightSpaceBlocklist(t *testing.T) {
 	events := []Event{
 		{
 			Summary:  "Campus Class",
-			Location: "W1-05-07",
-			DTStart:  time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			Location: "FAK BLDG Hall A",
+			DTStart:  time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:  "[COR2001] Assignment 1",
+			Summary:  "[FAK2001] Assignment 1",
 			Location: "Online",
-			DTStart:  time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 8, 10, 0, 0, 0, time.UTC),
 			Source:   "brightspace-calendar",
 		},
 		{
-			Summary:  "[COR2002] Lab 3 Due",
+			Summary:  "[FAK2002] Lab 3 Due",
 			Location: "",
-			DTStart:  time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 9, 23, 59, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 10, 23, 59, 0, 0, time.UTC),
 			Source:   "brightspace-dropbox",
 		},
 	}
@@ -684,10 +684,10 @@ func TestICSCacheDeleteByPredicate_BrightSpaceBlocklist(t *testing.T) {
 	if !contains(content, "SUMMARY:Campus Class") {
 		t.Error("Non-BrightSpace event should still be in cache")
 	}
-	if contains(content, "SUMMARY:[COR2001] Assignment 1") {
+	if contains(content, "SUMMARY:[FAK2001] Assignment 1") {
 		t.Error("BrightSpace-calendar event should be deleted")
 	}
-	if contains(content, "SUMMARY:[COR2002] Lab 3 Due") {
+	if contains(content, "SUMMARY:[FAK2002] Lab 3 Due") {
 		t.Error("BrightSpace-dropbox event should be deleted")
 	}
 }
@@ -699,14 +699,14 @@ func TestICSCacheDeterministicOutput(t *testing.T) {
 		{
 			Summary:  "Event A",
 			Location: "Room 101",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:  "Event B",
 			Location: "Room 102",
-			DTStart:  time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 13, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 13, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -747,7 +747,7 @@ func TestICSCacheLastModifiedSetOnUpdate(t *testing.T) {
 	}
 
 	events := []Event{
-		{Summary: "Test", DTStart: time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)},
+		{Summary: "Test", DTStart: time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC), DTEnd: time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC)},
 	}
 
 	if err := cache.Update(events, "Asia/Singapore"); err != nil {
@@ -837,8 +837,8 @@ func TestICSCachePersistenceFailure(t *testing.T) {
 		{
 			Summary:  "Test Event",
 			Location: "Room 101",
-			DTStart:  time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 	}
 
@@ -878,14 +878,14 @@ func TestICSCacheBrightSpaceFieldsRoundTrip(t *testing.T) {
 	cache := NewICSCache()
 	events := []Event{
 		{
-			Summary:     "[ALT2501] Assignment 1",
+			Summary:     "[FAK2501] Assignment 1",
 			Location:    "Online",
-			DTStart:     time.Date(2026, 9, 15, 23, 59, 0, 0, time.UTC),
-			DTEnd:       time.Date(2026, 9, 16, 23, 59, 0, 0, time.UTC),
+			DTStart:     time.Date(2027, 9, 15, 23, 59, 0, 0, time.UTC),
+			DTEnd:       time.Date(2027, 9, 16, 23, 59, 0, 0, time.UTC),
 			Source:      "brightspace-calendar",
 			OrgUnitID:   "12345678",
-			OrgUnitName: "ALT2501 - Software Engineering",
-			OrgUnitCode: "ALT2501",
+			OrgUnitName: "FAK2501 - Sample Course",
+			OrgUnitCode: "FAK2501",
 			Title:       "Assignment 1: Requirements Analysis",
 		},
 	}
@@ -913,11 +913,11 @@ func TestICSCacheBrightSpaceFieldsRoundTrip(t *testing.T) {
 	if !contains(content, "X-OrgUnitID:12345678") {
 		t.Error("Reloaded event missing X-OrgUnitID:12345678")
 	}
-	if !contains(content, "X-OrgUnitName:ALT2501 - Software Engineering") {
+	if !contains(content, "X-OrgUnitName:FAK2501 - Sample Course") {
 		t.Error("Reloaded event missing X-OrgUnitName")
 	}
-	if !contains(content, "X-OrgUnitCode:ALT2501") {
-		t.Error("Reloaded event missing X-OrgUnitCode:ALT2501")
+	if !contains(content, "X-OrgUnitCode:FAK2501") {
+		t.Error("Reloaded event missing X-OrgUnitCode:FAK2501")
 	}
 	if !contains(content, "X-Title:Assignment 1: Requirements Analysis") {
 		t.Error("Reloaded event missing legacy BrightSpace X-Title")
@@ -932,28 +932,28 @@ func TestRemoveWhere_BrightSpaceBlocklistRoundTrip(t *testing.T) {
 	events := []Event{
 		{
 			Summary:     "Campus Class",
-			Location:    "W1-05-07",
-			DTStart:     time.Date(2026, 9, 7, 14, 0, 0, 0, time.UTC),
-			DTEnd:       time.Date(2026, 9, 7, 16, 0, 0, 0, time.UTC),
+			Location:    "FAK BLDG Hall A",
+			DTStart:     time.Date(2027, 9, 7, 14, 0, 0, 0, time.UTC),
+			DTEnd:       time.Date(2027, 9, 7, 16, 0, 0, 0, time.UTC),
 		},
 		{
-			Summary:     "[COR2001] Assignment 1",
+			Summary:     "[FAK2001] Assignment 1",
 			Location:    "Online",
-			DTStart:     time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
-			DTEnd:       time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC),
+			DTStart:     time.Date(2027, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:       time.Date(2027, 9, 8, 10, 0, 0, 0, time.UTC),
 			Source:      "brightspace-calendar",
 			OrgUnitID:   "98765432",
-			OrgUnitCode: "COR2001",
+			OrgUnitCode: "FAK2001",
 			Title:       "Assignment 1",
 		},
 		{
-			Summary:     "[COR2002] Lab 3 Due",
+			Summary:     "[FAK2002] Lab 3 Due",
 			Location:    "",
-			DTStart:     time.Date(2026, 9, 9, 23, 59, 0, 0, time.UTC),
-			DTEnd:       time.Date(2026, 9, 10, 23, 59, 0, 0, time.UTC),
+			DTStart:     time.Date(2027, 9, 9, 23, 59, 0, 0, time.UTC),
+			DTEnd:       time.Date(2027, 9, 10, 23, 59, 0, 0, time.UTC),
 			Source:      "brightspace-dropbox",
 			OrgUnitID:   "11223344",
-			OrgUnitCode: "COR2002",
+			OrgUnitCode: "FAK2002",
 			Title:       "Lab 3",
 		},
 	}
@@ -972,7 +972,7 @@ func TestRemoveWhere_BrightSpaceBlocklistRoundTrip(t *testing.T) {
 	}
 
 	deleted := cache2.RemoveWhere(func(e Event) bool {
-		return e.OrgUnitCode == "COR2001" || e.Title == "Lab 3"
+		return e.OrgUnitCode == "FAK2001" || e.Title == "Lab 3"
 	})
 
 	if deleted != 2 {
@@ -989,16 +989,16 @@ func TestRemoveWhere_BrightSpaceBlocklistRoundTrip(t *testing.T) {
 	if !contains(content, "SUMMARY:Campus Class") {
 		t.Error("Campus Class should still be in cache")
 	}
-	if contains(content, "SUMMARY:[COR2001] Assignment 1") {
-		t.Error("[COR2001] Assignment 1 should be deleted")
+	if contains(content, "SUMMARY:[FAK2001] Assignment 1") {
+		t.Error("[FAK2001] Assignment 1 should be deleted")
 	}
-	if contains(content, "SUMMARY:[COR2002] Lab 3 Due") {
-		t.Error("[COR2002] Lab 3 Due should be deleted")
+	if contains(content, "SUMMARY:[FAK2002] Lab 3 Due") {
+		t.Error("[FAK2002] Lab 3 Due should be deleted")
 	}
 }
 
 func TestParseICS_BackwardCompatibility(t *testing.T) {
-	icsContent := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SIT Timetable//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\nBEGIN:VEVENT\r\nUID:test-uid-12345\r\nDTSTART;TZID=Asia/Singapore:20260907T090000\r\nDTEND;TZID=Asia/Singapore:20260907T110000\r\nSUMMARY:Test Event\r\nLOCATION:Room 101\r\nDESCRIPTION:Test Description\r\nX-SOURCE:brightspace-calendar\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	icsContent := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SIT Timetable//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\nBEGIN:VEVENT\r\nUID:test-uid-12345\r\nDTSTART;TZID=Asia/Singapore:20270907T090000\r\nDTEND;TZID=Asia/Singapore:20270907T110000\r\nSUMMARY:Test Event\r\nLOCATION:Room 101\r\nDESCRIPTION:Test Description\r\nX-SOURCE:brightspace-calendar\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 
 	loc, err := time.LoadLocation("Asia/Singapore")
 	if err != nil {
@@ -1039,7 +1039,7 @@ func TestParseICS_BackwardCompatibility(t *testing.T) {
 }
 
 func TestParseICS_XPropertySpecialCharacters(t *testing.T) {
-	icsContent := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SIT Timetable//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\nBEGIN:VEVENT\r\nUID:test-uid-special\r\nDTSTART;TZID=Asia/Singapore:20260907T090000\r\nDTEND;TZID=Asia/Singapore:20260907T110000\r\nSUMMARY:Test Event\r\nLOCATION:Room 101\r\nDESCRIPTION:Test Description\r\nX-SOURCE:brightspace-calendar\r\nX-OrgUnitID:12345\\;6789\r\nX-OrgUnitName:ALT2501\\, Software Engineering\r\nX-OrgUnitCode:ALT2501\\;Sec01\r\nX-Title:Assignment with backslash\\\\ and newline\\nhere\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	icsContent := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SIT Timetable//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\nBEGIN:VEVENT\r\nUID:test-uid-special\r\nDTSTART;TZID=Asia/Singapore:20270907T090000\r\nDTEND;TZID=Asia/Singapore:20270907T110000\r\nSUMMARY:Test Event\r\nLOCATION:Room 101\r\nDESCRIPTION:Test Description\r\nX-SOURCE:brightspace-calendar\r\nX-OrgUnitID:12345\\;6789\r\nX-OrgUnitName:FAK2501\\, Sample Course\r\nX-OrgUnitCode:FAK2501\\;Sec01\r\nX-Title:Assignment with backslash\\\\ and newline\\nhere\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 
 	loc, err := time.LoadLocation("Asia/Singapore")
 	if err != nil {
@@ -1057,11 +1057,11 @@ func TestParseICS_XPropertySpecialCharacters(t *testing.T) {
 	if e.OrgUnitID != "12345;6789" {
 		t.Errorf("OrgUnitID = %q, want %q", e.OrgUnitID, "12345;6789")
 	}
-	if e.OrgUnitName != "ALT2501, Software Engineering" {
-		t.Errorf("OrgUnitName = %q, want %q", e.OrgUnitName, "ALT2501, Software Engineering")
+	if e.OrgUnitName != "FAK2501, Sample Course" {
+		t.Errorf("OrgUnitName = %q, want %q", e.OrgUnitName, "FAK2501, Sample Course")
 	}
-	if e.OrgUnitCode != "ALT2501;Sec01" {
-		t.Errorf("OrgUnitCode = %q, want %q", e.OrgUnitCode, "ALT2501;Sec01")
+	if e.OrgUnitCode != "FAK2501;Sec01" {
+		t.Errorf("OrgUnitCode = %q, want %q", e.OrgUnitCode, "FAK2501;Sec01")
 	}
 	if e.Title != "Assignment with backslash\\ and newline\nhere" {
 		t.Errorf("Title = %q, want %q", e.Title, "Assignment with backslash\\ and newline\nhere")
@@ -1074,14 +1074,14 @@ func TestICSCacheGetEventsReturnsSortedCopy(t *testing.T) {
 		{
 			Summary:   "Later Event",
 			Location:  "Room 102",
-			DTStart:   time.Date(2026, 9, 8, 9, 0, 0, 0, time.UTC),
-			DTEnd:     time.Date(2026, 9, 8, 11, 0, 0, 0, time.UTC),
+			DTStart:   time.Date(2027, 9, 8, 9, 0, 0, 0, time.UTC),
+			DTEnd:     time.Date(2027, 9, 8, 11, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:   "Earlier Event",
 			Location:  "Room 101",
-			DTStart:   time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
-			DTEnd:     time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC),
+			DTStart:   time.Date(2027, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:     time.Date(2027, 9, 7, 11, 0, 0, 0, time.UTC),
 		},
 	}
 

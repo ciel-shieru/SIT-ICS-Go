@@ -19,6 +19,7 @@ type Config struct {
 	ICSStoragePath                    string        `env:"ICS_STORAGE_PATH" envDefault:"./timetable.ics"`
 	ICSOnlinePath                     string        `env:"ICS_ONLINE_PATH" envDefault:"./timetable-online.ics"`
 	ICSCampusPath                     string        `env:"ICS_CAMPUS_PATH" envDefault:"./timetable-campus.ics"`
+	ICSExamsPath                      string        `env:"ICS_EXAMS_PATH" envDefault:"./timetable-exams.ics"`
 	XsiteEventsPath                   string        `env:"XSITE_EVENTS_PATH" envDefault:"./xsite-events.ics"`
 	XsiteDropboxPath                  string        `env:"XSITE_DROPBOX_PATH" envDefault:"./xsite-dropbox.ics"`
 	BrowserMode                       BrowserMode   `env:"BROWSER_MODE" envDefault:"auto"`
@@ -46,6 +47,7 @@ type Config struct {
 	XsiteSmartMergeEnabled             bool          `env:"XSITE_SMART_MERGE_ENABLED" envDefault:"true"`
 	XsiteQuizAttemptTrackingEnabled    bool          `env:"XSITE_QUIZ_ATTEMPT_TRACKING_ENABLED" envDefault:"false"`
 	TimetableCampusAlerts              string        `env:"TIMETABLE_CAMPUS_ALERTS" envDefault:""`
+	IcsExamsAlerts                     string        `env:"ICS_EXAMS_ALERTS" envDefault:""`
 	XsiteEventsAlerts                  string        `env:"XSITE_EVENTS_ALERTS" envDefault:""`
 	XsiteDropboxAlerts                 string        `env:"XSITE_DROPBOX_ALERTS" envDefault:""`
 	ServerTrustedProxies               string        `env:"SERVER_TRUSTED_PROXIES" envDefault:""`

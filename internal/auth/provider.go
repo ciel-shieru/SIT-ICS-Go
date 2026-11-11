@@ -62,6 +62,11 @@ func (a *ADFSProvider) FetchTimetable(ctx context.Context, weekDate string, loc 
 	return a.browser.FetchTimetable(ctx, weekDate)
 }
 
+// FetchExams fetches exam entries from the PeopleSoft exam timetable page.
+func (a *ADFSProvider) FetchExams(ctx context.Context) ([]peoplesoft.Exam, error) {
+	return a.browser.FetchExams(ctx)
+}
+
 // FetchBrightSpace fetches BrightSpace entries using the existing authenticated session.
 func (a *ADFSProvider) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	entries, err := a.browser.FetchBrightSpace(ctx, baseURL)

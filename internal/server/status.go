@@ -16,6 +16,7 @@ type StatusResponse struct {
 	LastFetchJobTime *time.Time        `json:"last_fetch_job_time"`
 	JobStatus        string            `json:"job_status"`
 	LastStatusIN4SIT string            `json:"last_status_in4sit"`
+	LastStatusExams  string            `json:"last_status_exams"`
 	LastStatusXsite  string            `json:"last_status_xsite"`
 	ETags            map[string]string `json:"etags"`
 	SHA256           map[string]string `json:"sha256"`
@@ -35,7 +36,7 @@ func newStatusHandler(
 	refreshInterval time.Duration,
 	mainAlerts, onlineAlerts, campusAlerts, xsiteEventsAlerts, xsiteDropboxAlerts, xsiteQuizzesAlerts []calendar.Alert,
 	lastFetchJobTime func() time.Time,
-	fetchStatuses func() (jobStatus, lastStatusIN4SIT, lastStatusXsite string),
+	fetchStatuses func() (jobStatus, lastStatusIN4SIT, lastStatusExams, lastStatusXsite string),
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -69,15 +70,16 @@ func newStatusHandler(
 			}
 		}
 
-		jobStatus, lastStatusIN4SIT, lastStatusXsite := "finished", "unknown", "unknown"
+		jobStatus, lastStatusIN4SIT, lastStatusExams, lastStatusXsite := "finished", "unknown", "unknown", "unknown"
 		if fetchStatuses != nil {
-			jobStatus, lastStatusIN4SIT, lastStatusXsite = fetchStatuses()
+			jobStatus, lastStatusIN4SIT, lastStatusExams, lastStatusXsite = fetchStatuses()
 		}
 
 		payload := StatusResponse{
 			LastFetchJobTime: lastFetch,
 			JobStatus:        jobStatus,
 			LastStatusIN4SIT: lastStatusIN4SIT,
+			LastStatusExams:  lastStatusExams,
 			LastStatusXsite:  lastStatusXsite,
 			ETags:            etags,
 			SHA256:           hashes,

@@ -22,6 +22,10 @@ func newCampusHandler(cache *calendar.ICSCache, tz string, refreshInterval time.
 	return newFilteredHandler(cache, tz, refreshInterval, calendar.IsCampus, "timetable-campus.ics", alerts, disableCaching)
 }
 
+func newExamsHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, alerts []calendar.Alert, disableCaching bool) http.HandlerFunc {
+	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "peoplesoft-exams" }, "timetable-exams.ics", alerts, disableCaching)
+}
+
 func newXsiteEventsHandler(cache *calendar.ICSCache, tz string, refreshInterval time.Duration, alerts []calendar.Alert, disableCaching bool) http.HandlerFunc {
 	return newFilteredHandler(cache, tz, refreshInterval, func(e calendar.Event) bool { return e.Source == "brightspace-calendar" }, "xsite-events.ics", alerts, disableCaching)
 }

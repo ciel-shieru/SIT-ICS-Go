@@ -16,6 +16,7 @@ type AuthResult struct {
 type AuthBrowser interface {
 	Authenticate(ctx context.Context, req AuthRequest) (AuthResult, error)
 	FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error)
+	FetchExams(ctx context.Context) ([]peoplesoft.Exam, error)
 	FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	FetchBrightSpaceQuizzes(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	FetchBrightSpaceQuizzesAPI(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error)
@@ -54,6 +55,7 @@ func isAllowedOrigin(url string) bool {
 type MockAuthBrowser struct {
 	AuthenticateFunc             func(ctx context.Context, req AuthRequest) (AuthResult, error)
 	FetchTimetableFunc           func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error)
+	FetchExamsFunc               func(ctx context.Context) ([]peoplesoft.Exam, error)
 	FetchBrightSpaceFunc         func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	FetchBrightSpaceQuizzesFunc  func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error)
 	FetchBrightSpaceQuizzesAPIFunc func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error)
@@ -70,6 +72,13 @@ func (m *MockAuthBrowser) Authenticate(ctx context.Context, req AuthRequest) (Au
 func (m *MockAuthBrowser) FetchTimetable(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
 	if m.FetchTimetableFunc != nil {
 		return m.FetchTimetableFunc(ctx, weekDate)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthBrowser) FetchExams(ctx context.Context) ([]peoplesoft.Exam, error) {
+	if m.FetchExamsFunc != nil {
+		return m.FetchExamsFunc(ctx)
 	}
 	return nil, nil
 }

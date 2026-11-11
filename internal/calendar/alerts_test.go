@@ -7,7 +7,7 @@ import (
 )
 
 func TestAlertsFromConfig_EmptyStrings(t *testing.T) {
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := AlertsFromConfig("", "", "", "", "", "")
+	mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := AlertsFromConfig("", "", "", "", "", "", "")
 
 	if mainAlerts != nil {
 		t.Error("mainAlerts should be nil for empty string")
@@ -17,6 +17,9 @@ func TestAlertsFromConfig_EmptyStrings(t *testing.T) {
 	}
 	if campusAlerts != nil {
 		t.Error("campusAlerts should be nil for empty string")
+	}
+	if examsAlerts != nil {
+		t.Error("examsAlerts should be nil for empty string")
 	}
 	if bsEventsAlerts != nil {
 		t.Error("bsEventsAlerts should be nil for empty string")
@@ -30,10 +33,11 @@ func TestAlertsFromConfig_EmptyStrings(t *testing.T) {
 }
 
 func TestAlertsFromConfig_WithDurations(t *testing.T) {
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := AlertsFromConfig(
+	mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := AlertsFromConfig(
 		"-P2D,-PT1H",
 		"-P1D",
 		"-PT30M",
+		"",
 		"-P2D,-P1D,-PT1H",
 		"-PT1H",
 		"-P1D",
@@ -48,6 +52,9 @@ func TestAlertsFromConfig_WithDurations(t *testing.T) {
 	if len(campusAlerts) != 1 {
 		t.Errorf("Expected 1 campus alert, got %d", len(campusAlerts))
 	}
+	if len(examsAlerts) != 0 {
+		t.Errorf("Expected 0 exams alerts, got %d", len(examsAlerts))
+	}
 	if len(bsEventsAlerts) != 3 {
 		t.Errorf("Expected 3 bsEvents alerts, got %d", len(bsEventsAlerts))
 	}
@@ -58,7 +65,7 @@ func TestAlertsFromConfig_WithDurations(t *testing.T) {
 		t.Errorf("Expected 1 bsQuizzes alert, got %d", len(bsQuizzesAlerts))
 	}
 
-	for _, alerts := range [][]Alert{mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts} {
+	for _, alerts := range [][]Alert{mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts} {
 		for _, alert := range alerts {
 			if alert.Action != AlertDisplay {
 				t.Errorf("Expected AlertDisplay action, got %d", alert.Action)
@@ -71,7 +78,7 @@ func TestAlertsFromConfig_WithDurations(t *testing.T) {
 }
 
 func TestAlertsFromConfig_Whitespace(t *testing.T) {
-	mainAlerts, _, _, _, _, _ := AlertsFromConfig("  -P1D , -PT1H  ", "", "", "", "", "")
+	mainAlerts, _, _, _, _, _, _ := AlertsFromConfig("  -P1D , -PT1H  ", "", "", "", "", "", "")
 
 	if len(mainAlerts) != 2 {
 		t.Errorf("Expected 2 alerts with whitespace, got %d", len(mainAlerts))
@@ -79,7 +86,7 @@ func TestAlertsFromConfig_Whitespace(t *testing.T) {
 }
 
 func TestAlertsFromConfig_MixedEmpty(t *testing.T) {
-	_, onlineAlerts, _, _, _, _ := AlertsFromConfig("", "  ,  , -P1D , ", "", "", "", "")
+	_, onlineAlerts, _, _, _, _, _ := AlertsFromConfig("", "  ,  , -P1D , ", "", "", "", "", "")
 
 	if len(onlineAlerts) != 1 {
 		t.Errorf("Expected 1 alert with mixed empty entries, got %d", len(onlineAlerts))
@@ -131,7 +138,7 @@ func TestParseAlerts_AllValidFormats(t *testing.T) {
 }
 
 func TestAlertsFromConfig_NegativeDurationsPreserved(t *testing.T) {
-	mainAlerts, _, _, _, _, _ := AlertsFromConfig("-P1D,-PT2H", "", "", "", "", "")
+	mainAlerts, _, _, _, _, _, _ := AlertsFromConfig("-P1D,-PT2H", "", "", "", "", "", "")
 
 	if len(mainAlerts) != 2 {
 		t.Fatalf("Expected 2 alerts, got %d", len(mainAlerts))

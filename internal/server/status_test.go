@@ -16,29 +16,29 @@ func TestStatusHandlerReportsInMemoryHashesETagsAndLastFetchTime(t *testing.T) {
 	cache := calendar.NewICSCache()
 	if err := cache.Update([]calendar.Event{
 		{
-			CourseCode: "ALT2501",
-			Summary:    "[ALT2501] Sample lecture",
+			CourseCode: "FAK2501",
+			Summary:    "[FAK2501] Sample lecture",
 			Title:      "Sample lecture",
 			Location:   "Online",
-			DTStart:    time.Date(2026, 10, 21, 1, 0, 0, 0, time.UTC),
-			DTEnd:      time.Date(2026, 10, 21, 2, 0, 0, 0, time.UTC),
+			DTStart:    time.Date(2027, 10, 1, 1, 0, 0, 0, time.UTC),
+			DTEnd:      time.Date(2027, 10, 1, 2, 0, 0, 0, time.UTC),
 		},
 		{
 			Summary:  "Sample Xsite event",
 			Source:   "brightspace-calendar",
 			Location: "Online",
-			DTStart:  time.Date(2026, 10, 22, 1, 0, 0, 0, time.UTC),
-			DTEnd:    time.Date(2026, 10, 22, 2, 0, 0, 0, time.UTC),
+			DTStart:  time.Date(2027, 10, 2, 1, 0, 0, 0, time.UTC),
+			DTEnd:    time.Date(2027, 10, 2, 2, 0, 0, 0, time.UTC),
 		},
 	}, "Asia/Singapore"); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	lastFetch := time.Date(2026, 10, 21, 5, 30, 0, 0, time.FixedZone("UTC+8", 8*60*60))
+	lastFetch := time.Date(2027, 10, 1, 5, 30, 0, 0, time.FixedZone("UTC+8", 8*60*60))
 	handler := newStatusHandler(cache, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, func() time.Time {
 		return lastFetch
-	}, func() (string, string, string) {
-		return "running", "successful", "failed"
+	}, func() (string, string, string, string) {
+		return "running", "successful", "unknown", "failed"
 	})
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/status", nil))
@@ -64,6 +64,9 @@ func TestStatusHandlerReportsInMemoryHashesETagsAndLastFetchTime(t *testing.T) {
 	}
 	if response.LastStatusXsite != "failed" {
 		t.Errorf("last_status_xsite = %q, want failed", response.LastStatusXsite)
+	}
+	if response.LastStatusExams != "unknown" {
+		t.Errorf("last_status_exams = %q, want unknown", response.LastStatusExams)
 	}
 	if len(response.SHA256) != 7 {
 		t.Errorf("SHA256 output count = %d, want 7", len(response.SHA256))

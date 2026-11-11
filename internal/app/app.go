@@ -40,6 +40,7 @@ type App struct {
 	shuttingDown bool
 	lastFetchJobTime   time.Time
 	lastStatusIN4SIT   string
+	lastStatusExams    string
 	lastStatusXsite    string
 	done               chan struct{}
 	ctx           context.Context
@@ -55,6 +56,7 @@ func New(cfg *config.Config, cache *calendar.ICSCache, provider *auth.ADFSProvid
 		loc:           loc,
 		remoteBrowser: remoteBrowser,
 		lastStatusIN4SIT: "unknown",
+		lastStatusExams:  "unknown",
 		lastStatusXsite:  "unknown",
 		done:             make(chan struct{}),
 		ctx:              ctx,
@@ -76,15 +78,16 @@ func (a *App) Run() error {
 
 	go func() { a.Fetch() }()
 
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
+	mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
 		a.cfg.TimetableCampusAlerts,
+		a.cfg.IcsExamsAlerts,
 		a.cfg.XsiteEventsAlerts,
 		a.cfg.XsiteDropboxAlerts,
 		a.cfg.XsiteQuizzesAlerts,
 	)
-	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts, a.cfg.ServerTrustedProxies, a.cfg.ServerDisableCaching, a.LastFetchJobTime, a.FetchStatuses, a.RequestRefresh)
+	a.srv = server.NewServer(a.cfg.ServerPort, a.cfg.ServerAddr, a.cache, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts, a.cfg.ServerTrustedProxies, a.cfg.ServerDisableCaching, a.LastFetchJobTime, a.FetchStatuses, a.RequestRefresh)
 	go func() { _ = a.srv.Start() }()
 
 	sigChan := make(chan os.Signal, 1)
@@ -138,12 +141,12 @@ func (a *App) runFetchJob() {
 		defer a.provider.SetBrowser(old)
 	}
 
-	runFetchWithStatus(a.ctx, a.cfg, a.provider, a.cache, a.loc, a.setLastStatusIN4SIT, a.setLastStatusXsite)
+	runFetchWithStatus(a.ctx, a.cfg, a.provider, a.cache, a.loc, a.setLastStatusIN4SIT, a.setLastStatusExams, a.setLastStatusXsite)
 }
 
 // FetchStatuses returns current overall-job and last source-fetch statuses.
 // Source statuses persist until the next corresponding fetch starts.
-func (a *App) FetchStatuses() (jobStatus, lastStatusIN4SIT, lastStatusXsite string) {
+func (a *App) FetchStatuses() (jobStatus, lastStatusIN4SIT, lastStatusExams, lastStatusXsite string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -155,17 +158,27 @@ func (a *App) FetchStatuses() (jobStatus, lastStatusIN4SIT, lastStatusXsite stri
 	if lastStatusIN4SIT == "" {
 		lastStatusIN4SIT = "unknown"
 	}
+	lastStatusExams = a.lastStatusExams
+	if lastStatusExams == "" {
+		lastStatusExams = "unknown"
+	}
 	lastStatusXsite = a.lastStatusXsite
 	if lastStatusXsite == "" {
 		lastStatusXsite = "unknown"
 	}
-	return jobStatus, lastStatusIN4SIT, lastStatusXsite
+	return jobStatus, lastStatusIN4SIT, lastStatusExams, lastStatusXsite
 }
 
 func (a *App) setLastStatusIN4SIT(status string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.lastStatusIN4SIT = status
+}
+
+func (a *App) setLastStatusExams(status string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastStatusExams = status
 }
 
 func (a *App) setLastStatusXsite(status string) {
@@ -276,15 +289,16 @@ func (a *App) Shutdown() {
 		a.remoteBrowser.Close()
 	}
 
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
+	mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		a.cfg.TimetableAlerts,
 		a.cfg.TimetableOnlineAlerts,
 		a.cfg.TimetableCampusAlerts,
+		a.cfg.IcsExamsAlerts,
 		a.cfg.XsiteEventsAlerts,
 		a.cfg.XsiteDropboxAlerts,
 		a.cfg.XsiteQuizzesAlerts,
 	)
-	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.XsiteEventsPath, a.cfg.XsiteDropboxPath, a.cfg.XsiteQuizzesPath, a.cfg.XsitePath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
+	if err := saveAllOutputs(a.cache, a.cfg.ICSStoragePath, a.cfg.ICSOnlinePath, a.cfg.ICSCampusPath, a.cfg.ICSExamsPath, a.cfg.XsiteEventsPath, a.cfg.XsiteDropboxPath, a.cfg.XsiteQuizzesPath, a.cfg.XsitePath, a.cfg.TZ, a.cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
 		log.Printf("save on shutdown failed: %v", err)
 	}
 }

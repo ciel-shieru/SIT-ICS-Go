@@ -52,12 +52,12 @@ func newTestConfig(t *testing.T, mutate func(*config.Config)) *config.Config {
 }
 
 func seededPSEvent(loc *time.Location) calendar.Event {
-	dtStart := time.Date(2026, 10, 5, 10, 0, 0, 0, loc)
+	dtStart := time.Date(2027, 10, 1, 10, 0, 0, 0, loc)
 	return calendar.Event{
-		CourseCode:  "ALT2501",
-		Summary:     "ALT2501 - A (Tutorial)",
-		Location:    "FAKE HALL 1",
-		Description: "Course: ALT2501\nClass: Fake Class\nSection: A\nType: Tutorial",
+		CourseCode:  "FAK2501",
+		Summary:     "FAK2501 - A (Tutorial)",
+		Location:    "FAK BLDG Hall A",
+		Description: "Course: FAK2501\nClass: Fake Class\nSection: A\nType: Tutorial",
 		DTStart:     dtStart,
 		DTEnd:       dtStart.Add(time.Hour),
 	}
@@ -67,12 +67,12 @@ func fakeBSEntry(title string) brightspace.BrightSpaceStringEntry {
 	return brightspace.BrightSpaceStringEntry{
 		Title:           title,
 		OrgUnitId:       "ou-1",
-		OrgUnitName:     "ALT2501 Fake Course",
-		OrgUnitCode:     "ALT2501",
+		OrgUnitName:     "FAK2501 Fake Course",
+		OrgUnitCode:     "FAK2501",
 		Location:        "Online",
 		Description:     "fake description",
-		DTStart:         "2026-10-05T12:00:00+08:00",
-		DTEnd:           "2026-10-05T13:00:00+08:00",
+		DTStart:         "2027-10-01T12:00:00+08:00",
+		DTEnd:           "2027-10-01T13:00:00+08:00",
 		Source:          "brightspace-calendar",
 		CalendarEventID: 1,
 	}
@@ -86,9 +86,9 @@ func TestRunFetchReportsSourceStatuses(t *testing.T) {
 		},
 		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
 			return []peoplesoft.Entry{{
-				CourseCode: "ALT2501", ClassName: "Fake Class", Section: "A",
-				Type: "Tutorial", Day: "05/10/2026", StartTime: "10:00",
-				EndTime: "11:00", Location: "FAKE HALL 1",
+				CourseCode: "FAK2501", ClassName: "Fake Class", Section: "A",
+				Type: "Tutorial", Day: "01/10/2027", StartTime: "10:00",
+				EndTime: "11:00", Location: "FAK BLDG Hall A",
 			}}, nil
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
@@ -99,13 +99,17 @@ func TestRunFetchReportsSourceStatuses(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig(t, nil)
-	var in4sitStatuses, xsiteStatuses []string
+	var in4sitStatuses, examsStatuses, xsiteStatuses []string
 	runFetchWithStatus(context.Background(), cfg, auth.NewADFSProvider(mock), calendar.NewICSCache(), loc,
 		func(status string) { in4sitStatuses = append(in4sitStatuses, status) },
+		func(status string) { examsStatuses = append(examsStatuses, status) },
 		func(status string) { xsiteStatuses = append(xsiteStatuses, status) },
 	)
 	if got := strings.Join(in4sitStatuses, ","); got != "running,successful" {
 		t.Errorf("IN4SIT statuses = %q, want running,successful", got)
+	}
+	if got := strings.Join(examsStatuses, ","); got != "running,failed" {
+		t.Errorf("exams statuses = %q, want running,failed", got)
 	}
 	if got := strings.Join(xsiteStatuses, ","); got != "running,successful" {
 		t.Errorf("xSITe statuses = %q, want running,successful", got)
@@ -129,13 +133,17 @@ func TestRunFetchReportsSourceFailures(t *testing.T) {
 		},
 	}
 	cfg := newTestConfig(t, func(c *config.Config) { c.BrowserMaxRetries = 0 })
-	var in4sitStatus, xsiteStatus string
+	var in4sitStatus, examsStatus, xsiteStatus string
 	runFetchWithStatus(context.Background(), cfg, auth.NewADFSProvider(mock), calendar.NewICSCache(), loc,
 		func(status string) { in4sitStatus = status },
+		func(status string) { examsStatus = status },
 		func(status string) { xsiteStatus = status },
 	)
 	if in4sitStatus != "failed" {
 		t.Errorf("IN4SIT status = %q, want failed", in4sitStatus)
+	}
+	if examsStatus != "failed" {
+		t.Errorf("exams status = %q, want failed", examsStatus)
 	}
 	if xsiteStatus != "failed" {
 		t.Errorf("xSITe status = %q, want failed", xsiteStatus)
@@ -187,10 +195,10 @@ func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 	}
 
 	data := string(cache.Get(cfg.TZ, cfg.ICSRefreshInterval))
-	if !strings.Contains(data, "ALT2501 - A (Tutorial)") {
+	if !strings.Contains(data, "FAK2501 - A (Tutorial)") {
 		t.Error("seeded peoplesoft event not retained in cache")
 	}
-	if !strings.Contains(data, "FAKE HALL 1") {
+	if !strings.Contains(data, "FAK BLDG Hall A") {
 		t.Error("seeded peoplesoft event location not retained in cache")
 	}
 	if !strings.Contains(data, "Fake BS Event") {
@@ -218,7 +226,7 @@ func TestPeopleSoftFetchFailureContinuesBrightSpace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("main ics output not saved: %v", err)
 	}
-	if !strings.Contains(string(mainData), "ALT2501 - A (Tutorial)") {
+	if !strings.Contains(string(mainData), "FAK2501 - A (Tutorial)") {
 		t.Error("main ics output missing retained peoplesoft event")
 	}
 	if !strings.Contains(string(mainData), "Fake BS Event") {
@@ -240,14 +248,14 @@ func TestPeopleSoftFetchRetriesAndSucceedsBeforeBrightSpace(t *testing.T) {
 				return nil, nil // Empty result is a failed fetch, even if no error was returned.
 			}
 			return []peoplesoft.Entry{{
-				CourseCode: "ALT2501",
+				CourseCode: "FAK2501",
 				ClassName: "Fake Class",
 				Section: "A",
 				Type: "Tutorial",
-				Day: "05/10/2026",
+				Day: "01/10/2027",
 				StartTime: "10:00",
 				EndTime: "11:00",
-				Location: "FAKE HALL 1",
+				Location: "FAK BLDG Hall A",
 			}}, nil
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
@@ -290,7 +298,7 @@ func TestPeopleSoftEntryParseFailureRetriesBeforeBrightSpace(t *testing.T) {
 			timetableCalls++
 			if timetableCalls == 1 {
 				return []peoplesoft.Entry{{
-					CourseCode: "ALT2501",
+					CourseCode: "FAK2501",
 					Section: "A",
 					Type: "Tutorial",
 					Day: "not-a-date",
@@ -299,14 +307,14 @@ func TestPeopleSoftEntryParseFailureRetriesBeforeBrightSpace(t *testing.T) {
 				}}, nil
 			}
 			return []peoplesoft.Entry{{
-				CourseCode: "ALT2501",
+				CourseCode: "FAK2501",
 				ClassName: "Fake Class",
 				Section: "A",
 				Type: "Tutorial",
-				Day: "05/10/2026",
+				Day: "01/10/2027",
 				StartTime: "10:00",
 				EndTime: "11:00",
-				Location: "FAKE HALL 1",
+				Location: "FAK BLDG Hall A",
 			}}, nil
 		},
 		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
@@ -366,12 +374,12 @@ func TestPeopleSoftFailureBlocklistDoesNotDeletePeopleSoft(t *testing.T) {
 		Summary:         "Blocked BS Event",
 		Title:           "Blocked BS Event",
 		OrgUnitID:       "ou-2",
-		OrgUnitName:     "ALT2502 Fake Course",
-		OrgUnitCode:     "ALT2502",
+		OrgUnitName:     "FAK2502 Fake Course",
+		OrgUnitCode:     "FAK2502",
 		Location:        "BLOCKED HALL",
 		Description:     "fake description",
-		DTStart:         time.Date(2026, 10, 5, 14, 0, 0, 0, loc),
-		DTEnd:           time.Date(2026, 10, 5, 15, 0, 0, 0, loc),
+		DTStart:         time.Date(2027, 10, 1, 14, 0, 0, 0, loc),
+		DTEnd:           time.Date(2027, 10, 1, 15, 0, 0, 0, loc),
 		Source:          "brightspace-calendar",
 		CalendarEventID: 2,
 	}
@@ -382,7 +390,7 @@ func TestPeopleSoftFailureBlocklistDoesNotDeletePeopleSoft(t *testing.T) {
 	runFetch(context.Background(), cfg, provider, cache, loc)
 
 	data := string(cache.Get(cfg.TZ, cfg.ICSRefreshInterval))
-	if !strings.Contains(data, "ALT2501 - A (Tutorial)") {
+	if !strings.Contains(data, "FAK2501 - A (Tutorial)") {
 		t.Error("peoplesoft event deleted by blocklist during degraded cycle")
 	}
 	if strings.Contains(data, "Blocked BS Event") {
@@ -407,8 +415,8 @@ func TestSmartMergeSkippedOnPeopleSoftFailure(t *testing.T) {
 			online.CalendarEventID = 2
 			online.Location = "Online"
 			online.Description = "no zoom link here"
-			online.DTStart = "2026-10-05T10:30:00+08:00"
-			online.DTEnd = "2026-10-05T11:30:00+08:00"
+			online.DTStart = "2027-10-01T10:30:00+08:00"
+			online.DTEnd = "2027-10-01T11:30:00+08:00"
 
 			// Matching event: same module, overlapping time, "Zoom Online
 			// Meeting" location, and a real (fake) zoom URL in the description.
@@ -418,8 +426,8 @@ func TestSmartMergeSkippedOnPeopleSoftFailure(t *testing.T) {
 			zoom.CalendarEventID = 3
 			zoom.Location = "Zoom Online Meeting"
 			zoom.Description = "join via https://fake-sg.zoom.us/j/12345678901"
-			zoom.DTStart = "2026-10-05T10:30:00+08:00"
-			zoom.DTEnd = "2026-10-05T11:30:00+08:00"
+			zoom.DTStart = "2027-10-01T10:30:00+08:00"
+			zoom.DTEnd = "2027-10-01T11:30:00+08:00"
 
 			return []brightspace.BrightSpaceStringEntry{online, zoom}, nil
 		},
@@ -459,7 +467,7 @@ func TestSmartMergeSkippedOnPeopleSoftFailure(t *testing.T) {
 	if strings.Contains(psBlock, "fake-sg.zoom.us") || strings.Contains(psBlock, "Zoom Meeting Details") {
 		t.Error("zoom details injected into peoplesoft event during degraded cycle")
 	}
-	if !strings.Contains(psBlock, "Course: ALT2501") {
+	if !strings.Contains(psBlock, "Course: FAK2501") {
 		t.Error("peoplesoft event description modified during degraded cycle")
 	}
 }

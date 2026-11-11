@@ -94,7 +94,52 @@ func fetchTimetablePage(ctx context.Context, page termPage, cfg BrowserConfig) (
 	return handleMultiTermSelection(ctx, page, cfg)
 }
 
-const timetableEndpointURL = "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
+const (
+	timetableEndpointURL = "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/SA_LEARNER_SERVICES.SSR_SSENRL_LIST.GBL"
+	examsEndpointURL     = "https://in4sit.singaporetech.edu.sg/psc/CSSISSTD/EMPLOYEE/SA/c/N_MANAGE_EXAMS.N_ES_SS_STDNT_TT.GBL?NavColl=true&ICAJAX=1&ICAGTarget=start"
+)
+
+// fetchExams navigates to the PeopleSoft exam timetable page, waits for the
+// page to stabilise, extracts the HTML, and parses exam entries.
+func fetchExams(ctx context.Context, page *rod.Page, cfg BrowserConfig) ([]peoplesoft.Exam, error) {
+	if page == nil {
+		return nil, fmt.Errorf("no active page: authenticate first")
+	}
+
+	pageCtx := page.Context(ctx)
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("exams fetch context already expired: %w", err)
+	}
+
+	if err := Do(ctx, func() error {
+		if err := pageCtx.Navigate(examsEndpointURL); err != nil {
+			return fmt.Errorf("navigate to exams: %w", err)
+		}
+		if err := pageCtx.WaitStable(5 * time.Second); err != nil {
+			return fmt.Errorf("exams page not stable: %w", err)
+		}
+		return nil
+	}, cfg.MaxRetries, cfg.RetryInterval); err != nil {
+		return nil, fmt.Errorf("navigate exams: %w", err)
+	}
+
+	htmlStr, err := page.HTML()
+	if err != nil {
+		return nil, fmt.Errorf("get exams page HTML: %w", err)
+	}
+
+	loc, _ := time.LoadLocation("Asia/Singapore")
+	exams, err := peoplesoft.ParseExamHTML(htmlStr, loc)
+	if err != nil {
+		return nil, fmt.Errorf("parse exam HTML: %w", err)
+	}
+
+	if len(exams) == 0 {
+		return nil, fmt.Errorf("no exam entries found on exam page")
+	}
+
+	return exams, nil
+}
 
 // urlWithoutQuery removes the query string from a URL for endpoint comparison.
 func urlWithoutQuery(rawURL string) string {

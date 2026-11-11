@@ -102,6 +102,13 @@ func (b *LocalBrowser) FetchTimetable(ctx context.Context, weekDate string) ([]p
 	return fetchTimetable(ctx, b.page, b.cfg)
 }
 
+func (b *LocalBrowser) FetchExams(ctx context.Context) ([]peoplesoft.Exam, error) {
+	if b.browser == nil {
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	return fetchExams(ctx, b.page, b.cfg)
+}
+
 func (b *LocalBrowser) FetchBrightSpace(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)

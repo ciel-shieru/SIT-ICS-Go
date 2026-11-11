@@ -19,7 +19,7 @@ import (
 )
 
 func runFetch(ctx context.Context, cfg *config.Config, provider *auth.ADFSProvider, cache *calendar.ICSCache, loc *time.Location) {
-	runFetchWithStatus(ctx, cfg, provider, cache, loc, nil, nil)
+	runFetchWithStatus(ctx, cfg, provider, cache, loc, nil, nil, nil)
 }
 
 func runFetchWithStatus(
@@ -28,7 +28,7 @@ func runFetchWithStatus(
 	provider *auth.ADFSProvider,
 	cache *calendar.ICSCache,
 	loc *time.Location,
-	onIN4SITStatus, onXsiteStatus func(string),
+	onIN4SITStatus, onExamsStatus, onXsiteStatus func(string),
 ) {
 	log.Printf("scheduler: starting timetable fetch")
 
@@ -140,6 +140,59 @@ func runFetchWithStatus(
 		// existing deterministic UID format.
 		authoritativeSources = append(authoritativeSources, "")
 	}
+
+	// Fetch exam timetable entries from PeopleSoft and merge them into the
+	// event list. Exam events carry a distinct source so they can be rendered
+	// to a dedicated ICS file while also appearing in the combined timetable.
+	examsCtx, examsCancel := context.WithTimeout(ctx, TimetableFetchTimeout)
+	if onExamsStatus != nil {
+		onExamsStatus("running")
+	}
+	examsErr := browser.Do(examsCtx, func() error {
+		exams, fetchErr := provider.FetchExams(examsCtx)
+		if fetchErr != nil {
+			return fetchErr
+		}
+		if len(exams) == 0 {
+			return fmt.Errorf("PeopleSoft exams fetch returned no entries")
+		}
+
+		examEvents := make([]calendar.Event, 0, len(exams))
+		for _, exam := range exams {
+			dtStart, dtEnd, parseErr := peoplesoft.ParseExamDateTime(exam, loc)
+			if parseErr != nil {
+				return fmt.Errorf("parse exam %s: %w", exam.CourseCode, parseErr)
+			}
+			examEvents = append(examEvents, calendar.Event{
+				CourseCode:  exam.CourseCode,
+				Summary:     fmt.Sprintf("%s — %s (%s)", exam.CourseCode, exam.CourseName, exam.ExamType),
+				Title:       exam.CourseName,
+				Location:    exam.Location,
+				Description: fmt.Sprintf("Course: %s\nModule: %s\nSeat: %s\nType: %s", exam.CourseCode, exam.CourseName, exam.SeatNumber, exam.ExamType),
+				DTStart:     dtStart,
+				DTEnd:       dtEnd,
+				Source:      "peoplesoft-exams",
+			})
+		}
+		if contextErr := examsCtx.Err(); contextErr != nil {
+			return fmt.Errorf("exams fetch attempt context expired: %w", contextErr)
+		}
+		if len(examEvents) == 0 {
+			return fmt.Errorf("PeopleSoft exams fetch produced no valid calendar events")
+		}
+		icsEvents = append(icsEvents, examEvents...)
+		return nil
+	}, cfg.BrowserMaxRetries, cfg.BrowserRetryInterval)
+	examsCancel()
+	if examsErr != nil {
+		log.Printf("scheduler: peoplesoft exams fetch failed: %v — existing exam events retained by UID upsert", examsErr)
+		if onExamsStatus != nil {
+			onExamsStatus("failed")
+		}
+	} else if onExamsStatus != nil {
+		onExamsStatus("successful")
+	}
+	authoritativeSources = append(authoritativeSources, "peoplesoft-exams")
 
 	if cfg.XsiteEnabled {
 		if onXsiteStatus != nil {
@@ -317,16 +370,17 @@ func runFetchWithStatus(
 		return
 	}
 
-	mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
+	mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts := calendar.AlertsFromConfig(
 		cfg.TimetableAlerts,
 		cfg.TimetableOnlineAlerts,
 		cfg.TimetableCampusAlerts,
+		cfg.IcsExamsAlerts,
 		cfg.XsiteEventsAlerts,
 		cfg.XsiteDropboxAlerts,
 		cfg.XsiteQuizzesAlerts,
 	)
 
-	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.XsiteEventsPath, cfg.XsiteDropboxPath, cfg.XsiteQuizzesPath, cfg.XsitePath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
+	if err := saveAllOutputs(cache, cfg.ICSStoragePath, cfg.ICSOnlinePath, cfg.ICSCampusPath, cfg.ICSExamsPath, cfg.XsiteEventsPath, cfg.XsiteDropboxPath, cfg.XsiteQuizzesPath, cfg.XsitePath, cfg.TZ, cfg.ICSRefreshInterval, mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts); err != nil {
 		log.Printf("scheduler: save failed: %v", err)
 		return
 	}

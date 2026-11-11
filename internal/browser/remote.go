@@ -178,6 +178,13 @@ func (b *RemoteBrowser) FetchTimetable(ctx context.Context, weekDate string) ([]
 	return fetchTimetable(ctx, b.page, b.cfg)
 }
 
+func (b *RemoteBrowser) FetchExams(ctx context.Context) ([]peoplesoft.Exam, error) {
+	if b.browser == nil {
+		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)
+	}
+	return fetchExams(ctx, b.page, b.cfg)
+}
+
 func (b *RemoteBrowser) NavigateTimetable(ctx context.Context) ([]peoplesoft.Entry, error) {
 	if b.browser == nil {
 		return nil, fmt.Errorf("%w: browser not initialized", ErrBrowserUnavailable)

@@ -18,17 +18,18 @@ type Server struct {
 	mainAlerts      []calendar.Alert
 	onlineAlerts    []calendar.Alert
 	campusAlerts    []calendar.Alert
+	examsAlerts     []calendar.Alert
 	bsEventsAlerts  []calendar.Alert
 	bsDropboxAlerts []calendar.Alert
 	bsQuizzesAlerts []calendar.Alert
 	trustedProxies  string
 	disableCaching   bool
 	lastFetchJobTime func() time.Time
-	fetchStatuses    func() (jobStatus, lastStatusIN4SIT, lastStatusXsite string)
+	fetchStatuses    func() (jobStatus, lastStatusIN4SIT, lastStatusExams, lastStatusXsite string)
 	requestRefresh   func()
 }
 
-func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert, trustedProxies string, disableCaching bool, lastFetchJobTime func() time.Time, fetchStatuses func() (jobStatus, lastStatusIN4SIT, lastStatusXsite string), requestRefresh func()) *Server {
+func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string, refreshInterval time.Duration, mainAlerts, onlineAlerts, campusAlerts, examsAlerts, bsEventsAlerts, bsDropboxAlerts, bsQuizzesAlerts []calendar.Alert, trustedProxies string, disableCaching bool, lastFetchJobTime func() time.Time, fetchStatuses func() (jobStatus, lastStatusIN4SIT, lastStatusExams, lastStatusXsite string), requestRefresh func()) *Server {
 	return &Server{
 		port:            port,
 		serverAddr:      serverAddr,
@@ -38,6 +39,7 @@ func NewServer(port int, serverAddr string, cache *calendar.ICSCache, tz string,
 		mainAlerts:      mainAlerts,
 		onlineAlerts:    onlineAlerts,
 		campusAlerts:    campusAlerts,
+		examsAlerts:     examsAlerts,
 		bsEventsAlerts:  bsEventsAlerts,
 		bsDropboxAlerts: bsDropboxAlerts,
 		bsQuizzesAlerts: bsQuizzesAlerts,
@@ -54,6 +56,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/timetable.ics", newTimetableHandler(s.cache, s.tz, s.refreshInterval, s.mainAlerts, s.disableCaching))
 	mux.HandleFunc("/timetable-online.ics", newOnlineHandler(s.cache, s.tz, s.refreshInterval, s.onlineAlerts, s.disableCaching))
 	mux.HandleFunc("/timetable-campus.ics", newCampusHandler(s.cache, s.tz, s.refreshInterval, s.campusAlerts, s.disableCaching))
+	mux.HandleFunc("/timetable-exams.ics", newExamsHandler(s.cache, s.tz, s.refreshInterval, s.examsAlerts, s.disableCaching))
 	mux.HandleFunc("/xsite-events.ics", newXsiteEventsHandler(s.cache, s.tz, s.refreshInterval, s.bsEventsAlerts, s.disableCaching))
 	mux.HandleFunc("/xsite-dropbox.ics", newXsiteDropboxHandler(s.cache, s.tz, s.refreshInterval, s.bsDropboxAlerts, s.disableCaching))
 	mux.HandleFunc("/xsite-quizzes.ics", newXsiteQuizzesHandler(s.cache, s.tz, s.refreshInterval, s.bsQuizzesAlerts, s.disableCaching))
