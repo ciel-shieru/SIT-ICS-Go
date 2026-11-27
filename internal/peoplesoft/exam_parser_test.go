@@ -49,8 +49,6 @@ const icajaxExamsFragment = `<?xml version='1.0' encoding='utf-8' ?>
         </div>
         <div class='ps_box-group psc_column-3' id='win0divN_ES_XMTT_WRK_GROUP1$66$$0'><DIV class='ps_box-hr' id='win0div$ICField67$0'><hr class='ps-hr' /></DIV></div>
       </div>
-    </div>
-    <div class='ps_box-scrollarea' id='win0div$ICField16$1'>
       <div class='ps_box-scrollarea-row' id='win0div$ICField16_row$1'>
         <div class='ps_box-group psc_column-3' id='win0divN_ES_XMTT_WRK_GROUP1$1'>
           <DIV class='ps_box-edit psc_disabled psc_has_value psc_strong' id='win0divN_ES_XMTT_WRK_DESCR100$1'>
@@ -170,6 +168,41 @@ func TestParseExamHTMLPlainInnerHTML(t *testing.T) {
 	checkExams(t, exams, expectedICAJAXExams[:1])
 }
 
+func TestParseExamHTMLMultipleExamsSingleScrollarea(t *testing.T) {
+	// Live PeopleSoft layout: one scrollarea div (win0div$ICField16$0) wraps
+	// every exam as a ps_box-scrollarea-row sibling (win0div$ICField16_row$N).
+	// All three exams must come back in document order, not just the first.
+	input := wrapSyntheticICAJAX(syntheticExamRow(0,
+		"Monday Nov 30,2026", "9.30 AM to 11.40 AM",
+		"FAK 1001 Sample Mathematics Course",
+		"Location : FAK BLDG Hall A", "Seat Number : 001", "Final Exam") +
+		rowSep +
+		syntheticExamRow(1,
+			"Tuesday Dec 1,2026", "1.00 PM to 3.10 PM",
+			"FAK 2002 Synthetic Architecture Course",
+			"Location : FAK HALL 2", "Seat Number : 007", "Final Exam") +
+		rowSep +
+		syntheticExamRow(5, // non-contiguous row index, as seen in production
+			"Wednesday Dec 2,2026", "9.30 AM to 11.40 AM",
+			"FAK 3003 Synthetic Physics Course",
+			"Location : FAK HALL 3", "&nbsp;", "Final Exam"))
+	exams, err := ParseExamHTML(input, examTestLoc(t))
+	if err != nil {
+		t.Fatalf("ParseExamHTML: %v", err)
+	}
+	checkExams(t, exams, []Exam{
+		{Date: "Monday Nov 30,2026", Time: "9.30 AM to 11.40 AM", CourseCode: "FAK 1001",
+			CourseName: "Sample Mathematics Course", Location: "FAK BLDG Hall A",
+			SeatNumber: "001", ExamType: "Final Exam"},
+		{Date: "Tuesday Dec 1,2026", Time: "1.00 PM to 3.10 PM", CourseCode: "FAK 2002",
+			CourseName: "Synthetic Architecture Course", Location: "FAK HALL 2",
+			SeatNumber: "007", ExamType: "Final Exam"},
+		{Date: "Wednesday Dec 2,2026", Time: "9.30 AM to 11.40 AM", CourseCode: "FAK 3003",
+			CourseName: "Synthetic Physics Course", Location: "FAK HALL 3",
+			SeatNumber: "", ExamType: "Final Exam"},
+	})
+}
+
 func TestParseExamHTMLMissingContentFieldErrors(t *testing.T) {
 	inputs := map[string]string{
 		"xml declaration present": `<?xml version='1.0' encoding='utf-8' ?>
@@ -201,8 +234,7 @@ func TestParseExamHTMLMissingContentFieldErrors(t *testing.T) {
 // field values; pass "&nbsp;" for a placeholder value.
 func syntheticExamRow(row int, date, timeRange, course, location, seat, examType string) string {
 	return fmt.Sprintf(
-		`<div class='ps_box-scrollarea' id='win0div$ICField16$%d'>
-  <div class='ps_box-scrollarea-row' id='win0div$ICField16_row$%d'>
+		`<div class='ps_box-scrollarea-row' id='win0div$ICField16_row$%d'>
     <DIV id='win0divN_ES_XMTT_WRK_DESCR100$%d'><span id='N_ES_XMTT_WRK_DESCR100$%d'>%s</span></DIV>
     <DIV id='win0divN_ES_XMTT_WRK_DESCR100_2$%d'><span id='N_ES_XMTT_WRK_DESCR100_2$%d'>%s</span></DIV>
     <DIV id='win0divN_ES_XMTT_WRK_DESCR100_3$%d'><span id='N_ES_XMTT_WRK_DESCR100_3$%d'>%s</span></DIV>
@@ -210,8 +242,7 @@ func syntheticExamRow(row int, date, timeRange, course, location, seat, examType
     <DIV id='win0divN_ES_XMTT_WRK_DESCR100_5$%d'><span id='N_ES_XMTT_WRK_DESCR100_5$%d'>%s</span></DIV>
     <DIV id='win0divN_ES_XMTT_WRK_DESCR1$%d'><span id='N_ES_XMTT_WRK_DESCR1$%d'>%s</span></DIV>
     <DIV id='win0divN_ES_XMTT_WRK_N_SPEC_ARRGMT$%d'><span id='N_ES_XMTT_WRK_N_SPEC_ARRGMT$%d'>&nbsp;</span></DIV>
-  </div>
-</div>`, row, row, row, row, date, row, row, timeRange, row, row, course,
+</div>`, row, row, row, date, row, row, timeRange, row, row, course,
 		row, row, location, row, row, seat, row, row, examType, row, row)
 }
 
@@ -222,7 +253,9 @@ func wrapSyntheticICAJAX(rows string) string {
   <FIELD id='divPAGECONTAINER_TGT' class='ps_pagecontainer'><![CDATA[
 <DIV class='ps_pspagecontainer' id='win0divPSPAGECONTAINER'>
   <div class='ps_box-group psc_layout ps_apps_content' id='win0div$ICField1'>
+    <div class='ps_box-scrollarea' id='win0div$ICField16$0'>
 ` + rows + `
+    </div>
   </div>
 </DIV>
 ]]></FIELD>

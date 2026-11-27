@@ -10,11 +10,15 @@ import (
 )
 
 // examContainerIDRe matches PeopleSoft exam container div ids in the exam
-// page markup, e.g. "win0div$ICField16$0", "win0div$ICField16$1". The
-// trailing number indexes individual exam entries. The anchors ensure row
-// divs such as "win0div$ICField16_row$0" never match; the optional "win0"
-// prefix is accepted for page variants without it.
-var examContainerIDRe = regexp.MustCompile(`^(?:win0)?div\$ICField16\$(\d+)$`)
+// page markup. The exam containers are the PeopleSoft scrollarea ROW divs
+// with ids like "win0div$ICField16_row$N" (class ps_box-scrollarea-row);
+// all rows of the page are siblings inside a single scrollarea div
+// "win0div$ICField16$0", whose id must NOT match (the _row segment plus the
+// $ anchors guarantee this, as do unrelated scrollareas such as
+// "win0side2div$ICField2_row$0"). The trailing number indexes individual
+// exam entries; the optional "win0" prefix is accepted for page variants
+// without it.
+var examContainerIDRe = regexp.MustCompile(`^(?:win0)?div\$ICField16_row\$(\d+)$`)
 
 // examFieldRe matches PeopleSoft exam field ids after stripping the
 // "win0div" prefix from the markup ids. Field ids have the form
@@ -135,7 +139,7 @@ func findExamContainers(doc *html.Node) []*html.Node {
 }
 
 // parseExamContainer extracts a single exam from an exam container element
-// (id win0div$ICField16$N). Field values live in SPAN elements with the bare
+// (id win0div$ICField16_row$N). Field values live in SPAN elements with the bare
 // ids N_ES_XMTT_WRK_<ROLE>$N; the wrapping div ids carry the same ids with
 // the win0div prefix. The label divs (...lbl$N) are not mapped, and the
 // special-arrangements field (N_ES_XMTT_WRK_N_SPEC_ARRGMT$N, usually a
