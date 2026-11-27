@@ -165,7 +165,7 @@ func runFetchWithStatus(
 			}
 			examEvents = append(examEvents, calendar.Event{
 				CourseCode:  exam.CourseCode,
-				Summary:     fmt.Sprintf("%s — %s (%s)", exam.CourseCode, exam.CourseName, exam.ExamType),
+				Summary:     fmt.Sprintf("%s - %s", exam.CourseCode, exam.ExamType),
 				Title:       exam.CourseName,
 				Location:    exam.Location,
 				Description: fmt.Sprintf("Course: %s\nModule: %s\nSeat: %s\nType: %s", exam.CourseCode, exam.CourseName, exam.SeatNumber, exam.ExamType),

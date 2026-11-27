@@ -631,7 +631,7 @@ func TestExamsFetchFailureRetainsExamEvents(t *testing.T) {
 	cache := calendar.NewICSCache()
 	examEvent := calendar.Event{
 		CourseCode:  "FAK2501",
-		Summary:     "FAK2501 - Fake Exam Module (Final Exam)",
+		Summary:     "FAK2501 - Final Exam",
 		Location:    "FAK BLDG Hall A",
 		Description: "Course: FAK2501\nModule: Fake Exam Module\nSeat: 001\nType: Final Exam",
 		DTStart:     time.Date(2027, 12, 1, 9, 30, 0, 0, loc),
@@ -696,7 +696,7 @@ func TestExamsFetchSuccessReconcilesExamEvents(t *testing.T) {
 	cache := calendar.NewICSCache()
 	staleEvent := calendar.Event{
 		CourseCode:  "FAK2501",
-		Summary:     "FAK2501 - Stale Exam Module (Final Exam)",
+		Summary:     "FAK2501 - Final Exam",
 		Location:    "FAK HALL 9",
 		Description: "Course: FAK2501\nModule: Stale Exam Module\nSeat: 001\nType: Final Exam",
 		DTStart:     time.Date(2028, 1, 10, 9, 30, 0, 0, loc),
@@ -716,6 +716,22 @@ func TestExamsFetchSuccessReconcilesExamEvents(t *testing.T) {
 		}
 		if e.CourseCode == "FAK2502" {
 			sawFresh = true
+			if e.Summary != "FAK2502 - Final Exam" {
+				t.Errorf("fresh exam event Summary = %q, want %q", e.Summary, "FAK2502 - Final Exam")
+			}
+			if e.Title != "Synthetic Statistics Module" {
+				t.Errorf("fresh exam event Title = %q, want %q", e.Title, "Synthetic Statistics Module")
+			}
+			for _, want := range []string{
+				"Course: FAK2502",
+				"Module: Synthetic Statistics Module",
+				"Seat: 001",
+				"Type: Final Exam",
+			} {
+				if !strings.Contains(e.Description, want) {
+					t.Errorf("fresh exam event Description %q missing line %q", e.Description, want)
+				}
+			}
 		}
 		if e.CourseCode == "FAK2501" {
 			sawStale = true

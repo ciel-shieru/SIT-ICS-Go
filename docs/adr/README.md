@@ -28,6 +28,7 @@ This directory contains Architecture Decision Records (ADRs) for the SIT ICS Go 
 | [0022](0022-multi-term-peoplesoft-timetable-fetch.md) | Multi-Term PeopleSoft Timetable Fetch | Proposed | 2026-10-16 |
 | [0023](0023-server-status-and-manual-refresh-endpoints.md) | Server Status and Manual Refresh Endpoints | Proposed | 2026-10-21 |
 | [0024](0024-append-sit-campus-address-to-in-campus-event-locations.md) | Append SIT Campus Address to In-Campus Event Locations | Accepted | 2026-11-27 |
+| [0025](0025-exam-event-summary-course-code-and-exam-type.md) | Exam Event Summary: Course Code and Exam Type | Accepted | 2026-11-27 |
 
 ## Superseded ADRs
 
