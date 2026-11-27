@@ -367,6 +367,9 @@ func runFetchWithStatus(
 
 	now := time.Now().UTC()
 	for i := range icsEvents {
+		// ADR-0024: final normalization pass — append the SIT campus address to
+		// in-campus event locations before UID computation and reconciliation.
+		icsEvents[i].Location = calendar.WithSITCampusAddress(icsEvents[i].Source, icsEvents[i].Location)
 		icsEvents[i].DTStamp = now
 	}
 

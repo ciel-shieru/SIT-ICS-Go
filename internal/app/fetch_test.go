@@ -728,3 +728,84 @@ func TestExamsFetchSuccessReconcilesExamEvents(t *testing.T) {
 		t.Error("stale upcoming peoplesoft-exams event retained after successful exams fetch")
 	}
 }
+
+// TestRunFetchAppendsSITCampusAddress guards ADR-0024: the final
+// normalization pass appends the SIT campus address to concrete in-campus
+// venues (PeopleSoft timetable and exam events) and leaves non-concrete
+// locations (Online, TBD, empty) and BrightSpace-sourced events
+// byte-identical.
+func TestRunFetchAppendsSITCampusAddress(t *testing.T) {
+	loc := testLoc(t)
+	mock := &browser.MockAuthBrowser{
+		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
+			return browser.AuthResult{}, nil
+		},
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return []peoplesoft.Entry{
+				{CourseCode: "FAK2501", ClassName: "Fake Class A", Section: "A",
+					Type: "Lecture", Day: "01/10/2027", StartTime: "10:00",
+					EndTime: "11:00", Location: "FAK BLDG Hall A"},
+				{CourseCode: "FAK2502", ClassName: "Fake Class B", Section: "A",
+					Type: "Lecture", Day: "02/10/2027", StartTime: "10:00",
+					EndTime: "11:00", Location: "Online"},
+				{CourseCode: "FAK2504", ClassName: "Fake Class D", Section: "A",
+					Type: "Lecture", Day: "03/10/2027", StartTime: "10:00",
+					EndTime: "11:00", Location: "TBD"},
+			}, nil
+		},
+		FetchExamsFunc: func(ctx context.Context) ([]peoplesoft.Exam, error) {
+			return []peoplesoft.Exam{
+				{Date: "Monday Dec 06,2027", Time: "9.30 AM to 11.40 AM",
+					CourseCode: "FAK2503", CourseName: "Synthetic Statistics Module",
+					Location: "FAK HALL 2", SeatNumber: "001", ExamType: "Final Exam"},
+				{Date: "Tuesday Dec 07,2027", Time: "2.00 PM to 4.30 PM",
+					CourseCode: "FAK2505", CourseName: "Synthetic Physics Module",
+					Location: "", SeatNumber: "002", ExamType: "Final Exam"},
+			}, nil
+		},
+		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+			bs := fakeBSEntry("Fake BS Venue Event")
+			bs.CalendarEventID = 1
+			bs.OrgUnitCode = "FAK2506"
+			bs.OrgUnitName = "FAK2506 Fake Venue Course"
+			bs.Location = "FAK HALL 9"
+			bs.DTStart = "2027-10-05T12:00:00+08:00"
+			bs.DTEnd = "2027-10-05T13:00:00+08:00"
+			return []brightspace.BrightSpaceStringEntry{bs}, nil
+		},
+		FetchBrightSpaceQuizzesAPIFunc: func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig(t, func(c *config.Config) { c.BrowserMaxRetries = 0 })
+	cache := calendar.NewICSCache()
+
+	runFetch(context.Background(), cfg, auth.NewADFSProvider(mock), cache, loc)
+
+	events := make(map[string]calendar.Event)
+	for _, e := range cache.GetEvents() {
+		events[e.CourseCode] = e
+	}
+
+	tests := []struct {
+		code, venue, want string
+	}{
+		{"FAK2501", "FAK BLDG Hall A", "FAK BLDG Hall A" + calendar.SITCampusAddress},
+		{"FAK2502", "Online", "Online"},
+		{"FAK2504", "TBD", "TBD"},
+		{"FAK2503", "FAK HALL 2", "FAK HALL 2" + calendar.SITCampusAddress},
+		{"FAK2505", "", ""},
+		// BrightSpace-sourced events never receive the address (ADR-0024).
+		{"FAK2506", "FAK HALL 9", "FAK HALL 9"},
+	}
+	for _, tt := range tests {
+		e, ok := events[tt.code]
+		if !ok {
+			t.Errorf("event %s missing from cache", tt.code)
+			continue
+		}
+		if e.Location != tt.want {
+			t.Errorf("%s Location = %q, want %q (venue %q)", tt.code, e.Location, tt.want, tt.venue)
+		}
+	}
+}

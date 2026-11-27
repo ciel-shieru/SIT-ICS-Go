@@ -27,6 +27,7 @@ This directory contains Architecture Decision Records (ADRs) for the SIT ICS Go 
 | [0021](0021-wakey-sitizen-json-timetable-endpoint.md) | Wakey-SITizen JSON Timetable Endpoint | Accepted | 2026-10-06 |
 | [0022](0022-multi-term-peoplesoft-timetable-fetch.md) | Multi-Term PeopleSoft Timetable Fetch | Proposed | 2026-10-16 |
 | [0023](0023-server-status-and-manual-refresh-endpoints.md) | Server Status and Manual Refresh Endpoints | Proposed | 2026-10-21 |
+| [0024](0024-append-sit-campus-address-to-in-campus-event-locations.md) | Append SIT Campus Address to In-Campus Event Locations | Accepted | 2026-11-27 |
 
 ## Superseded ADRs
 

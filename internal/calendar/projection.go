@@ -39,5 +39,5 @@ func IsCampus(event Event) bool {
 }
 
 func isBrightSpaceEvent(event Event) bool {
-	return strings.HasPrefix(event.Source, "brightspace-")
+	return isBrightSpaceSource(event.Source)
 }
