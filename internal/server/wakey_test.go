@@ -18,7 +18,7 @@ func TestNewWakeySitizenHandler_Basic(t *testing.T) {
 			CourseCode: "ALT2501",
 			Summary:    "[ALT2501] Lecture 1",
 			Title:      "Lecture 1",
-			Location:   "W1-05-07",
+			Location:   "W1-05-07" + calendar.SITCampusAddress,
 			DTStart:    time.Date(2026, 9, 7, 1, 0, 0, 0, time.UTC),
 			DTEnd:      time.Date(2026, 9, 7, 3, 0, 0, 0, time.UTC),
 		},
@@ -104,7 +104,7 @@ func TestNewWakeySitizenHandler_Basic(t *testing.T) {
 		t.Errorf("events[0].summary = %q, want %q", resp.Events[0].Summary, "[ALT2501] Lecture 1")
 	}
 	if resp.Events[0].Location != "W1-05-07" {
-		t.Errorf("events[0].location = %q, want %q", resp.Events[0].Location, "W1-05-07")
+		t.Errorf("events[0].location = %q, want %q (address stripped, ADR-0026)", resp.Events[0].Location, "W1-05-07")
 	}
 	if resp.Events[0].EventType != "campus" {
 		t.Errorf("events[0].event_type = %q, want %q", resp.Events[0].EventType, "campus")
@@ -122,12 +122,85 @@ func TestNewWakeySitizenHandler_Basic(t *testing.T) {
 	if resp.Events[1].EventType != "online" {
 		t.Errorf("events[1].event_type = %q, want %q (Location=Online)", resp.Events[1].EventType, "online")
 	}
+	if resp.Events[1].Location != "Online" {
+		t.Errorf("events[1].location = %q, want %q (online events never carry the address)", resp.Events[1].Location, "Online")
+	}
 
 	body := rr.Body.String()
-	for _, blocked := range []string{"MOD1002", "brightspace"} {
+	for _, blocked := range []string{"MOD1002", "brightspace", strings.ReplaceAll(calendar.SITCampusAddress, "\n", "\\"+"n")} {
 		if strings.Contains(body, blocked) {
 			t.Errorf("response body must not contain %q (brightspace events excluded)", blocked)
 		}
+	}
+}
+
+func TestNewWakeySitizenHandler_BaseVenueOnlyInJSON(t *testing.T) {
+	cache := calendar.NewICSCache()
+	events := []calendar.Event{
+		{
+			CourseCode: "ALT2501",
+			Summary:    "[ALT2501] Lecture 1",
+			Title:      "Lecture 1",
+			Location:   "W1-05-07" + calendar.SITCampusAddress,
+			DTStart:    time.Date(2026, 9, 7, 1, 0, 0, 0, time.UTC),
+			DTEnd:      time.Date(2026, 9, 7, 3, 0, 0, 0, time.UTC),
+		},
+		{
+			CourseCode: "ALT2502",
+			Summary:    "[ALT2502] Tutorial 1",
+			Title:      "Tutorial 1",
+			Location:   "W1-06-01", // plain venue, never addressed: must pass through unchanged
+			DTStart:    time.Date(2026, 9, 7, 5, 0, 0, 0, time.UTC),
+			DTEnd:      time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC),
+		},
+		{
+			CourseCode: "COR2001",
+			Summary:    "[COR2001] Tutorial 2",
+			Title:      "Tutorial 2",
+			Location:   "Online",
+			DTStart:    time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+			DTEnd:      time.Date(2026, 9, 7, 10, 0, 0, 0, time.UTC),
+		},
+	}
+	if err := cache.Update(events, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newWakeySitizenHandler(cache, "Asia/Singapore", time.Hour, false)
+	req := httptest.NewRequest(http.MethodGet, "/wakey-sitizen/timetable.json", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Status = %d, want %d; body: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	var resp WakeyResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal() error = %v; body: %s", err, rr.Body.String())
+	}
+	if len(resp.Events) != 3 {
+		t.Fatalf("len(events) = %d, want 3; body: %s", len(resp.Events), rr.Body.String())
+	}
+	if got := resp.Events[0].Location; got != "W1-05-07" {
+		t.Errorf("events[0].location = %q, want %q (address stripped, ADR-0026)", got, "W1-05-07")
+	}
+	if got := resp.Events[0].EventType; got != "campus" {
+		t.Errorf("events[0].event_type = %q, want campus", got)
+	}
+	if got := resp.Events[1].Location; got != "W1-06-01" {
+		t.Errorf("events[1].location = %q, want %q (plain venue unchanged)", got, "W1-06-01")
+	}
+	if got := resp.Events[1].EventType; got != "campus" {
+		t.Errorf("events[1].event_type = %q, want campus", got)
+	}
+	if got := resp.Events[2].Location; got != "Online" {
+		t.Errorf("events[2].location = %q, want Online (unchanged)", got)
+	}
+	if got := resp.Events[2].EventType; got != "online" {
+		t.Errorf("events[2].event_type = %q, want online", got)
+	}
+	if escaped := strings.ReplaceAll(calendar.SITCampusAddress, "\n", "\\"+"n"); strings.Contains(rr.Body.String(), escaped) {
+		t.Error("response body contains the campus address; ADR-0026 requires the base venue only")
 	}
 }
 

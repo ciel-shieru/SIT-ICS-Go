@@ -88,8 +88,9 @@ Run() → scheduler.Start() → goroutine: Fetch() → runFetch():
   9. (if xsite enabled) brightspace.QuizEntriesToEvents() → quiz calendar events
  10. (if smart merge enabled) smartmerge.DedupQuizzes(calendarEvents, quizEvents) — replaces quiz-associated calendar events with quiz entries
  11. (if quiz attempt tracking enabled) FetchQuizSubmissionPage() + ParseQuizSubmissionHTML() — remove completed quizzes
- 12. cache.UpdateWithSourceReconciliation(icsEvents, authoritativeSources, now) — UID upsert; removes absent upcoming events only from fully fetched sources, retaining past events and sources that failed or were disabled
- 13. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite (with alerts)
+ 12. calendar.WithSITCampusAddress() — append SIT campus address to in-campus event locations (ADR-0024)
+ 13. cache.UpdateWithSourceReconciliation(icsEvents, authoritativeSources, now) — UID upsert; removes absent upcoming events only from fully fetched sources, retaining past events and sources that failed or were disabled
+ 14. cache.SaveOutputs(7 paths) — atomic write main, online, campus, xsite-events, xsite-dropbox, xsite-quizzes, xsite (with alerts)
 ```
 
 ## Configuration

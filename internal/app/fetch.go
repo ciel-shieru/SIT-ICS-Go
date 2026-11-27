@@ -165,7 +165,7 @@ func runFetchWithStatus(
 			}
 			examEvents = append(examEvents, calendar.Event{
 				CourseCode:  exam.CourseCode,
-				Summary:     fmt.Sprintf("%s — %s (%s)", exam.CourseCode, exam.CourseName, exam.ExamType),
+				Summary:     fmt.Sprintf("%s - %s", exam.CourseCode, exam.ExamType),
 				Title:       exam.CourseName,
 				Location:    exam.Location,
 				Description: fmt.Sprintf("Course: %s\nModule: %s\nSeat: %s\nType: %s", exam.CourseCode, exam.CourseName, exam.SeatNumber, exam.ExamType),
@@ -367,6 +367,9 @@ func runFetchWithStatus(
 
 	now := time.Now().UTC()
 	for i := range icsEvents {
+		// ADR-0024: final normalization pass — append the SIT campus address to
+		// in-campus event locations before UID computation and reconciliation.
+		icsEvents[i].Location = calendar.WithSITCampusAddress(icsEvents[i].Source, icsEvents[i].Location)
 		icsEvents[i].DTStamp = now
 	}
 
