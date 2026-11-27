@@ -170,7 +170,7 @@ func renderWakeyStatusJSON(cache *calendar.ICSCache, tz string) ([]byte, error) 
 			Summary:    e.Summary,
 			Dtstart:    e.DTStart.In(loc).Format(time.RFC3339),
 			Dtend:      e.DTEnd.In(loc).Format(time.RFC3339),
-			Location:   e.Location,
+			Location:   calendar.BaseVenue(e.Location),
 			EventType:  eventType,
 		})
 	}

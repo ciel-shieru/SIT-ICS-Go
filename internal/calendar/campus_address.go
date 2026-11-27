@@ -54,3 +54,18 @@ func WithSITCampusAddress(source, location string) string {
 	}
 	return strings.TrimSpace(location) + SITCampusAddress
 }
+
+// BaseVenue returns location with the trailing SITCampusAddress removed,
+// unchanged otherwise. It is the inverse of the ADR-0024 append for JSON
+// views (ADR-0026): the wakey-sitizen endpoint and the /status wakey
+// representation expose the base venue only, while the ICS LOCATION
+// property keeps the full address for calendar-client click-to-maps.
+//
+// strings.TrimSuffix removes at most one exact suffix. A location that
+// naturally ends with the full multi-line address text (never produced by
+// WithSITCampusAddress, which trims the venue and guards with HasSuffix) is
+// stripped too; that is safe because real venues are short room/building
+// codes. A location equal to the address alone yields "".
+func BaseVenue(location string) string {
+	return strings.TrimSuffix(location, SITCampusAddress)
+}

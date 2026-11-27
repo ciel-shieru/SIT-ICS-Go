@@ -123,3 +123,47 @@ func TestWithSITCampusAddressRoundTrip(t *testing.T) {
 		t.Errorf("round-trip EventID = %s, want %s", id, original.UID)
 	}
 }
+
+func TestBaseVenue(t *testing.T) {
+	tests := []struct {
+		location string
+		want     string
+	}{
+		{"", ""},
+		{"W1-05-07", "W1-05-07"},
+		{"Online", "Online"},
+		{"TBD", "TBD"},
+		{"Room 101", "Room 101"},
+		{"Room 101" + SITCampusAddress, "Room 101"},
+		{"FAK BLDG Hall A" + SITCampusAddress, "FAK BLDG Hall A"},
+		// Only one exact suffix is removed (unreachable in practice:
+		// WithSITCampusAddress is idempotent via its HasSuffix guard).
+		{"Room 101" + SITCampusAddress + SITCampusAddress, "Room 101" + SITCampusAddress},
+		// A location consisting solely of the address strips to ""
+		// (unreachable via WithSITCampusAddress, which needs a venue prefix).
+		{SITCampusAddress, ""},
+	}
+	for _, tt := range tests {
+		t.Run(strings.ReplaceAll(tt.location, "\n", "\\"+"n"), func(t *testing.T) {
+			if got := BaseVenue(tt.location); got != tt.want {
+				t.Errorf("BaseVenue(%q) = %q, want %q", tt.location, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBaseVenueInverseOfAppend(t *testing.T) {
+	// Inverse of the ADR-0024 append for addressed locations.
+	for _, v := range []string{" Room 101 ", "W1-05-07", "FAK HALL 2"} {
+		for _, src := range []string{"", "peoplesoft-exams"} {
+			got := BaseVenue(WithSITCampusAddress(src, v))
+			if want := strings.TrimSpace(v); got != want {
+				t.Errorf("BaseVenue(WithSITCampusAddress(%q, %q)) = %q, want %q", src, v, got, want)
+			}
+		}
+	}
+	// Identity where the append never ran (BrightSpace source).
+	if got := BaseVenue(WithSITCampusAddress("brightspace-calendar", "FAK HALL 9")); got != "FAK HALL 9" {
+		t.Errorf("BaseVenue(brightspace passthrough) = %q, want %q", got, "FAK HALL 9")
+	}
+}

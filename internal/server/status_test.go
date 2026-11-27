@@ -96,6 +96,65 @@ func TestStatusHandlerReportsInMemoryHashesETagsAndLastFetchTime(t *testing.T) {
 	}
 }
 
+func TestStatusHandlerWakeyJSONExposesBaseVenueOnly(t *testing.T) {
+	cache := calendar.NewICSCache()
+	if err := cache.Update([]calendar.Event{
+		{
+			CourseCode: "FAK2501",
+			Summary:    "[FAK2501] Sample lecture",
+			Title:      "Sample lecture",
+			Location:   "FAK BLDG Hall A" + calendar.SITCampusAddress,
+			DTStart:    time.Date(2027, 10, 1, 1, 0, 0, 0, time.UTC),
+			DTEnd:      time.Date(2027, 10, 1, 2, 0, 0, 0, time.UTC),
+		},
+		{
+			CourseCode: "FAK2502",
+			Summary:    "[FAK2502] Online session",
+			Title:      "Online session",
+			Location:   "Online",
+			DTStart:    time.Date(2027, 10, 1, 3, 0, 0, 0, time.UTC),
+			DTEnd:      time.Date(2027, 10, 1, 4, 0, 0, 0, time.UTC),
+		},
+	}, "Asia/Singapore"); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	handler := newStatusHandler(cache, "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil, nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/status", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	var response StatusResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode /status: %v", err)
+	}
+
+	want, err := renderWakeyStatusJSON(cache, "Asia/Singapore")
+	if err != nil {
+		t.Fatalf("render wakey JSON: %v", err)
+	}
+	var wakey WakeyResponse
+	if err := json.Unmarshal(want, &wakey); err != nil {
+		t.Fatalf("decode wakey JSON: %v", err)
+	}
+	if len(wakey.Events) != 2 {
+		t.Fatalf("wakey events = %d, want 2", len(wakey.Events))
+	}
+	if got := wakey.Events[0].Location; got != "FAK BLDG Hall A" {
+		t.Errorf("wakey events[0].location = %q, want %q (address stripped, ADR-0026)", got, "FAK BLDG Hall A")
+	}
+	if got := wakey.Events[0].EventType; got != "campus" {
+		t.Errorf("wakey events[0].event_type = %q, want campus", got)
+	}
+	if got := wakey.Events[1].Location; got != "Online" {
+		t.Errorf("wakey events[1].location = %q, want Online (unchanged)", got)
+	}
+	if got, wantETag := response.ETags["/wakey-sitizen/timetable.json"], calendar.ComputeETag(want); got != wantETag {
+		t.Errorf("status wakey ETag = %q, want %q (must match the base-venue rendering)", got, wantETag)
+	}
+}
+
 func TestStatusHandlerAllowsOnlyGET(t *testing.T) {
 	handler := newStatusHandler(calendar.NewICSCache(), "Asia/Singapore", time.Hour, nil, nil, nil, nil, nil, nil, nil, nil)
 	recorder := httptest.NewRecorder()
