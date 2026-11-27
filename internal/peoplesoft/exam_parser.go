@@ -3,28 +3,54 @@ package peoplesoft
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/net/html"
 )
 
-// examContainerIDRe matches PeopleSoft exam container div ids like
-// "div$ICField16$0", "div$ICField16$1", etc. The trailing number indexes
-// individual exam entries on the page.
-var examContainerIDRe = regexp.MustCompile(`^div\$ICField16\$(\d+)$`)
+// examContainerIDRe matches PeopleSoft exam container div ids in the exam
+// page markup, e.g. "win0div$ICField16$0", "win0div$ICField16$1". The
+// trailing number indexes individual exam entries. The anchors ensure row
+// divs such as "win0div$ICField16_row$0" never match; the optional "win0"
+// prefix is accepted for page variants without it.
+var examContainerIDRe = regexp.MustCompile(`^(?:win0)?div\$ICField16\$(\d+)$`)
 
-// examFieldRe matches PeopleSoft exam field div ids within a container,
-// e.g. "N_ES_XMTT_WRK_DESCR100$0", "N_ES_XMTT_WRK_DESCR100_2$0", etc.
+// examFieldRe matches PeopleSoft exam field ids after stripping the
+// "win0div" prefix from the markup ids. Field ids have the form
+// N_ES_XMTT_WRK_<ROLE>$<ROW>: the wrapping div ids carry the win0div prefix
+// (e.g. win0divN_ES_XMTT_WRK_DESCR100_2$0), the value spans carry the bare
+// ids (e.g. N_ES_XMTT_WRK_DESCR100_2$0). Label divs such as
+// N_ES_XMTT_WRK_DESCR100lbl$0 do not match.
 var examFieldRe = regexp.MustCompile(`^N_ES_XMTT_WRK_(?:DESCR100(?:_\d+)?|N_SPEC_ARRGMT|DESCR1)\$(\d+)$`)
 
-// ParseExamHTML parses exam timetable data from the PeopleSoft exam page HTML.
-// The exam page returns HTML wrapped in XML-like tags; this function extracts
-// the inner HTML and parses exam entries from it.
+// examContentFieldRe matches the opening tag of the ICAJAX FIELD element that
+// carries the exam page content:
+// <FIELD id='divPAGECONTAINER_TGT' ...>
+// (single or double quotes around the id).
+var examContentFieldRe = regexp.MustCompile(`<FIELD[^>]*\bid=["']divPAGECONTAINER_TGT["'][^>]*>`)
+
+// examLocationLabelRe and examSeatLabelRe match the leading labels PeopleSoft
+// prepends to location and seat field values, e.g. "Location :" and
+// "Seat Number :".
+var (
+	examLocationLabelRe = regexp.MustCompile(`(?i)^Location\s*:\s*`)
+	examSeatLabelRe     = regexp.MustCompile(`(?i)^Seat Number\s*:\s*`)
+)
+
+// ParseExamHTML parses exam timetable data from a PeopleSoft exam page
+// response. The exams endpoint returns an ICAJAX page fragment: an XML-like
+// document in which the real page HTML is embedded in a CDATA section inside
+// <FIELD id='divPAGECONTAINER_TGT' ...>. When that structure is present the
+// CDATA payload is extracted first; plain HTML input without an XML wrapper
+// is parsed unchanged (backward compatibility). An XML-wrapped response that
+// lacks the content field is an error, not an empty result, so the caller
+// can treat the page as a degraded fetch and retry.
 func ParseExamHTML(htmlContent string, loc *time.Location) ([]Exam, error) {
-	// Strip PeopleSoft XML wrapper if present.
-	inner := extractHTMLFromXML(htmlContent)
+	inner, err := extractExamPageContent(htmlContent)
+	if err != nil {
+		return nil, err
+	}
 
 	doc, err := html.Parse(strings.NewReader(inner))
 	if err != nil {
@@ -32,32 +58,49 @@ func ParseExamHTML(htmlContent string, loc *time.Location) ([]Exam, error) {
 	}
 
 	var exams []Exam
-	findExamContainers(doc, &exams, loc)
-
+	for _, container := range findExamContainers(doc) {
+		exam, err := parseExamContainer(container, loc)
+		if err != nil {
+			return nil, err
+		}
+		if exam != nil {
+			exams = append(exams, *exam)
+		}
+	}
 	return exams, nil
 }
 
-// extractHTMLFromXML strips PeopleSoft XML wrapping (<PAGE><FIELD>…</FIELD></PAGE>)
-// and returns the raw HTML fragment.
-func extractHTMLFromXML(raw string) string {
-	// Look for the first < and last > to strip XML wrapper.
-	if idx := strings.Index(raw, "<"); idx >= 0 {
-		// Find matching closing tag of the outermost element.
-		outerTag := extractTagName(raw[idx:])
-		closeTag := "</" + strings.TrimSuffix(outerTag, ">")
-		if end := strings.LastIndex(raw, closeTag); end > idx {
-			return strings.TrimSpace(raw[idx+len(outerTag) : end])
+// extractExamPageContent returns the HTML fragment embedded in the CDATA
+// section of the divPAGECONTAINER_TGT FIELD of an ICAJAX page response.
+// If the XML wrapper is present (a <?xml declaration or a <PAGE element) but
+// the content FIELD is missing, an error is returned so the caller reacts to
+// the degraded page instead of parsing it silently. Plain HTML input without
+// an XML wrapper is returned unchanged.
+func extractExamPageContent(raw string) (string, error) {
+	match := examContentFieldRe.FindStringIndex(raw)
+	if match != nil {
+		rest := raw[match[1]:] // after the FIELD opening tag
+		cdataStart := strings.Index(rest, "<![CDATA[")
+		if cdataStart < 0 {
+			return "", fmt.Errorf("exam page content section (divPAGECONTAINER_TGT) not found")
 		}
+		// The CDATA section must belong to the content FIELD itself, not to a
+		// later FIELD element.
+		if nextField := strings.Index(rest, "<FIELD"); nextField >= 0 && nextField < cdataStart {
+			return "", fmt.Errorf("exam page content section (divPAGECONTAINER_TGT) not found")
+		}
+		payload := rest[cdataStart+len("<![CDATA["):]
+		cdataEnd := strings.Index(payload, "]]>")
+		if cdataEnd < 0 {
+			return "", fmt.Errorf("exam page content section (divPAGECONTAINER_TGT) not found")
+		}
+		return payload[:cdataEnd], nil
 	}
-	return raw
-}
 
-func extractTagName(s string) string {
-	end := strings.Index(s, ">")
-	if end < 0 {
-		return s
+	if strings.Contains(raw, "<?xml") || strings.Contains(raw, "<PAGE") {
+		return "", fmt.Errorf("exam page content section (divPAGECONTAINER_TGT) not found")
 	}
-	return s[:end+1]
+	return raw, nil
 }
 
 func getAttr(n *html.Node, key string) string {
@@ -69,68 +112,82 @@ func getAttr(n *html.Node, key string) string {
 	return ""
 }
 
-func findExamContainers(n *html.Node, exams *[]Exam, loc *time.Location) {
-	if n.Type == html.ElementNode && n.Data == "div" {
-		classAttr := getAttr(n, "class")
-
-		// Look for the PAGECONTAINER_TGT div.
-		if classAttr == "divPAGECONTAINER_TGT" {
-			// Walk children to find exam containers.
-			for c := n.FirstChild; c != nil; c = c.NextSibling {
-				if cid := getAttr(c, "id"); examContainerIDRe.MatchString(cid) {
-					exam := parseExamContainer(c, loc)
-					if exam != nil {
-						*exams = append(*exams, *exam)
-					}
-				}
-			}
-			return
+// findExamContainers recursively scans the parsed document and returns, in
+// document order, every element whose id matches examContainerIDRe. The exam
+// containers are nested several levels below the page container (win0div
+// PSPAGECONTAINER -> win0div$ICField1 -> row divs), so the whole tree is
+// scanned; no class gate is used because in the real markup the id
+// divPAGECONTAINER_TGT identifies a FIELD element (class "ps_pagecontainer"),
+// not a div.
+func findExamContainers(doc *html.Node) []*html.Node {
+	var containers []*html.Node
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "div" && examContainerIDRe.MatchString(getAttr(n, "id")) {
+			containers = append(containers, n)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
 		}
 	}
-
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		findExamContainers(c, exams, loc)
-	}
+	walk(doc)
+	return containers
 }
 
-func parseExamContainer(n *html.Node, loc *time.Location) *Exam {
-	var dateStr, timeStr, courseStr, locationStr, seatStr, examTypeStr string
-	var containerIndex int
+// parseExamContainer extracts a single exam from an exam container element
+// (id win0div$ICField16$N). Field values live in SPAN elements with the bare
+// ids N_ES_XMTT_WRK_<ROLE>$N; the wrapping div ids carry the same ids with
+// the win0div prefix. The label divs (...lbl$N) are not mapped, and the
+// special-arrangements field (N_ES_XMTT_WRK_N_SPEC_ARRGMT$N, usually a
+// &nbsp; placeholder) is deliberately not mapped to any exam field.
+//
+// A container whose fields are all empty (&nbsp; placeholders) is a
+// placeholder row and yields (nil, nil). A container with data whose date,
+// time, or course is missing or malformed yields an error, consistent with
+// the strictness of ParseTimetableHTML, so the fetch layer retries the full
+// fetch (ADR-0020) instead of silently dropping the row.
+func parseExamContainer(n *html.Node, loc *time.Location) (*Exam, error) {
+	idAttr := getAttr(n, "id")
+	matches := examContainerIDRe.FindStringSubmatch(idAttr)
+	if matches == nil {
+		return nil, fmt.Errorf("unrecognized exam container id %q", idAttr)
+	}
+	rowIdx := matches[1]
 
-	// First pass: collect all field values and find the container index.
-	var foundFields int
+	var dateStr, timeStr, courseStr, locationStr, seatStr, examTypeStr string
+	var hasValue bool
+
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
-		if node.Type == html.ElementNode && node.Data == "div" {
-			idAttr := getAttr(node, "id")
-			if idAttr == "" {
-				return
-			}
-
-			// Check if this is an exam field div.
-			if matches := examFieldRe.FindStringSubmatch(idAttr); matches != nil {
-				idx, _ := strconv.Atoi(matches[1])
-				if containerIndex == 0 {
-					containerIndex = idx
-				} else if containerIndex != idx {
-					return // belongs to a different container
-				}
-				foundFields++
-
-				text := strings.TrimSpace(getTextContent(node))
-				switch {
-				case strings.HasSuffix(idAttr, "_2$") || strings.Contains(idAttr, "DESCR100_2$"):
-					timeStr = text
-				case strings.Contains(idAttr, "DESCR100_3$"):
-					courseStr = text
-				case strings.Contains(idAttr, "DESCR100_4$"):
-					locationStr = text
-				case strings.Contains(idAttr, "N_SPEC_ARRGMT$"):
-					seatStr = text
-				case strings.Contains(idAttr, "DESCR100$") && !strings.Contains(idAttr, "_"):
-					dateStr = text
-				case strings.Contains(idAttr, "DESCR1$"):
-					examTypeStr = text
+		if node.Type == html.ElementNode {
+			nodeID := getAttr(node, "id")
+			if nodeID != "" {
+				bareID := strings.TrimPrefix(nodeID, "win0div")
+				if fm := examFieldRe.FindStringSubmatch(bareID); fm != nil && fm[1] == rowIdx {
+					text := normalizeExamValue(getTextContent(node))
+					if text != "" {
+						hasValue = true
+					}
+					role := bareID[len("N_ES_XMTT_WRK_"):]
+					switch role {
+					case "DESCR100$" + rowIdx:
+						// Date. The anchored role match allows no underscore
+						// after DESCR100, which also excludes DESCR100_2$..
+						// and the label ids.
+						dateStr = text
+					case "DESCR100_2$" + rowIdx:
+						timeStr = text
+					case "DESCR100_3$" + rowIdx:
+						courseStr = text
+					case "DESCR100_4$" + rowIdx:
+						locationStr = examLocationLabelRe.ReplaceAllString(text, "")
+					case "DESCR100_5$" + rowIdx:
+						seatStr = examSeatLabelRe.ReplaceAllString(text, "")
+					case "DESCR1$" + rowIdx:
+						examTypeStr = text
+						// N_SPEC_ARRGMT$<row> is special arrangements, not a seat:
+						// intentionally not mapped.
+					}
 				}
 			}
 		}
@@ -140,15 +197,27 @@ func parseExamContainer(n *html.Node, loc *time.Location) *Exam {
 	}
 	walk(n)
 
-	if foundFields == 0 {
-		return nil
+	if !hasValue {
+		// Placeholder row: every field is an empty (&nbsp;) value.
+		return nil, nil
 	}
 
-	if dateStr == "" || timeStr == "" || courseStr == "" {
-		return nil
+	if dateStr == "" {
+		return nil, fmt.Errorf("exam row %s has an empty date", rowIdx)
+	}
+	if _, err := ParseExamDate(dateStr, loc); err != nil {
+		return nil, fmt.Errorf("exam row %s has invalid date %q: %w", rowIdx, dateStr, err)
+	}
+	if timeStr == "" {
+		return nil, fmt.Errorf("exam row %s has an empty time", rowIdx)
+	}
+	if _, _, _, _, err := ParseExamTime(timeStr); err != nil {
+		return nil, fmt.Errorf("exam row %s has invalid time %q: %w", rowIdx, timeStr, err)
+	}
+	if courseStr == "" {
+		return nil, fmt.Errorf("exam row %s has an empty course", rowIdx)
 	}
 
-	// Parse course code and name.
 	courseCode, courseName := splitCourseCode(courseStr)
 
 	return &Exam{
@@ -156,25 +225,37 @@ func parseExamContainer(n *html.Node, loc *time.Location) *Exam {
 		Time:       timeStr,
 		CourseCode: courseCode,
 		CourseName: courseName,
-		Location:   locationStr,
-		SeatNumber: seatStr,
+		Location:   strings.TrimSpace(locationStr),
+		SeatNumber: strings.TrimSpace(seatStr),
 		ExamType:   examTypeStr,
-	}
+	}, nil
 }
 
-// splitCourseCode splits "FAK 1001 Sample Course Title" into
-// code "FAK 1001" and name "Sample Course Title".
+// normalizeExamValue converts non-breaking spaces (PeopleSoft emits &nbsp;
+// as placeholders and label padding) to regular spaces and trims surrounding
+// whitespace.
+func normalizeExamValue(s string) string {
+	return strings.TrimSpace(strings.ReplaceAll(s, "\u00a0", " "))
+}
+
+// splitCourseCode splits a PeopleSoft course field like
+// "FAK 1001 Sample Mathematics Course" into the module code — the first two
+// whitespace-separated tokens ("FAK 1001") — and the module name
+// ("Sample Mathematics Course"). A single-token input yields (token, "").
 func splitCourseCode(s string) (code, name string) {
-	s = strings.TrimSpace(s)
-	parts := strings.SplitN(s, " ", 2)
-	if len(parts) == 2 {
-		return parts[0], parts[1]
+	fields := strings.Fields(s)
+	switch len(fields) {
+	case 0:
+		return "", ""
+	case 1:
+		return fields[0], ""
+	default:
+		return fields[0] + " " + fields[1], strings.Join(fields[2:], " ")
 	}
-	return s, ""
 }
 
 // examDateRe matches date strings like "Monday Jan 15,2027".
-var examDateRe = regexp.MustCompile(`^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\w+)\s+(\d{1,2}),(\d{4})$`)
+var examDateRe = regexp.MustCompile(`^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\w+)\s+(\d{1,2}),(\d{4})$`)
 
 // ParseExamDate converts a PeopleSoft exam date string to a time.Time.
 func ParseExamDate(dateStr string, loc *time.Location) (time.Time, error) {
@@ -239,17 +320,17 @@ func parseExamTimePart(s string) (int, int, error) {
 			return 0, 0, fmt.Errorf("invalid time format: %q", s)
 		}
 		hour = parseInt(parts[0])
-		// Remove AM/PM from the minute part.
 		minPart := strings.TrimSpace(parts[1])
-		if strings.HasPrefix(minPart, "AM") || strings.HasPrefix(minPart, "am") {
+		// AM/PM trails the minute value ("30 AM", "30AM").
+		upperMinPart := strings.ToUpper(minPart)
+		if strings.HasSuffix(upperMinPart, "AM") {
 			ampm = "AM"
-			min = parseInt(minPart[2:])
-		} else if strings.HasPrefix(minPart, "PM") || strings.HasPrefix(minPart, "pm") {
+			minPart = strings.TrimSpace(minPart[:len(minPart)-2])
+		} else if strings.HasSuffix(upperMinPart, "PM") {
 			ampm = "PM"
-			min = parseInt(minPart[2:])
-		} else {
-			min = parseInt(minPart)
+			minPart = strings.TrimSpace(minPart[:len(minPart)-2])
 		}
+		min = parseInt(minPart)
 	} else {
 		// Format: "9:30 AM" or "9:30AM"
 		parts := strings.Split(s, ":")
@@ -258,15 +339,16 @@ func parseExamTimePart(s string) (int, int, error) {
 		}
 		hour = parseInt(parts[0])
 		minPart := strings.TrimSpace(parts[1])
-		if strings.HasPrefix(minPart, "AM") || strings.HasPrefix(minPart, "am") {
+		// AM/PM trails the minute value ("45 AM", "45AM").
+		upperMinPart := strings.ToUpper(minPart)
+		if strings.HasSuffix(upperMinPart, "AM") {
 			ampm = "AM"
-			min = parseInt(minPart[2:])
-		} else if strings.HasPrefix(minPart, "PM") || strings.HasPrefix(minPart, "pm") {
+			minPart = strings.TrimSpace(minPart[:len(minPart)-2])
+		} else if strings.HasSuffix(upperMinPart, "PM") {
 			ampm = "PM"
-			min = parseInt(minPart[2:])
-		} else {
-			min = parseInt(minPart)
+			minPart = strings.TrimSpace(minPart[:len(minPart)-2])
 		}
+		min = parseInt(minPart)
 	}
 
 	if ampm == "PM" && hour < 12 {

@@ -600,3 +600,131 @@ func TestAuthFailureAbortsFetch(t *testing.T) {
 		t.Error("brightspace fetch invoked after auth failure")
 	}
 }
+
+// TestExamsFetchFailureRetainsExamEvents guards the regression where a failed
+// exams fetch still registered "peoplesoft-exams" as an authoritative source,
+// causing reconciliation to delete all upcoming exam events.
+func TestExamsFetchFailureRetainsExamEvents(t *testing.T) {
+	loc := testLoc(t)
+	mock := &browser.MockAuthBrowser{
+		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
+			return browser.AuthResult{}, nil
+		},
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return []peoplesoft.Entry{{
+				CourseCode: "FAK2501", ClassName: "Fake Class", Section: "A",
+				Type: "Tutorial", Day: "01/10/2027", StartTime: "10:00",
+				EndTime: "11:00", Location: "FAK BLDG Hall A",
+			}}, nil
+		},
+		FetchExamsFunc: func(ctx context.Context) ([]peoplesoft.Exam, error) {
+			return nil, errors.New("fake exams fetch failure")
+		},
+		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+			return nil, nil
+		},
+		FetchBrightSpaceQuizzesAPIFunc: func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig(t, func(c *config.Config) { c.BrowserMaxRetries = 0 })
+	cache := calendar.NewICSCache()
+	examEvent := calendar.Event{
+		CourseCode:  "FAK2501",
+		Summary:     "FAK2501 - Fake Exam Module (Final Exam)",
+		Location:    "FAK BLDG Hall A",
+		Description: "Course: FAK2501\nModule: Fake Exam Module\nSeat: 001\nType: Final Exam",
+		DTStart:     time.Date(2027, 12, 1, 9, 30, 0, 0, loc),
+		DTEnd:       time.Date(2027, 12, 1, 11, 40, 0, 0, loc),
+		Source:      "peoplesoft-exams",
+	}
+	if err := cache.Update([]calendar.Event{examEvent}, cfg.TZ); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	runFetch(context.Background(), cfg, auth.NewADFSProvider(mock), cache, loc)
+
+	var retained bool
+	for _, e := range cache.GetEvents() {
+		if e.Source == "peoplesoft-exams" {
+			retained = true
+			if !e.DTStart.Equal(examEvent.DTStart) {
+				t.Errorf("retained exam event DTStart = %v, want %v", e.DTStart, examEvent.DTStart)
+			}
+		}
+	}
+	if !retained {
+		t.Error("upcoming peoplesoft-exams event deleted after failed exams fetch")
+	}
+}
+
+// TestExamsFetchSuccessReconcilesExamEvents guards against over-correction: a
+// successful exams fetch must still reconcile — stale upcoming exam events are
+// removed and fetched events are added.
+func TestExamsFetchSuccessReconcilesExamEvents(t *testing.T) {
+	loc := testLoc(t)
+	mock := &browser.MockAuthBrowser{
+		AuthenticateFunc: func(ctx context.Context, req browser.AuthRequest) (browser.AuthResult, error) {
+			return browser.AuthResult{}, nil
+		},
+		FetchTimetableFunc: func(ctx context.Context, weekDate string) ([]peoplesoft.Entry, error) {
+			return []peoplesoft.Entry{{
+				CourseCode: "FAK2501", ClassName: "Fake Class", Section: "A",
+				Type: "Tutorial", Day: "01/10/2027", StartTime: "10:00",
+				EndTime: "11:00", Location: "FAK BLDG Hall A",
+			}}, nil
+		},
+		FetchExamsFunc: func(ctx context.Context) ([]peoplesoft.Exam, error) {
+			return []peoplesoft.Exam{{
+				Date:       "Monday Dec 06,2027",
+				Time:       "9.30 AM to 11.40 AM",
+				CourseCode: "FAK2502",
+				CourseName: "Synthetic Statistics Module",
+				Location:   "FAK HALL 2",
+				SeatNumber: "001",
+				ExamType:   "Final Exam",
+			}}, nil
+		},
+		FetchBrightSpaceFunc: func(ctx context.Context, baseURL string) ([]brightspace.BrightSpaceStringEntry, error) {
+			return nil, nil
+		},
+		FetchBrightSpaceQuizzesAPIFunc: func(ctx context.Context, baseURL string) ([]brightspace.QuizAPI, error) {
+			return nil, nil
+		},
+	}
+	cfg := newTestConfig(t, func(c *config.Config) { c.BrowserMaxRetries = 0 })
+	cache := calendar.NewICSCache()
+	staleEvent := calendar.Event{
+		CourseCode:  "FAK2501",
+		Summary:     "FAK2501 - Stale Exam Module (Final Exam)",
+		Location:    "FAK HALL 9",
+		Description: "Course: FAK2501\nModule: Stale Exam Module\nSeat: 001\nType: Final Exam",
+		DTStart:     time.Date(2028, 1, 10, 9, 30, 0, 0, loc),
+		DTEnd:       time.Date(2028, 1, 10, 11, 40, 0, 0, loc),
+		Source:      "peoplesoft-exams",
+	}
+	if err := cache.Update([]calendar.Event{staleEvent}, cfg.TZ); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	runFetch(context.Background(), cfg, auth.NewADFSProvider(mock), cache, loc)
+
+	var sawFresh, sawStale bool
+	for _, e := range cache.GetEvents() {
+		if e.Source != "peoplesoft-exams" {
+			continue
+		}
+		if e.CourseCode == "FAK2502" {
+			sawFresh = true
+		}
+		if e.CourseCode == "FAK2501" {
+			sawStale = true
+		}
+	}
+	if !sawFresh {
+		t.Error("fetched exam event missing from cache after successful exams fetch")
+	}
+	if sawStale {
+		t.Error("stale upcoming peoplesoft-exams event retained after successful exams fetch")
+	}
+}

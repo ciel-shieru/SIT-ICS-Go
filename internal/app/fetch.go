@@ -192,7 +192,12 @@ func runFetchWithStatus(
 	} else if onExamsStatus != nil {
 		onExamsStatus("successful")
 	}
-	authoritativeSources = append(authoritativeSources, "peoplesoft-exams")
+	if examsErr == nil {
+		// Only reconcile exam events after a complete successful exams
+		// fetch; on failure the existing upcoming exam events must be
+		// retained, mirroring the !psFetchFailed guard above.
+		authoritativeSources = append(authoritativeSources, "peoplesoft-exams")
+	}
 
 	if cfg.XsiteEnabled {
 		if onXsiteStatus != nil {
